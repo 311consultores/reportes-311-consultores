@@ -1,0 +1,145 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  CLIENTE
+}
+
+enum ReportStatus {
+  EN_PROCESO
+  TERMINADO
+  RECHAZADO
+  APROBADO
+  ENVIADO
+}
+
+enum DeletionStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  passwordHash     String
+  role             Role              @default(EDITOR)
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  reportsCreated   Report[]          @relation("ReportCreator")
+  tasksCreated     ReportTask[]
+  deletionRequests DeletionRequest[] @relation("DeletionRequester")
+  deletionReviews  DeletionRequest[] @relation("DeletionReviewer")
+  auditLogs        AuditLog[]
+  clientAccess     ClientUser[]
+}
+
+model Client {
+  id          String       @id @default(uuid())
+  companyName String
+  folioPrefix String       @unique // E.g., "CEM"
+  mainEmails  String // Comma-separated emails
+  logoUrl     String?
+  createdAt   DateTime     @default(now())
+  projects    Project[]
+  reports     Report[]
+  users       ClientUser[]
+}
+
+model Project {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectName   String
+  projectEmails String // Comma-separated emails
+  createdAt     DateTime @default(now())
+  reports       Report[]
+
+  @@index([clientId])
+}
+
+model ClientUser {
+  userId   String
+  clientId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientId])
+}
+
+model Report {
+  id               String       @id @default(uuid())
+  folio            String       @unique // E.g., "311CEM001"
+  clientId         String
+  client           Client       @relation(fields: [clientId], references: [id])
+  projectId        String
+  project          Project      @relation(fields: [projectId], references: [id])
+  startDate        DateTime
+  endDate          DateTime
+  consultants      String[] // Names from 311 CONSULTORES
+  status           ReportStatus @default(EN_PROCESO)
+  rejectionComment String?
+  createdById      String
+  createdBy        User         @relation("ReportCreator", fields: [createdById], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  tasks            ReportTask[]
+  auditLogs        AuditLog[]
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model ReportTask {
+  id              String   @id @default(uuid())
+  reportId        String
+  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sequentialNum   Int
+  descriptionHtml String // Rich Text HTML
+  evidenceUrl     String?
+  evidenceType    String? // 'IMAGE', 'PDF', 'VIDEO'
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([reportId])
+}
+
+model DeletionRequest {
+  id            String         @id @default(uuid())
+  targetType    String // 'REPORT', 'TASK', 'CLIENT', 'PROJECT'
+  targetId      String
+  reason        String?
+  requestedById String
+  requestedBy   User           @relation("DeletionRequester", fields: [requestedById], references: [id])
+  status        DeletionStatus @default(PENDIENTE)
+  reviewedById  String?
+  reviewedBy    User?          @relation("DeletionReviewer", fields: [reviewedById], references: [id])
+  createdAt     DateTime       @default(now())
+  resolvedAt    DateTime?
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  reportId  String?
+  report    Report?  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String // E.g., "EDITED_TASK_2", "STATUS_CHANGE_TERMINADO"
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
+}
