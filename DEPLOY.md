@@ -1,5 +1,7 @@
 # Despliegue — proyectos.311consultores.com
 
+> Si tu hosting es **cPanel** (Banahosting), usa [CPANEL.md](CPANEL.md). Esta guía es para un VPS con Docker.
+
 ## Requisitos
 - Servidor Linux con Docker y Docker Compose.
 - Un proxy inverso con HTTPS (Caddy, Nginx o el balanceador del proveedor) apuntando al puerto 3000.

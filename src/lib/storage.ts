@@ -13,7 +13,8 @@ import path from "node:path";
  * si no, guarda en ./.uploads (solo desarrollo local).
  */
 const bucket = process.env.S3_BUCKET;
-const LOCAL_ROOT = path.resolve(process.cwd(), ".uploads");
+// UPLOADS_DIR permite guardar fuera de la carpeta de la app (así un redeploy no borra las evidencias)
+const LOCAL_ROOT = path.resolve(process.env.UPLOADS_DIR || path.join(process.cwd(), ".uploads"));
 
 let client: S3Client | undefined;
 function s3() {

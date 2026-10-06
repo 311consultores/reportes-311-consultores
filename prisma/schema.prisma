@@ -5,6 +5,8 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  // "native" para desarrollo; los demás cubren Docker (Debian) y hosting cPanel/CloudLinux (RHEL)
+  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-1.0.x"]
 }
 
 enum Role {

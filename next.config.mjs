@@ -5,6 +5,8 @@ const nextConfig = {
   output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   poweredByHeader: false,
   serverExternalPackages: ["@react-pdf/renderer"],
+  // El trazado de standalone no siempre incluye los motores de Prisma de otras plataformas
+  outputFileTracingIncludes: { "/**/*": ["./node_modules/.prisma/client/**/*"] },
   async headers() {
     return [
       {
