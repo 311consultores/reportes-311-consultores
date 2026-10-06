@@ -1,7 +1,7 @@
 # Despliegue en cPanel (Banahosting) — reportes.311consultores.com
 
 Guía para publicar el sistema en un hosting compartido con cPanel. Docker no aplica aquí; se usa la
-función **Setup Node.js App** de cPanel y una base **PostgreSQL**.
+función **Setup Node.js App** de cPanel y una base **MySQL/MariaDB** (probado con MariaDB 10.6).
 
 > Esta guía se preparó sin acceso a tu cPanel. El paquete se probó en Windows (arranca, lee la base y
 > genera el PDF), pero **no se ha probado en el servidor de Banahosting**. Sigue primero el paso 0.
@@ -13,7 +13,7 @@ En el panel de cPanel busca:
 | Necesitas | Dónde se ve | Si no está |
 |---|---|---|
 | **Setup Node.js App** (Node 20 o superior) | sección *Software* | Pide a soporte que lo habiliten o pasa a un VPS (ver `DEPLOY.md`, que usa Docker) |
-| **PostgreSQL Databases** + *phpPgAdmin* | sección *Bases de datos* | Usa una base externa gratuita (Neon o Supabase) y pon su `DATABASE_URL`; el resto no cambia |
+| **MySQL Databases** + *phpMyAdmin* | sección *Bases de datos* | Es lo habitual en cPanel; si faltara, pide a soporte que lo habiliten |
 | **SSL/TLS Status** (AutoSSL) | sección *Seguridad* | Imprescindible: la sesión usa cookie `secure`, sin HTTPS no se puede iniciar sesión |
 | **Terminal** o SSH (opcional) | *Avanzado* | No es obligatorio, todo se puede hacer con el Administrador de archivos |
 
@@ -40,24 +40,24 @@ Comprime `dist-cpanel/app` en un `.zip` (clic derecho, *Comprimir en archivo ZIP
 
 ## 3. Base de datos
 
-1. cPanel, *PostgreSQL Databases*:
+1. cPanel, *MySQL Databases*:
    - Crea la base (cPanel antepone tu usuario: `usuario_reportes`).
    - Crea un usuario con contraseña larga (sin espacios; evita `@ : / ? #` o codifícalos en la URL).
    - Asigna el usuario a la base con **todos los privilegios**.
-2. Abre *phpPgAdmin*, entra a la base, pestaña **SQL**, pega el contenido de `database/schema.sql` y ejecuta.
+2. Abre *phpMyAdmin*, selecciona la base, pestaña **Importar**, elige `database/schema.sql` y ejecuta (o pega su contenido en la pestaña **SQL**).
 3. Crea el primer administrador. En tu computadora:
 
    ```bash
    node scripts/hash-password.mjs "tu-correo@311consultores.com" "Tu Nombre" "UnaContraseñaLarga123!"
    ```
 
-   Copia el `INSERT` que imprime, pégalo en la pestaña SQL de phpPgAdmin y ejecútalo. Después podrás crear
+   Copia el `INSERT` que imprime, pégalo en la pestaña SQL de phpMyAdmin (con la base seleccionada) y ejecútalo. Después podrás crear
    los demás usuarios desde la propia aplicación.
 
-Tu `DATABASE_URL` queda así (host `localhost`, puerto 5432):
+Tu `DATABASE_URL` queda así (host `localhost`, puerto 3306). `connection_limit` evita pasar el tope de conexiones del hosting compartido:
 
 ```
-postgresql://usuario_dbuser:CONTRASEÑA@localhost:5432/usuario_reportes?schema=public
+mysql://usuario_dbuser:CONTRASEÑA@localhost:3306/usuario_reportes?connection_limit=5
 ```
 
 ## 4. Subir los archivos
@@ -137,13 +137,13 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 ## 9. Actualizar la aplicación
 
 1. `git pull`, luego `npm run package:cpanel` y sube el nuevo `app/` (reemplaza archivos; **conserva** `reportes311-uploads/`).
-2. Si hubo cambios de base de datos, ejecuta en phpPgAdmin **solo** las migraciones nuevas
+2. Si hubo cambios de base de datos, ejecuta en phpMyAdmin **solo** las migraciones nuevas
    (`prisma/migrations/<fecha>_<nombre>/migration.sql`). No repitas `schema.sql` completo.
 3. *Setup Node.js App*, **Restart**.
 
 ## 10. Respaldos
 
-- Base de datos: cPanel, *Backup*, o un *Cron Job* con `pg_dump`. Descarga una copia fuera del hosting con frecuencia.
+- Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
 - Evidencias: incluye `reportes311-uploads/` en los respaldos de cPanel, o usa S3/Spaces con versionado.
 
 ## Notas de seguridad

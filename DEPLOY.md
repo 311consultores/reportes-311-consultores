@@ -11,7 +11,7 @@
 
 ## Pasos
 1. Copia `.env.example` a `.env` y completa:
-   - `DB_PASSWORD` (contraseña de PostgreSQL; `DATABASE_URL` la arma docker-compose)
+   - `DB_ROOT_PASSWORD` y `DB_PASSWORD` (contraseñas de MariaDB; `DATABASE_URL` la arma docker-compose)
    - `AUTH_SECRET` (aleatorio, 32+ caracteres: `openssl rand -hex 32`)
    - `S3_*` y `GMAIL_*`
    - `MAIL_DRY_RUN="false"` (o elimínalo; además se ignora cuando `NODE_ENV=production`)
@@ -19,7 +19,7 @@
    (el servicio `migrate` aplica las migraciones antes de iniciar la app).
 3. Crea el primer administrador una sola vez:
    `docker compose run --rm -e SEED_ADMIN_PASSWORD=... migrate npx prisma db seed`
-4. Respaldos: programa `pg_dump` del volumen `pgdata` y activa versionado en el bucket.
+4. Respaldos: programa `mysqldump` del volumen `dbdata` y activa versionado en el bucket.
 
 ## Notas
 - El límite de intentos de login está en memoria: válido para una sola instancia de la app.

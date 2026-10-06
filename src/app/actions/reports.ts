@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { nextFolio } from "@/lib/folio";
 import { buildReportPdf } from "@/lib/pdf";
 import { sendMail } from "@/lib/mailer";
+import { serializeConsultants, auditDetails } from "@/lib/consultants";
 
 type State = { error?: string } | undefined;
 
@@ -48,12 +49,12 @@ export async function createReport(_p: State, fd: FormData): Promise<State> {
             projectId: d.projectId,
             startDate: toDate(d.startDate),
             endDate: toDate(d.endDate),
-            consultants,
+            consultants: serializeConsultants(consultants),
             createdById: user.id,
           },
         });
         await tx.auditLog.create({
-          data: { reportId: report.id, userId: user.id, action: "CREATED_REPORT", details: { folio } },
+          data: { reportId: report.id, userId: user.id, action: "CREATED_REPORT", details: auditDetails({ folio }) },
         });
         return report.id;
       });
@@ -146,7 +147,7 @@ export async function sendReport(reportId: string): Promise<{ error?: string; dr
 
     await prisma.report.update({ where: { id: reportId }, data: { status: "ENVIADO" } });
     await prisma.auditLog.create({
-      data: { reportId, userId: user.id, action: "STATUS_CHANGE_ENVIADO", details: { to, dryRun } },
+      data: { reportId, userId: user.id, action: "STATUS_CHANGE_ENVIADO", details: auditDetails({ to, dryRun }) },
     });
     revalidatePath(`/reportes/${reportId}`);
     revalidatePath("/");
@@ -186,7 +187,7 @@ export async function changeStatus(reportId: string, to: ReportStatus, comment?:
       reportId,
       userId: user.id,
       action: `STATUS_CHANGE_${to}`,
-      details: { from, ...(comment ? { comment } : {}) },
+      details: auditDetails({ from, ...(comment ? { comment } : {}) }),
     },
   });
   revalidatePath(`/reportes/${reportId}`);

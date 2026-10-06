@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -50,7 +50,7 @@ model Client {
   id          String       @id @default(uuid())
   companyName String
   folioPrefix String       @unique // E.g., "CEM"
-  mainEmails  String // Comma-separated emails
+  mainEmails  String       @db.Text // Comma-separated emails
   logoUrl     String?
   createdAt   DateTime     @default(now())
   projects    Project[]
@@ -63,7 +63,7 @@ model Project {
   clientId      String
   client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   projectName   String
-  projectEmails String // Comma-separated emails
+  projectEmails String   @db.Text // Comma-separated emails
   createdAt     DateTime @default(now())
   reports       Report[]
 
@@ -88,9 +88,9 @@ model Report {
   project          Project      @relation(fields: [projectId], references: [id])
   startDate        DateTime
   endDate          DateTime
-  consultants      String[] // Names from 311 CONSULTORES
+  consultants      String       @db.Text // Lista JSON de nombres de 311 CONSULTORES (MariaDB no soporta String[])
   status           ReportStatus @default(EN_PROCESO)
-  rejectionComment String?
+  rejectionComment String?      @db.Text
   createdById      String
   createdBy        User         @relation("ReportCreator", fields: [createdById], references: [id])
   createdAt        DateTime     @default(now())
@@ -108,7 +108,7 @@ model ReportTask {
   reportId        String
   report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
   sequentialNum   Int
-  descriptionHtml String // Rich Text HTML
+  descriptionHtml String   @db.LongText // Rich Text HTML
   evidenceUrl     String?
   evidenceType    String? // 'IMAGE', 'PDF', 'VIDEO'
   createdById     String
@@ -123,7 +123,7 @@ model DeletionRequest {
   id            String         @id @default(uuid())
   targetType    String // 'REPORT', 'TASK', 'CLIENT', 'PROJECT'
   targetId      String
-  reason        String?
+  reason        String?        @db.Text
   requestedById String
   requestedBy   User           @relation("DeletionRequester", fields: [requestedById], references: [id])
   status        DeletionStatus @default(PENDIENTE)
@@ -140,7 +140,7 @@ model AuditLog {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   action    String // E.g., "EDITED_TASK_2", "STATUS_CHANGE_TERMINADO"
-  details   Json?
+  details   String?  @db.Text // Texto JSON (el tipo Json de Prisma no es fiable en MariaDB)
   createdAt DateTime @default(now())
 
   @@index([reportId])

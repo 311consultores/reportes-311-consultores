@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, canEdit } from "@/lib/auth";
 import { putObject, deleteObject } from "@/lib/storage";
+import { auditDetails } from "@/lib/consultants";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,7 @@ export async function POST(req: Request, routeCtx: Ctx) {
   await prisma.reportTask.update({ where: { id: task.id }, data: { evidenceUrl: key, evidenceType: rule.type } });
   if (task.evidenceUrl) await deleteObject(task.evidenceUrl).catch(() => {});
   await prisma.auditLog.create({
-    data: { reportId: params.id, userId: user.id, action: `UPLOADED_EVIDENCE_TASK_${task.sequentialNum}`, details: { type: rule.type } },
+    data: { reportId: params.id, userId: user.id, action: `UPLOADED_EVIDENCE_TASK_${task.sequentialNum}`, details: auditDetails({ type: rule.type }) },
   });
 
   return json({ evidenceUrl: key, evidenceType: rule.type });

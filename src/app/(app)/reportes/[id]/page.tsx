@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser, reportScope } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
+import { parseConsultants } from "@/lib/consultants";
 import { TaskList } from "./task-list";
 import { StatusControls } from "./status-controls";
 import { ReportActions } from "./report-actions";
@@ -85,7 +86,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
         <dl className="grid gap-2 text-sm md:grid-cols-3">
           <div><dt className="text-muted-foreground">Periodo</dt><dd>{fmt(report.startDate)} – {fmt(report.endDate)}</dd></div>
-          <div><dt className="text-muted-foreground">Consultores</dt><dd>{report.consultants.join(", ")}</dd></div>
+          <div><dt className="text-muted-foreground">Consultores</dt><dd>{parseConsultants(report.consultants).join(", ")}</dd></div>
           <div><dt className="text-muted-foreground">Creado por</dt><dd>{report.createdBy.name}</dd></div>
         </dl>
         {report.status === "RECHAZADO" && report.rejectionComment && (

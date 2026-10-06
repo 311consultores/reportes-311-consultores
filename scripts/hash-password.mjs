@@ -11,5 +11,8 @@ if (!email || !name || !password || password.length < 12) {
 const q = (s) => `'${s.replaceAll("'", "''")}'`;
 const hash = await bcrypt.hash(password, 12);
 
-console.log(`INSERT INTO "User" ("id","name","email","passwordHash","role","active","createdAt","updatedAt")
-VALUES (${q(randomUUID())}, ${q(name)}, ${q(email.toLowerCase())}, ${q(hash)}, 'ADMIN', true, NOW(), NOW());`);
+const bt = "`";
+const cols = ["id", "name", "email", "passwordHash", "role", "active", "createdAt", "updatedAt"].map((c) => bt + c + bt).join(", ");
+const vals = [q(randomUUID()), q(name), q(email.toLowerCase()), q(hash), "'ADMIN'", "true", "NOW(3)", "NOW(3)"].join(", ");
+
+console.log(`INSERT INTO ${bt}User${bt} (${cols})\nVALUES (${vals});`);

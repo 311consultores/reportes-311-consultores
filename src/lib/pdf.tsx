@@ -3,6 +3,7 @@ import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@
 import { prisma } from "@/lib/prisma";
 import { getObject } from "@/lib/storage";
 import { htmlToBlocks } from "@/lib/html-blocks";
+import { parseConsultants } from "@/lib/consultants";
 
 const s = StyleSheet.create({
   page: { padding: 40, paddingBottom: 55, fontSize: 10, fontFamily: "Helvetica", color: "#0f172a" },
@@ -66,7 +67,7 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
           </View>
           <View style={s.metaRow}>
             <Text style={s.metaLabel}>Consultores</Text>
-            <Text>{report.consultants.join(", ")}</Text>
+            <Text>{parseConsultants(report.consultants).join(", ")}</Text>
           </View>
         </View>
 

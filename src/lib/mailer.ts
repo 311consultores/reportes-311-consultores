@@ -41,11 +41,12 @@ function buildMime(from: string, m: Mail) {
 }
 
 export async function sendMail(m: Mail): Promise<{ dryRun: boolean }> {
+  // El modo de prueba tiene prioridad aunque Gmail esté configurado (nunca aplica en producción)
+  if (mailDryRun()) {
+    console.log(`[MAIL_DRY_RUN] Para: ${m.to.join(", ")} | Asunto: ${m.subject} | Adjunto: ${m.attachment.filename}`);
+    return { dryRun: true };
+  }
   if (!mailConfigured()) {
-    if (mailDryRun()) {
-      console.log(`[MAIL_DRY_RUN] Para: ${m.to.join(", ")} | Asunto: ${m.subject} | Adjunto: ${m.attachment.filename}`);
-      return { dryRun: true };
-    }
     throw new Error("Gmail no está configurado (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_SENDER)");
   }
 

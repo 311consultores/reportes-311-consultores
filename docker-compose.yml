@@ -1,22 +1,24 @@
 services:
   db:
-    image: postgres:16
+    image: mariadb:10.6
     restart: unless-stopped
     environment:
-      POSTGRES_USER: reportes
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en .env}
-      POSTGRES_DB: reportes311
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?define DB_ROOT_PASSWORD en .env}
+      MARIADB_USER: reportes
+      MARIADB_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en .env}
+      MARIADB_DATABASE: reportes311
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - dbdata:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reportes -d reportes311"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
-      retries: 10
+      retries: 20
 
   migrate:
     build: { context: ., target: migrate }
     environment:
-      DATABASE_URL: postgresql://reportes:${DB_PASSWORD}@db:5432/reportes311?schema=public
+      DATABASE_URL: mysql://reportes:${DB_PASSWORD}@db:3306/reportes311?connection_limit=5
     depends_on:
       db: { condition: service_healthy }
 
@@ -25,11 +27,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://reportes:${DB_PASSWORD}@db:5432/reportes311?schema=public
+      DATABASE_URL: mysql://reportes:${DB_PASSWORD}@db:3306/reportes311?connection_limit=5
     ports:
       - "3000:3000"
     depends_on:
       migrate: { condition: service_completed_successfully }
 
 volumes:
-  pgdata:
+  dbdata:
