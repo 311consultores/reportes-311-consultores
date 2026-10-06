@@ -101,15 +101,17 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 1. En https://console.cloud.google.com crea un proyecto (con la cuenta de Google Workspace de 311).
 2. *APIs y servicios, Biblioteca*: habilita **Gmail API**.
 3. *Pantalla de consentimiento OAuth*: tipo **Interno** (Workspace), nombre de la app, correo de soporte.
-4. *Credenciales, Crear credenciales, ID de cliente OAuth*: tipo *Aplicación web*. En URI de redirección
-   autorizados agrega `https://developers.google.com/oauthplayground`. Guarda `Client ID` y `Client secret`.
-5. Abre https://developers.google.com/oauthplayground, engranaje, marca **Use your own OAuth credentials** y
-   pega tu Client ID y secret. En el paso 1 escribe el alcance `https://www.googleapis.com/auth/gmail.send`,
-   autoriza con la cuenta que enviará los correos, y en el paso 2 pulsa *Exchange authorization code*.
-   Copia el **Refresh token**.
-6. Variables: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` y `GMAIL_SENDER` (la cuenta autorizada).
-7. Prueba: aprueba un reporte de prueba y usa **Enviar por correo** hacia una dirección tuya.
+4. *Credenciales, Crear credenciales, ID de cliente OAuth*: tipo **Aplicación de escritorio**. Copia el
+   Client ID y el Client secret.
+5. En tu computadora, en el .env define GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET y GMAIL_SENDER
+   (la cuenta que enviará), y ejecuta `npm run gmail:token`. Abre la URL que imprime, autoriza con esa
+   cuenta, y el script guarda GMAIL_REFRESH_TOKEN en tu .env sin mostrarlo.
+6. Prueba el envío: `npm run gmail:test -- tu-correo@dominio.com`.
+7. Copia las cuatro variables GMAIL_* del .env a *Environment variables* del paso 5 y reinicia la app.
+8. Prueba en producción: aprueba un reporte de prueba y usa **Enviar por correo** hacia una dirección tuya.
 
+> Si la pantalla de consentimiento no es **Interna**, Google caduca el refresh token a los 7 días. Con
+> Workspace y tipo Interno no caduca (salvo que se revoque o se cambie la contraseña de la cuenta).
 ## 7. Lista de verificación después de publicar
 
 - [ ] https://reportes.311consultores.com carga con candado y redirige a `/login`.
