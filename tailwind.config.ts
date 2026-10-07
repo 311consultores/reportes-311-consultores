@@ -1,7 +1,14 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "media",
+  // Oscuro automático según el sistema, salvo que el usuario elija manualmente (atributo data-theme en <html>)
+  darkMode: [
+    "variant",
+    [
+      '@media (prefers-color-scheme: dark) { &:not([data-theme="light"] *) }',
+      '&:where([data-theme="dark"], [data-theme="dark"] *)',
+    ],
+  ],
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {

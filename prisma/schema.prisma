@@ -44,6 +44,8 @@ model User {
   deletionReviews  DeletionRequest[] @relation("DeletionReviewer")
   auditLogs        AuditLog[]
   clientAccess     ClientUser[]
+  theme            String?           @db.VarChar(10) // "light" | "dark"; null = automático según el sistema
+  passwordResets   PasswordReset[]
 }
 
 model Client {
@@ -51,7 +53,8 @@ model Client {
   companyName String
   folioPrefix String       @unique // E.g., "CEM"
   mainEmails  String       @db.Text // Comma-separated emails
-  logoUrl     String?
+  logoUrl     String? // Clave del archivo del logo en el almacenamiento
+  folioSeq    Int          @default(0) // Último consecutivo de folio usado (nunca se reinicia)
   createdAt   DateTime     @default(now())
   projects    Project[]
   reports     Report[]
@@ -81,7 +84,7 @@ model ClientUser {
 
 model Report {
   id               String       @id @default(uuid())
-  folio            String       @unique // E.g., "311CEM001"
+  folio            String       @unique // E.g., "LAJ001071026" = prefijo + consecutivo + DDMMAA
   clientId         String
   client           Client       @relation(fields: [clientId], references: [id])
   projectId        String
@@ -108,9 +111,9 @@ model ReportTask {
   reportId        String
   report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
   sequentialNum   Int
+  title           String?  @db.VarChar(191)
   descriptionHtml String   @db.LongText // Rich Text HTML
-  evidenceUrl     String?
-  evidenceType    String? // 'IMAGE', 'PDF', 'VIDEO'
+  evidences       TaskEvidence[]
   createdById     String
   createdBy       User     @relation(fields: [createdById], references: [id])
   createdAt       DateTime @default(now())
@@ -119,10 +122,39 @@ model ReportTask {
   @@index([reportId])
 }
 
+model TaskEvidence {
+  id        String     @id @default(uuid())
+  taskId    String
+  task      ReportTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  url       String // Clave del archivo en el almacenamiento
+  type      String // 'IMAGE', 'PDF', 'VIDEO'
+  createdAt DateTime   @default(now())
+
+  @@index([taskId])
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique // SHA-256 del token enviado por correo
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AppSetting {
+  key   String @id @db.VarChar(100)
+  value String @db.Text
+}
+
 model DeletionRequest {
   id            String         @id @default(uuid())
   targetType    String // 'REPORT', 'TASK', 'CLIENT', 'PROJECT'
   targetId      String
+  targetLabel   String?        @db.VarChar(191) // Texto legible (folio, actividad, cliente) para el historial
   reason        String?        @db.Text
   requestedById String
   requestedBy   User           @relation("DeletionRequester", fields: [requestedById], references: [id])

@@ -5,6 +5,8 @@ const nextConfig = {
   output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   poweredByHeader: false,
   serverExternalPackages: ["@react-pdf/renderer"],
+  // Los logos (hasta 2 MB) viajan en formularios con acciones del servidor; el límite por defecto es 1 MB
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   // El trazado de standalone no siempre incluye los motores de Prisma de otras plataformas
   outputFileTracingIncludes: {
     "/**/*": [

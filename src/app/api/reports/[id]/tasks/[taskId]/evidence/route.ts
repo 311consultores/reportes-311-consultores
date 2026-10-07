@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, canEdit } from "@/lib/auth";
 import { putObject, deleteObject } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
+import { MAX_EVIDENCES } from "@/lib/limits";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,7 @@ async function load(id: string, taskId: string) {
   if (!user || !canEdit(user.role)) return { error: json({ error: "No autorizado" }, 403) };
   const task = await prisma.reportTask.findFirst({
     where: { id: taskId, reportId: id },
-    include: { report: { select: { status: true } } },
+    include: { report: { select: { status: true } }, evidences: true },
   });
   if (!task) return { error: json({ error: "Actividad no encontrada" }, 404) };
   if (task.report.status !== "EN_PROCESO" && task.report.status !== "RECHAZADO") {
@@ -42,11 +43,16 @@ async function load(id: string, taskId: string) {
 
 type Ctx = { params: Promise<{ id: string; taskId: string }> };
 
+/** Agrega una evidencia (máximo 3 por actividad). */
 export async function POST(req: Request, routeCtx: Ctx) {
   const params = await routeCtx.params;
   const ctx = await load(params.id, params.taskId);
   if (ctx.error) return ctx.error;
   const { user, task } = ctx;
+
+  if (task.evidences.length >= MAX_EVIDENCES) {
+    return json({ error: `Cada actividad admite hasta ${MAX_EVIDENCES} evidencias` }, 400);
+  }
 
   const file = (await req.formData()).get("file");
   if (!(file instanceof File)) return json({ error: "Archivo requerido" }, 400);
@@ -61,27 +67,34 @@ export async function POST(req: Request, routeCtx: Ctx) {
   const key = `reports/${params.id}/${task.id}-${randomUUID()}.${rule.ext}`;
   await putObject(key, buf, file.type);
 
-  await prisma.reportTask.update({ where: { id: task.id }, data: { evidenceUrl: key, evidenceType: rule.type } });
-  if (task.evidenceUrl) await deleteObject(task.evidenceUrl).catch(() => {});
+  const ev = await prisma.taskEvidence.create({ data: { taskId: task.id, url: key, type: rule.type } });
   await prisma.auditLog.create({
-    data: { reportId: params.id, userId: user.id, action: `UPLOADED_EVIDENCE_TASK_${task.sequentialNum}`, details: auditDetails({ type: rule.type }) },
+    data: {
+      reportId: params.id,
+      userId: user.id,
+      action: `UPLOADED_EVIDENCE_TASK_${task.sequentialNum}`,
+      details: auditDetails({ type: rule.type }),
+    },
   });
 
-  return json({ evidenceUrl: key, evidenceType: rule.type });
+  return json({ id: ev.id, url: ev.url, type: ev.type });
 }
 
-export async function DELETE(_req: Request, routeCtx: Ctx) {
+/** Quita una evidencia: DELETE ...?id=<evidenceId> */
+export async function DELETE(req: Request, routeCtx: Ctx) {
   const params = await routeCtx.params;
   const ctx = await load(params.id, params.taskId);
   if (ctx.error) return ctx.error;
   const { user, task } = ctx;
 
-  if (task.evidenceUrl) {
-    await prisma.reportTask.update({ where: { id: task.id }, data: { evidenceUrl: null, evidenceType: null } });
-    await deleteObject(task.evidenceUrl).catch(() => {});
-    await prisma.auditLog.create({
-      data: { reportId: params.id, userId: user.id, action: `REMOVED_EVIDENCE_TASK_${task.sequentialNum}` },
-    });
-  }
+  const evidenceId = new URL(req.url).searchParams.get("id");
+  const ev = task.evidences.find((e) => e.id === evidenceId);
+  if (!ev) return json({ error: "Evidencia no encontrada" }, 404);
+
+  await prisma.taskEvidence.delete({ where: { id: ev.id } });
+  await deleteObject(ev.url).catch(() => {});
+  await prisma.auditLog.create({
+    data: { reportId: params.id, userId: user.id, action: `REMOVED_EVIDENCE_TASK_${task.sequentialNum}` },
+  });
   return json({ ok: true });
 }

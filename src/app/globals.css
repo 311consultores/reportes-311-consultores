@@ -26,8 +26,9 @@
     color-scheme: light;
   }
 
+  /* Oscuro: automático según el sistema, salvo que el usuario fije data-theme="light" o "dark" en <html> */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --background: 0 0% 0%;
       --foreground: 240 5% 96%;
       --card: 240 4% 12%; /* #1C1C1E */
@@ -43,6 +44,22 @@
       --input: 0 0% 100% / 0.12;
       color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+    --background: 0 0% 0%;
+    --foreground: 240 5% 96%;
+    --card: 240 4% 12%;
+    --card-foreground: 240 5% 96%;
+    --primary: 211 100% 52%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 240 5% 96%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 4% 66%;
+    --accent: 240 4% 18%;
+    --accent-foreground: 240 5% 96%;
+    --border: 0 0% 100% / 0.1;
+    --input: 0 0% 100% / 0.12;
+    color-scheme: dark;
   }
 
   * {

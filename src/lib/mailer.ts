@@ -1,6 +1,14 @@
 import { gmail, auth } from "@googleapis/gmail";
 
-type Mail = { to: string[]; subject: string; html: string; attachment: { filename: string; content: Buffer } };
+export type InlineImage = { cid: string; content: Buffer; contentType: string; filename: string };
+export type Mail = {
+  to: string[];
+  subject: string;
+  html: string;
+  text: string;
+  inline?: InlineImage[];
+  attachment?: { filename: string; content: Buffer; contentType?: string };
+};
 
 export const mailConfigured = () =>
   !!(
@@ -15,35 +23,66 @@ export const mailDryRun = () => process.env.MAIL_DRY_RUN === "true" && process.e
 
 const encHeader = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`;
 const wrap64 = (b: Buffer) => b.toString("base64").replace(/.{76}/g, "$&\r\n");
+const boundary = () => `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 
-function buildMime(from: string, m: Mail) {
-  const boundary = `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+type Part = { header: string; body: string };
+
+const textPart = (type: "plain" | "html", content: string): Part => ({
+  header: `Content-Type: text/${type}; charset="UTF-8"\r\nContent-Transfer-Encoding: base64`,
+  body: wrap64(Buffer.from(content, "utf8")),
+});
+
+function multipart(sub: "mixed" | "related" | "alternative", parts: Part[]): Part {
+  const b = boundary();
+  return {
+    header: `Content-Type: multipart/${sub}; boundary="${b}"`,
+    body: parts.map((p) => `--${b}\r\n${p.header}\r\n\r\n${p.body}`).join("\r\n") + `\r\n--${b}--`,
+  };
+}
+
+export function buildMime(from: string, m: Mail) {
+  // alternative(texto, html) -> related(+ imágenes en línea) -> mixed(+ adjunto)
+  let main = multipart("alternative", [textPart("plain", m.text), textPart("html", m.html)]);
+  if (m.inline?.length) {
+    main = multipart("related", [
+      main,
+      ...m.inline.map<Part>((i) => ({
+        header:
+          `Content-Type: ${i.contentType}; name="${i.filename}"\r\nContent-Transfer-Encoding: base64\r\n` +
+          `Content-ID: <${i.cid}>\r\nContent-Disposition: inline; filename="${i.filename}"`,
+        body: wrap64(i.content),
+      })),
+    ]);
+  }
+  if (m.attachment) {
+    const ct = m.attachment.contentType ?? "application/pdf";
+    main = multipart("mixed", [
+      main,
+      {
+        header:
+          `Content-Type: ${ct}; name="${m.attachment.filename}"\r\nContent-Transfer-Encoding: base64\r\n` +
+          `Content-Disposition: attachment; filename="${m.attachment.filename}"`,
+        body: wrap64(m.attachment.content),
+      },
+    ]);
+  }
   return [
     `From: ${encHeader("311 CONSULTORES")} <${from}>`,
     `To: ${m.to.join(", ")}`,
     `Subject: ${encHeader(m.subject)}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    main.header,
     "",
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    wrap64(Buffer.from(m.html, "utf8")),
-    `--${boundary}`,
-    `Content-Type: application/pdf; name="${m.attachment.filename}"`,
-    "Content-Transfer-Encoding: base64",
-    `Content-Disposition: attachment; filename="${m.attachment.filename}"`,
-    "",
-    wrap64(m.attachment.content),
-    `--${boundary}--`,
+    main.body,
   ].join("\r\n");
 }
 
 export async function sendMail(m: Mail): Promise<{ dryRun: boolean }> {
   // El modo de prueba tiene prioridad aunque Gmail esté configurado (nunca aplica en producción)
   if (mailDryRun()) {
-    console.log(`[MAIL_DRY_RUN] Para: ${m.to.join(", ")} | Asunto: ${m.subject} | Adjunto: ${m.attachment.filename}`);
+    console.log(
+      `[MAIL_DRY_RUN] Para: ${m.to.join(", ")} | Asunto: ${m.subject} | Adjunto: ${m.attachment?.filename ?? "—"}\n${m.text}`,
+    );
     return { dryRun: true };
   }
   if (!mailConfigured()) {

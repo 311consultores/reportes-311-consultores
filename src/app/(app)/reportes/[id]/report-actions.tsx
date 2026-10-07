@@ -6,6 +6,7 @@ import type { ReportStatus, Role } from "@prisma/client";
 import { FileDown, Send } from "lucide-react";
 import { sendReport } from "@/app/actions/reports";
 import { DeleteButton } from "@/components/delete-button";
+import { useDialogs } from "@/components/dialogs";
 
 export function ReportActions({
   reportId,
@@ -19,12 +20,18 @@ export function ReportActions({
   deletionPending: boolean;
 }) {
   const router = useRouter();
+  const { confirm } = useDialogs();
   const [busy, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string }>();
   const isAdmin = role === "ADMIN";
 
-  function send() {
-    if (!window.confirm("¿Enviar el reporte por correo al cliente? Esta acción no se puede deshacer.")) return;
+  async function send() {
+    const ok = await confirm({
+      title: "Enviar reporte por correo",
+      message: "Se enviará el PDF al cliente y a los correos del proyecto. Esta acción no se puede deshacer.",
+      confirmLabel: "Enviar",
+    });
+    if (!ok) return;
     setMsg(undefined);
     start(async () => {
       const r = await sendReport(reportId);

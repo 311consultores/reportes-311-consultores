@@ -56,6 +56,12 @@ const sql = fs
   .join("\n");
 fs.mkdirSync(path.join(out, "database"), { recursive: true });
 fs.writeFileSync(path.join(out, "database", "schema.sql"), sql);
+// Para instalaciones que ya existen: cada migración por separado, para ejecutar solo las nuevas
+const migOut = path.join(out, "database", "migraciones");
+fs.mkdirSync(migOut, { recursive: true });
+for (const d of fs.readdirSync(migDir, { withFileTypes: true }).filter((x) => x.isDirectory())) {
+  fs.copyFileSync(path.join(migDir, d.name, "migration.sql"), path.join(migOut, `${d.name}.sql`));
+}
 
 console.log("4/4 Recortando motores de Prisma (el servidor cPanel es RHEL/CloudLinux)...");
 const engines = [];

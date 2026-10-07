@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { createClient, createProject } from "@/app/actions/admin";
+import { createProject, updateClientLogo } from "@/app/actions/admin";
 import { ActionForm } from "@/components/action-form";
 import { DeleteEntity } from "./delete-entity";
+import { NewClientForm } from "./new-client-form";
 
 export default async function ClientsPage() {
   await requireUser(["ADMIN"]);
@@ -17,25 +18,27 @@ export default async function ClientsPage() {
 
       <section className="card">
         <h2 className="mb-4 text-lg font-semibold tracking-tight">Nuevo cliente</h2>
-        <ActionForm action={createClient} submitLabel="Crear cliente" className="grid gap-4 md:grid-cols-3">
-          <div><label className="label">Empresa</label><input name="companyName" required className="input" /></div>
-          <div>
-            <label className="label">Prefijo de folio</label>
-            <input name="folioPrefix" required maxLength={6} placeholder="CEM" className="input uppercase" />
-          </div>
-          <div>
-            <label className="label">Correos principales</label>
-            <input name="mainEmails" required placeholder="a@x.com, b@x.com" className="input" />
-          </div>
-        </ActionForm>
+        <NewClientForm existing={clients.map((c) => ({ prefix: c.folioPrefix, name: c.companyName }))} />
       </section>
 
       {clients.map((c) => (
         <section key={c.id} className="card space-y-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">{c.companyName} <span className="meta font-normal">· 311{c.folioPrefix}###</span></h2>
-              <p className="meta">{c.mainEmails.replaceAll(",", ", ")}</p>
+            <div className="flex items-center gap-4">
+              {c.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/clients/${c.id}/logo?v=${encodeURIComponent(c.logoUrl)}`}
+                  alt={`Logo de ${c.companyName}`}
+                  className="max-h-14 max-w-[120px] rounded-lg object-contain"
+                />
+              )}
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {c.companyName} <span className="meta font-normal">· {c.folioPrefix}001DDMMAA</span>
+                </h2>
+                <p className="meta">{c.mainEmails.replaceAll(",", ", ")}</p>
+              </div>
             </div>
             <DeleteEntity type="CLIENT" id={c.id} />
           </div>
@@ -54,6 +57,18 @@ export default async function ClientsPage() {
             <div><label className="label">Proyecto</label><input name="projectName" required className="input" /></div>
             <div><label className="label">Correos del proyecto</label><input name="projectEmails" required className="input" /></div>
           </ActionForm>
+          <details>
+            <summary className="link cursor-pointer text-sm">{c.logoUrl ? "Cambiar logo" : "Agregar logo"}</summary>
+            <ActionForm
+              action={updateClientLogo}
+              submitLabel="Guardar logo"
+              className="mt-3 flex flex-wrap items-end gap-3"
+              successMessage="Logo actualizado"
+            >
+              <input type="hidden" name="clientId" value={c.id} />
+              <input type="file" name="logo" accept="image/png,image/jpeg" required className="input max-w-sm" />
+            </ActionForm>
+          </details>
         </section>
       ))}
     </div>

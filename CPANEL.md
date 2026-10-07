@@ -141,10 +141,25 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 
 ## 9. Actualizar la aplicación
 
-1. `git pull`, luego `npm run package:cpanel` y sube el nuevo `app/` (reemplaza archivos; **conserva** `reportes311-uploads/`).
-2. Si hubo cambios de base de datos, ejecuta en phpMyAdmin **solo** las migraciones nuevas
-   (`prisma/migrations/<fecha>_<nombre>/migration.sql`). No repitas `schema.sql` completo.
-3. *Setup Node.js App*, **Restart**.
+1. `git pull`, luego `npm run package:cpanel`. Genera `dist-cpanel/app` (para subir) y `dist-cpanel/database/migraciones/`
+   (una migración por archivo).
+2. **Antes de subir el código**, si hubo cambios de base de datos, ejecuta en phpMyAdmin (pestaña **SQL**, con la base
+   seleccionada) **solo** los archivos de `migraciones/` que aún no hayas aplicado, en orden de nombre. No repitas
+   `schema.sql` completo. Haz un respaldo de la base antes (cPanel, *Backup*).
+3. En el Administrador de archivos, borra el contenido de `reportes311/app` (**conserva** `reportes311-uploads/`), sube el
+   `.tar.gz` del nuevo paquete y extráelo.
+4. *Setup Node.js App*, **Restart**. Revisa `/api/health`.
+
+### Evolutivo 1 (7 oct 2026)
+- **Migración:** `20261007182221_evolutivo1.sql`. Agrega los consecutivos de folio, el título de actividad, la tabla de
+  evidencias (hasta 3 por actividad; **conserva** la evidencia que ya tenía cada actividad), la recuperación de contraseña,
+  la configuración y el modo oscuro por usuario.
+- **Folios:** el formato nuevo es `PREFIJO + consecutivo + DDMMAA` (por ejemplo `LAJ001071026`). Los reportes anteriores
+  conservan su folio; el consecutivo de cada cliente inicia en 001 con el primer reporte nuevo.
+- **Después de actualizar:** entra como Administrador a **Configuración** y carga el logo de 311 Consultores; en
+  **Clientes y proyectos** puedes agregar el logo de cada cliente con «Agregar logo».
+- **Variable opcional `APP_URL`** (por ejemplo `https://reportes.311consultores.com`): fija la dirección que usan los enlaces
+  de los correos. Si no la defines, se deduce de la petición.
 
 ## 10. Respaldos
 

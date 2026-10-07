@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, reportScope } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
 import { parseConsultants } from "@/lib/consultants";
+import { getLogo311Key } from "@/lib/branding";
 import { TaskList } from "./task-list";
 import { StatusControls } from "./status-controls";
 import { ReportActions } from "./report-actions";
@@ -31,6 +32,16 @@ function actionLabel(action: string) {
   return action;
 }
 
+function detailReason(details: string | null): string | null {
+  if (!details) return null;
+  try {
+    const v = JSON.parse(details) as { reason?: unknown };
+    return typeof v.reason === "string" ? v.reason : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
@@ -40,7 +51,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       client: true,
       project: true,
       createdBy: { select: { name: true } },
-      tasks: { orderBy: { sequentialNum: "asc" } },
+      tasks: { orderBy: { sequentialNum: "asc" }, include: { evidences: { orderBy: { createdAt: "asc" } } } },
     },
   });
   if (!report) notFound();
@@ -48,6 +59,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const editable =
     user.role !== "CLIENTE" && (report.status === "EN_PROCESO" || report.status === "RECHAZADO");
   const isAdmin = user.role === "ADMIN";
+
+  const logo311Key = await getLogo311Key();
+  const hasLogo311 = !!logo311Key;
 
   const history =
     user.role === "CLIENTE"
@@ -72,11 +86,23 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="max-w-4xl space-y-6">
-      <Link href="/" className="link inline-flex items-center gap-1 text-sm">
-        <ArrowLeft size={14} /> Reportes
+      <Link href="/" className="btn-outline inline-flex">
+        <ArrowLeft size={16} /> Reportes
       </Link>
 
       <div className="card space-y-3">
+        {(hasLogo311 || report.client.logoUrl) && (
+          <div className="flex items-center justify-between gap-4 border-b border-black/5 pb-4 dark:border-white/10">
+            {hasLogo311 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/branding/logo?v=${encodeURIComponent(logo311Key ?? "")}`} alt="311 Consultores" className="max-h-12 max-w-[180px] object-contain" />
+            ) : <span />}
+            {report.client.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/clients/${report.client.id}/logo?v=${encodeURIComponent(report.client.logoUrl)}`} alt={report.client.companyName} className="max-h-12 max-w-[180px] object-contain" />
+            ) : <span />}
+          </div>
+        )}
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="page-title">{report.folio}</h1>
@@ -114,9 +140,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         initialTasks={report.tasks.map((t) => ({
           id: t.id,
           sequentialNum: t.sequentialNum,
+          title: t.title,
           descriptionHtml: t.descriptionHtml,
-          evidenceUrl: t.evidenceUrl,
-          evidenceType: t.evidenceType,
+          evidences: t.evidences.map((e) => ({ id: e.id, url: e.url, type: e.type })),
         }))}
       />
 
@@ -129,6 +155,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                 <span>
                   <span className="font-medium">{actionLabel(h.action)}</span>
                   <span className="text-muted-foreground"> · {h.user.name}</span>
+                  {detailReason(h.details) && (
+                    <span className="block text-xs text-zinc-500">Motivo: {detailReason(h.details)}</span>
+                  )}
                 </span>
                 <time className="shrink-0 text-muted-foreground">
                   {h.createdAt.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}

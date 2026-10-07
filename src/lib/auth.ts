@@ -46,6 +46,7 @@ export const getCurrentUser = cache(async () => {
         email: true,
         role: true,
         active: true,
+        theme: true,
         clientAccess: { select: { clientId: true } },
       },
     });

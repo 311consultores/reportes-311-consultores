@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 import { Paperclip, X } from "lucide-react";
+import { MAX_EVIDENCES } from "@/lib/limits";
 
-type Ev = { evidenceUrl: string | null; evidenceType: string | null };
+export type EvidenceItem = { id: string; url: string; type: string };
 
 export function Evidence({
   reportId,
@@ -13,10 +14,10 @@ export function Evidence({
 }: {
   reportId: string;
   taskId: string;
-  initial: Ev;
+  initial: EvidenceItem[];
   editable: boolean;
 }) {
-  const [ev, setEv] = useState<Ev>(initial);
+  const [items, setItems] = useState<EvidenceItem[]>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const input = useRef<HTMLInputElement>(null);
@@ -42,7 +43,7 @@ export function Evidence({
       const res = await fetch(endpoint, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo subir el archivo");
-      setEv(data);
+      setItems((prev) => [...prev, data as EvidenceItem]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo subir el archivo");
     } finally {
@@ -51,28 +52,55 @@ export function Evidence({
     }
   }
 
-  async function remove() {
+  async function remove(id: string) {
+    setError(undefined);
     setBusy(true);
-    const res = await fetch(endpoint, { method: "DELETE" });
+    const res = await fetch(`${endpoint}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     setBusy(false);
-    if (res.ok) setEv({ evidenceUrl: null, evidenceType: null });
+    if (res.ok) setItems((prev) => prev.filter((e) => e.id !== id));
     else setError("No se pudo quitar la evidencia");
   }
 
-  const src = ev.evidenceUrl ? `/api/files/${ev.evidenceUrl}` : null;
+  const full = items.length >= MAX_EVIDENCES;
 
   return (
     <div className="space-y-3 border-t border-black/5 px-4 py-3 dark:border-white/10">
-      {src && ev.evidenceType === "IMAGE" && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="Evidencia" className="max-h-64 rounded-xl border border-black/5 dark:border-white/10" />
-      )}
-      {src && ev.evidenceType === "VIDEO" && <video src={src} controls className="max-h-64 rounded-xl border border-black/5 dark:border-white/10" />}
-      {src && ev.evidenceType === "PDF" && (
-        <a href={src} target="_blank" className="link text-sm">Ver documento PDF</a>
+      {items.length > 0 && (
+        <ul className="grid gap-3 sm:grid-cols-3">
+          {items.map((e) => {
+            const src = `/api/files/${e.url}`;
+            return (
+              <li key={e.id} className="group relative overflow-hidden rounded-xl border border-black/5 bg-black/[0.02] dark:border-white/10 dark:bg-white/[0.04]">
+                {e.type === "IMAGE" && (
+                  <a href={src} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="Evidencia" className="h-36 w-full object-cover" />
+                  </a>
+                )}
+                {e.type === "VIDEO" && <video src={src} controls className="h-36 w-full object-cover" />}
+                {e.type === "PDF" && (
+                  <a href={src} target="_blank" rel="noreferrer" className="link flex h-36 items-center justify-center text-sm">
+                    Ver documento PDF
+                  </a>
+                )}
+                {editable && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => remove(e.id)}
+                    aria-label="Quitar evidencia"
+                    className="glass absolute right-2 top-2 rounded-full p-1.5 text-zinc-700 transition-all duration-200 ease-out hover:scale-105 active:scale-[0.95] dark:text-zinc-200"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
       {editable && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             ref={input}
             type="file"
@@ -80,17 +108,20 @@ export function Evidence({
             accept="image/jpeg,image/png,application/pdf,video/mp4,video/webm,video/quicktime"
             onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
           />
-          <button type="button" className="btn-outline px-3.5 py-1.5 text-xs" disabled={busy} onClick={() => input.current?.click()}>
-            <Paperclip size={14} /> {busy ? "Procesando…" : src ? "Reemplazar evidencia" : "Adjuntar evidencia"}
+          <button
+            type="button"
+            className="btn-outline px-3.5 py-1.5 text-xs"
+            disabled={busy || full}
+            onClick={() => input.current?.click()}
+          >
+            <Paperclip size={14} /> {busy ? "Procesando…" : "Adjuntar evidencia"}
           </button>
-          {src && !busy && (
-            <button type="button" className="inline-flex items-center gap-1 text-xs text-zinc-500 transition-all duration-200 ease-out hover:text-zinc-900 dark:hover:text-zinc-100" onClick={remove}>
-              <X size={13} /> Quitar
-            </button>
-          )}
-          <span className="text-xs text-zinc-500">Imagen, PDF o video</span>
+          <span className="text-xs text-zinc-500">
+            {items.length} de {MAX_EVIDENCES} · imagen, PDF o video
+          </span>
         </div>
       )}
+      {!editable && items.length === 0 && <p className="text-xs text-zinc-500">Sin evidencias.</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

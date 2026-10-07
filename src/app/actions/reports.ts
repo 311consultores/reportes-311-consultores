@@ -10,6 +10,10 @@ import { nextFolio } from "@/lib/folio";
 import { buildReportPdf } from "@/lib/pdf";
 import { sendMail } from "@/lib/mailer";
 import { serializeConsultants, auditDetails } from "@/lib/consultants";
+import { reportEmail } from "@/lib/email-templates";
+import { readLogo311 } from "@/lib/branding";
+import { nextFrase } from "@/lib/frases";
+import { getBaseUrl } from "@/lib/base-url";
 
 type State = { error?: string } | undefined;
 
@@ -95,19 +99,22 @@ export async function addTask(reportId: string) {
   return {
     id: task.id,
     sequentialNum: task.sequentialNum,
+    title: null as string | null,
     descriptionHtml: task.descriptionHtml,
-    evidenceUrl: null,
-    evidenceType: null,
+    evidences: [] as { id: string; url: string; type: string }[],
   };
 }
 
-/** Autosave: guarda la descripción de una tarea. */
-export async function saveTask(taskId: string, html: string) {
+/** Autosave: guarda el título y la descripción de una actividad. */
+export async function saveTask(taskId: string, html: string, title: string) {
   const task = await prisma.reportTask.findUnique({ where: { id: taskId } });
   if (!task) throw new Error("Tarea no encontrada");
   const { user } = await editableReport(task.reportId);
 
-  await prisma.reportTask.update({ where: { id: taskId }, data: { descriptionHtml: html } });
+  await prisma.reportTask.update({
+    where: { id: taskId },
+    data: { descriptionHtml: html, title: title.trim().slice(0, 191) || null },
+  });
   await prisma.report.update({ where: { id: task.reportId }, data: { updatedAt: new Date() } });
   // El autosave dispara muchas veces: agrupa las ediciones de los últimos 10 min en una sola entrada
   const action = `EDITED_TASK_${task.sequentialNum}`;
@@ -121,7 +128,8 @@ export async function saveTask(taskId: string, html: string) {
 }
 
 const splitEmails = (s: string) => s.split(/[,;\s]+/).filter(Boolean);
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const dmy = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
 /** Envía el PDF por Gmail a los correos del cliente y del proyecto; deja el reporte en ENVIADO. */
 export async function sendReport(reportId: string): Promise<{ error?: string; dryRun?: boolean }> {
@@ -138,10 +146,24 @@ export async function sendReport(reportId: string): Promise<{ error?: string; dr
 
   try {
     const { buffer, folio } = await buildReportPdf(reportId);
+    const logo = await readLogo311();
+    const mail = reportEmail({
+      clientName: report.client.companyName,
+      folio,
+      projectName: report.project.projectName,
+      startDate: dmy(report.startDate),
+      endDate: dmy(report.endDate),
+      // Al abrirlo sin sesión, el sistema pasa por el login y luego llega a este reporte
+      link: `${await getBaseUrl()}/reportes/${report.id}`,
+      phrase: await nextFrase(),
+      withLogo: !!logo,
+    });
     const { dryRun } = await sendMail({
       to,
-      subject: `Reporte de actividades ${folio} — ${report.project.projectName}`,
-      html: `<p>Estimado cliente,</p><p>Adjuntamos el reporte de actividades <strong>${esc(folio)}</strong> del proyecto <strong>${esc(report.project.projectName)}</strong>.</p><p>Saludos cordiales,<br>311 CONSULTORES</p>`,
+      ...mail,
+      inline: logo
+        ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }]
+        : undefined,
       attachment: { filename: `${folio}.pdf`, content: buffer },
     });
 
