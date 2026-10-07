@@ -9,8 +9,10 @@ const out = path.join(root, "dist-cpanel");
 
 fs.rmSync(out, { recursive: true, force: true });
 
-console.log("1/4 Generando cliente Prisma y compilando (standalone)...");
-execSync("npx prisma generate && npx next build", {
+console.log("1/4 Generando cliente Prisma y compilando (standalone, webpack)...");
+// Se usa webpack: Turbopack renombra los paquetes externos con un hash (@prisma/client-2c3a...) y los
+// resuelve con enlaces simbólicos que no sobreviven al empaquetar desde Windows ni al extraer en cPanel.
+execSync("npx prisma generate && npx next build --webpack", {
   stdio: "inherit",
   env: { ...process.env, BUILD_STANDALONE: "1", NODE_ENV: "production" },
 });
@@ -27,6 +29,22 @@ if (fs.existsSync(path.join(root, "public"))) {
 }
 // El .env local nunca debe viajar en el paquete
 fs.rmSync(path.join(out, "app", ".env"), { force: true });
+
+// Seguridad del paquete: no debe haber enlaces simbólicos ni paquetes externos con hash (Turbopack)
+const links = [];
+const hashed = [];
+(function scan(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isSymbolicLink()) links.push(p);
+    else if (e.isDirectory()) scan(p);
+    else if (/\.(js|mjs|cjs)$/.test(e.name) && p.includes(path.join(".next", "server"))) {
+      if (/@prisma\/client-[0-9a-f]{16}/.test(fs.readFileSync(p, "utf8"))) hashed.push(p);
+    }
+  }
+})(path.join(out, "app"));
+if (links.length) throw new Error("El paquete contiene enlaces simbólicos:\n" + links.slice(0, 5).join("\n"));
+if (hashed.length) throw new Error("El build usa paquetes externos con hash (Turbopack):\n" + hashed.slice(0, 3).join("\n"));
 
 console.log("3/4 Generando schema.sql desde las migraciones...");
 const migDir = path.join(root, "prisma", "migrations");

@@ -124,6 +124,11 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 
 ## 8. Si algo falla
 
+- **Diagnóstico rápido:** abre `https://reportes.311consultores.com/api/health`. Muestra si faltan variables y si
+  la base de datos responde. Para ver el detalle del error agrega la variable `HEALTH_TOKEN` en la app y abre
+  `/api/health?token=TU_VALOR` (bórrala cuando termines).
+- **`Cannot find module '@prisma/client-<código>'`:** el paquete se compiló con Turbopack. `npm run package:cpanel`
+  ya usa webpack (`--webpack`) y verifica que no queden enlaces simbólicos; vuelve a generar y subir el paquete.
 - **Página de error de Passenger / 503:** revisa el log de la app. Está en `reportes311/app/stderr.log`
   o en el enlace *Open log* de *Setup Node.js App*.
 - **`Query engine library ... not found` / error de Prisma:** el servidor usa otra versión de OpenSSL. Ejecuta

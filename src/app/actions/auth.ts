@@ -24,15 +24,24 @@ export async function login(_prev: { error?: string } | undefined, formData: For
   const keys = [`ip:${ip}`, `email:${parsed.data.email}`];
   if (keys.some(isBlocked)) return { error: "Demasiados intentos. Intenta de nuevo en 15 minutos." };
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  const ok = user?.active && (await bcrypt.compare(parsed.data.password, user.passwordHash));
-  if (!user || !ok) {
-    keys.forEach(recordFailure);
-    return { error: "Correo o contraseña incorrectos" };
-  }
+  try {
+    const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    const ok = user?.active && (await bcrypt.compare(parsed.data.password, user.passwordHash));
+    if (!user || !ok) {
+      keys.forEach(recordFailure);
+      return { error: "Correo o contraseña incorrectos" };
+    }
 
-  keys.forEach(clearFailures);
-  await createSession(user.id);
+    keys.forEach(clearFailures);
+    await createSession(user.id);
+  } catch (e) {
+    // Muestra solo un código (nunca el detalle) para poder diagnosticar la instalación
+    console.error("[login] error:", e);
+    const err = e as { name?: string; code?: string; errorCode?: string; message?: string };
+    const code = err.code ?? err.errorCode ?? err.name ?? "desconocido";
+    const hint = /AUTH_SECRET/.test(err.message ?? "") ? " Falta la variable AUTH_SECRET." : "";
+    return { error: `Error del servidor (${code}).${hint} Revisa /api/health.` };
+  }
   redirect("/");
 }
 

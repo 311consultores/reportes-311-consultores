@@ -6,7 +6,15 @@ const nextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@react-pdf/renderer"],
   // El trazado de standalone no siempre incluye los motores de Prisma de otras plataformas
-  outputFileTracingIncludes: { "/**/*": ["./node_modules/.prisma/client/**/*"] },
+  outputFileTracingIncludes: {
+    "/**/*": [
+      "./node_modules/.prisma/client/**/*",
+      // react-pdf lee package.json y datos de estos paquetes en ejecución; el rastreo no los detecta.
+      // Se incluye para todas las rutas porque la acción de enviar por correo también genera el PDF.
+      "./node_modules/pdfkit/**/*",
+      "./node_modules/@react-pdf/**/*",
+    ],
+  },
   async headers() {
     return [
       {
