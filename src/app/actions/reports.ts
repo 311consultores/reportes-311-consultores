@@ -7,7 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { nextFolio } from "@/lib/folio";
-import { buildReportPdf } from "@/lib/pdf";
+import { getReportPdf } from "@/lib/pdf-queue";
 import { sendMail } from "@/lib/mailer";
 import { serializeConsultants, auditDetails } from "@/lib/consultants";
 import { reportEmail } from "@/lib/email-templates";
@@ -107,23 +107,32 @@ export async function addTask(reportId: string) {
 
 /** Autosave: guarda el título y la descripción de una actividad. */
 export async function saveTask(taskId: string, html: string, title: string) {
-  const task = await prisma.reportTask.findUnique({ where: { id: taskId } });
-  if (!task) throw new Error("Tarea no encontrada");
-  const { user } = await editableReport(task.reportId);
-
-  await prisma.reportTask.update({
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  // Una sola consulta: la actividad y el estado de su reporte
+  const task = await prisma.reportTask.findUnique({
     where: { id: taskId },
-    data: { descriptionHtml: html, title: title.trim().slice(0, 191) || null },
+    include: { report: { select: { status: true } } },
   });
-  await prisma.report.update({ where: { id: task.reportId }, data: { updatedAt: new Date() } });
-  // El autosave dispara muchas veces: agrupa las ediciones de los últimos 10 min en una sola entrada
+  if (!task) throw new Error("Tarea no encontrada");
+  if (!EDITABLE.includes(task.report.status)) throw new Error("El reporte ya no es editable");
+
+  const cleanTitle = title.trim().slice(0, 191) || null;
+  if (task.descriptionHtml === html && task.title === cleanTitle) return { savedAt: new Date().toISOString() }; // sin cambios
+
+  await prisma.reportTask.update({ where: { id: taskId }, data: { descriptionHtml: html, title: cleanTitle } });
+
+  // El autosave dispara muchas veces: una sola entrada de historial por cada 10 min de edición,
+  // y su hora solo se refresca como máximo una vez por minuto (menos escrituras en la base de datos)
   const action = `EDITED_TASK_${task.sequentialNum}`;
   const recent = await prisma.auditLog.findFirst({
     where: { reportId: task.reportId, userId: user.id, action, createdAt: { gt: new Date(Date.now() - 10 * 60_000) } },
     orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true },
   });
-  if (recent) await prisma.auditLog.update({ where: { id: recent.id }, data: { createdAt: new Date() } });
-  else await prisma.auditLog.create({ data: { reportId: task.reportId, userId: user.id, action } });
+  if (!recent) await prisma.auditLog.create({ data: { reportId: task.reportId, userId: user.id, action } });
+  else if (Date.now() - recent.createdAt.getTime() > 60_000) {
+    await prisma.auditLog.update({ where: { id: recent.id }, data: { createdAt: new Date() } });
+  }
   return { savedAt: new Date().toISOString() };
 }
 
@@ -131,9 +140,9 @@ const splitEmails = (s: string) => s.split(/[,;\s]+/).filter(Boolean);
 const dmy = (d: Date) =>
   `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
-/** Envía el PDF por Gmail a los correos del cliente y del proyecto; deja el reporte en ENVIADO. */
+/** Envía el PDF por Gmail a los correos del cliente y del proyecto; deja el reporte en ENVIADO. Admin y Editor. */
 export async function sendReport(reportId: string): Promise<{ error?: string; dryRun?: boolean }> {
-  const user = await requireUser(["ADMIN"]);
+  const user = await requireUser(["ADMIN", "EDITOR"]);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
     include: { client: true, project: true },
@@ -145,7 +154,7 @@ export async function sendReport(reportId: string): Promise<{ error?: string; dr
   if (to.length === 0) return { error: "El cliente y el proyecto no tienen correos" };
 
   try {
-    const { buffer, folio } = await buildReportPdf(reportId);
+    const { buffer, folio } = await getReportPdf(reportId);
     const logo = await readLogo311();
     const mail = reportEmail({
       clientName: report.client.companyName,

@@ -6,7 +6,8 @@ import { DeleteEntity } from "./delete-entity";
 import { NewClientForm } from "./new-client-form";
 
 export default async function ClientsPage() {
-  await requireUser(["ADMIN"]);
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const isAdmin = user.role === "ADMIN"; // solo el Admin elimina clientes y proyectos
   const clients = await prisma.client.findMany({
     include: { projects: { orderBy: { createdAt: "asc" } } },
     orderBy: { companyName: "asc" },
@@ -40,14 +41,14 @@ export default async function ClientsPage() {
                 <p className="meta">{c.mainEmails.replaceAll(",", ", ")}</p>
               </div>
             </div>
-            <DeleteEntity type="CLIENT" id={c.id} />
+            {isAdmin && <DeleteEntity type="CLIENT" id={c.id} />}
           </div>
           <ul className="divide-y divide-black/5 overflow-hidden rounded-xl border border-black/5 text-sm dark:divide-white/10 dark:border-white/10">
             {c.projects.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-4 px-4 py-3">
                 <span>{p.projectName}</span>
                 <span className="meta ml-auto">{p.projectEmails.replaceAll(",", ", ")}</span>
-                <DeleteEntity type="PROJECT" id={p.id} />
+                {isAdmin && <DeleteEntity type="PROJECT" id={p.id} />}
               </li>
             ))}
             {c.projects.length === 0 && <li className="px-4 py-3 text-zinc-500">Sin proyectos</li>}

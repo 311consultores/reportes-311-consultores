@@ -166,6 +166,28 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
 - Evidencias: incluye `reportes311-uploads/` en los respaldos de cPanel, o usa S3/Spaces con versionado.
 
+## 11. Consumo de recursos (hosting compartido)
+
+En CloudLinux los **hilos cuentan como procesos** del plan. El paquete ya limita lo que más consumía (a partir del Evolutivo 2):
+
+- Al arrancar, `server.js` fija `UV_THREADPOOL_SIZE=2`, `TOKIO_WORKER_THREADS=2` (el motor de Prisma crea un hilo por núcleo del
+  servidor si no se limita) y un tope de memoria de 512 MB (`NODE_MAX_HEAP_MB` lo cambia). Si defines esas variables en
+  *Setup Node.js App*, se respetan las tuyas.
+- Una sola instancia de Prisma por proceso, PDF de uno en uno con caché, archivos enviados por partes y menos escrituras al autoguardar.
+
+- Las evidencias se suben como cuerpo directo y se guardan en disco por partes (hasta 100 MB sin cargarlas en memoria). La ruta de
+  subida queda fuera del `proxy`, que en Next.js limita a 10 MB el cuerpo de las peticiones que pasan por él.
+- Al arrancar, el proceso escribe en el log una línea `[proceso] inicio pid=… ppid=… nucleos=…`. Si ves muchas líneas seguidas, el
+  proceso se está reiniciando; el número de núcleos indica cuántos hilos habría creado el motor de Prisma sin límite.
+
+**Cómo revisar el consumo.** Abre `https://reportes.311consultores.com/api/health?token=TU_HEALTH_TOKEN` (agrega temporalmente
+la variable `HEALTH_TOKEN`). El bloque `recursos` muestra `hilos`, `rssMB` (memoria), `descriptoresAbiertos`, `instanciasPrisma`
+(debe ser 1) y los contadores de PDF. Si `hilos` supera ~30 o `rssMB` crece sin parar entre revisiones, avísame.
+
+**Qué pedir a soporte si el servidor vuelve a caerse:** el detalle de los límites de tu plan (procesos/NPROC, procesos de entrada,
+memoria y CPU) y la lista de procesos `node` de tu usuario en el momento del problema. En cPanel, *Resource Usage* muestra las
+gráficas y los eventos en que se alcanzó cada límite.
+
 ## Notas de seguridad
 
 - El límite de intentos de login es por proceso; Passenger puede levantar varios, así que el límite real es más laxo.

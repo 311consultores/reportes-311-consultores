@@ -30,6 +30,19 @@ if (fs.existsSync(path.join(root, "public"))) {
 // El .env local nunca debe viajar en el paquete
 fs.rmSync(path.join(out, "app", ".env"), { force: true });
 
+// Límites de recursos para hosting compartido: los hilos cuentan como procesos del plan. Se definen al inicio de
+// server.js, antes de que Node o Prisma creen sus grupos de hilos; si el hosting define las variables, se respetan.
+const serverJs = path.join(out, "app", "server.js");
+const header =
+  "// --- Límites de recursos (añadido por package-cpanel) ---\n" +
+  'process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "2";\n' +
+  'process.env.TOKIO_WORKER_THREADS = process.env.TOKIO_WORKER_THREADS || "2";\n' +
+  'try { require("v8").setFlagsFromString("--max-old-space-size=" + (process.env.NODE_MAX_HEAP_MB || "512")); } catch {}\n' +
+  // Una línea por arranque: sirve para ver en el log cuántas veces se inicia el proceso y en qué servidor
+  'try { const os = require("os"); console.log("[proceso] inicio pid=" + process.pid + " ppid=" + process.ppid + " nucleos=" + (os.availableParallelism ? os.availableParallelism() : os.cpus().length) + " hilos_prisma=" + process.env.TOKIO_WORKER_THREADS + " uv=" + process.env.UV_THREADPOOL_SIZE + " " + new Date().toISOString()); } catch {}\n' +
+  "// --- fin ---\n";
+fs.writeFileSync(serverJs, header + fs.readFileSync(serverJs, "utf8"));
+
 // Seguridad del paquete: no debe haber enlaces simbólicos ni paquetes externos con hash (Turbopack)
 const links = [];
 const hashed = [];

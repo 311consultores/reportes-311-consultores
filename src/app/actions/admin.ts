@@ -22,7 +22,7 @@ function fail(e: z.ZodError): State {
 }
 
 export async function createClient(_p: State, fd: FormData): Promise<State> {
-  await requireUser(["ADMIN"]);
+  await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
     .object({
       companyName: z.string().trim().min(2, "Nombre requerido"),
@@ -61,7 +61,7 @@ export async function createClient(_p: State, fd: FormData): Promise<State> {
 }
 
 export async function updateClientLogo(_p: State, fd: FormData): Promise<State> {
-  await requireUser(["ADMIN"]);
+  await requireUser(["ADMIN", "EDITOR"]);
   const clientId = z.string().uuid().safeParse(fd.get("clientId"));
   const file = fd.get("logo");
   if (!clientId.success || !(file instanceof File) || file.size === 0) return { error: "Selecciona una imagen PNG o JPG" };
@@ -73,7 +73,7 @@ export async function updateClientLogo(_p: State, fd: FormData): Promise<State> 
 }
 
 export async function createProject(_p: State, fd: FormData): Promise<State> {
-  await requireUser(["ADMIN"]);
+  await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
     .object({
       clientId: z.string().uuid(),

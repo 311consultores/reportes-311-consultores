@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { createReport } from "@/app/actions/reports";
 import { ActionForm } from "@/components/action-form";
 import { SearchSelect } from "@/components/search-select";
+import { DateInput } from "@/components/date-input";
 
 type ClientOpt = { id: string; companyName: string; projects: { id: string; projectName: string }[] };
 
@@ -58,11 +59,7 @@ export function NewReportForm({ clients }: { clients: ClientOpt[] }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Fecha inicial</label>
-          <input
-            type="date"
-            name="startDate"
-            required
-            className="input"
+          <DateInput name="startDate" required
             value={start}
             onChange={(e) => {
               setStart(e.target.value);
@@ -73,11 +70,7 @@ export function NewReportForm({ clients }: { clients: ClientOpt[] }) {
         </div>
         <div>
           <label className="label">Fecha final</label>
-          <input
-            type="date"
-            name="endDate"
-            required
-            className="input"
+          <DateInput name="endDate" required
             value={end}
             onChange={(e) => {
               setEnd(e.target.value);

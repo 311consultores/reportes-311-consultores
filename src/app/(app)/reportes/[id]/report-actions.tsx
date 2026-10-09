@@ -48,7 +48,7 @@ export function ReportActions({
       <a href={`/api/reports/${reportId}/pdf`} target="_blank" className="btn-outline">
         <FileDown size={16} /> Ver PDF
       </a>
-      {isAdmin && status === "APROBADO" && (
+      {role !== "CLIENTE" && status === "APROBADO" && (
         <button className="btn" onClick={send} disabled={busy}>
           <Send size={16} /> {busy ? "Enviando…" : "Enviar por correo"}
         </button>

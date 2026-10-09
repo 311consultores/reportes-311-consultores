@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
 import path from "node:path";
 
 /**
@@ -64,6 +65,30 @@ export async function getObject(key: string): Promise<Buffer> {
     return Buffer.from(await res.Body!.transformToByteArray());
   }
   return fs.readFile(localPath(key));
+}
+
+export const usesLocalStorage = () => !bucket;
+
+/** Flujo de escritura a disco local (crea la carpeta si hace falta). */
+export async function createLocalWriteStream(key: string) {
+  const p = localPath(key);
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  return createWriteStream(p);
+}
+
+/** Tamaño de un archivo local (null si no existe o si se usa S3). */
+export async function localSize(key: string): Promise<number | null> {
+  if (bucket) return null;
+  try {
+    return (await fs.stat(localPath(key))).size;
+  } catch {
+    return null;
+  }
+}
+
+/** Flujo de lectura de un archivo local (con rango opcional), sin cargarlo completo en memoria. */
+export function openLocalStream(key: string, range?: { start: number; end: number }) {
+  return createReadStream(localPath(key), range);
 }
 
 export async function deleteObject(key: string) {

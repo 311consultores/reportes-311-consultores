@@ -10,7 +10,7 @@ import { Evidence, type EvidenceItem } from "./evidence";
 import { DeleteButton } from "@/components/delete-button";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
-const DEBOUNCE_MS = 800;
+const DEBOUNCE_MS = 1500; // espera a que se deje de escribir: menos peticiones al servidor
 
 export type TaskData = {
   id: string;
@@ -49,13 +49,20 @@ export function TaskEditor({
   const latestHtml = useRef(task.descriptionHtml);
   const latestTitle = useRef(task.title ?? "");
   const dirty = useRef(false);
+  const lastSent = useRef(`${task.title ?? ""}\u0000${task.descriptionHtml}`);
 
   async function flush() {
     if (!dirty.current) return;
     dirty.current = false;
+    const payload = `${latestTitle.current}\u0000${latestHtml.current}`;
+    if (payload === lastSent.current) {
+      setState("saved"); // el texto volvió a ser el ya guardado: no hace falta pedirle nada al servidor
+      return;
+    }
     setState("saving");
     try {
       await saveTask(task.id, latestHtml.current, latestTitle.current);
+      lastSent.current = payload;
       setState(dirty.current ? "saving" : "saved");
     } catch {
       dirty.current = true;

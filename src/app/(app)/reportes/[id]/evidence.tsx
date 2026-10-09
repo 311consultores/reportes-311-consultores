@@ -38,9 +38,8 @@ export function Evidence({
         });
         file = new File([blob], original.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
       }
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(endpoint, { method: "POST", body: fd });
+      // Cuerpo directo (no formulario): el servidor lo guarda por partes sin cargarlo completo en memoria
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": file.type }, body: file });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo subir el archivo");
       setItems((prev) => [...prev, data as EvidenceItem]);

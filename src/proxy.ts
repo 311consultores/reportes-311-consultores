@@ -26,5 +26,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // La subida de evidencias queda fuera del proxy: Next limita a 10 MB el cuerpo de las peticiones que pasan por él,
+  // y esa ruta ya valida la sesión por su cuenta (responde 403 si no hay).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/reports/[^/]+/tasks/[^/]+/evidence).*)"],
 };

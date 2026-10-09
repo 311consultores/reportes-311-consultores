@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, canEdit } from "@/lib/auth";
-import { putObject, deleteObject } from "@/lib/storage";
+import { putObject, deleteObject, usesLocalStorage, createLocalWriteStream } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
 import { MAX_EVIDENCES } from "@/lib/limits";
 
@@ -54,18 +56,51 @@ export async function POST(req: Request, routeCtx: Ctx) {
     return json({ error: `Cada actividad admite hasta ${MAX_EVIDENCES} evidencias` }, 400);
   }
 
-  const file = (await req.formData()).get("file");
-  if (!(file instanceof File)) return json({ error: "Archivo requerido" }, 400);
-
-  const rule = ALLOWED[file.type];
+  // El archivo llega como cuerpo directo de la petición (Content-Type = tipo del archivo), no como formulario:
+  // así se puede guardar por partes en disco sin cargarlo completo en memoria.
+  const mime = (req.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const rule = ALLOWED[mime];
   if (!rule) return json({ error: "Tipo de archivo no permitido (JPG, PNG, PDF, MP4, WEBM, MOV)" }, 400);
-  if (file.size > rule.max) return json({ error: `El archivo excede ${rule.max / MB} MB` }, 400);
 
-  const buf = Buffer.from(await file.arrayBuffer());
-  if (!matchesSignature(file.type, buf)) return json({ error: "El contenido no coincide con el tipo de archivo" }, 400);
+  const tooBig = () => json({ error: `El archivo excede ${rule.max / MB} MB` }, 413);
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > rule.max) return tooBig();
+  if (!req.body) return json({ error: "Archivo requerido" }, 400);
 
   const key = `reports/${params.id}/${task.id}-${randomUUID()}.${rule.ext}`;
-  await putObject(key, buf, file.type);
+
+  if (usesLocalStorage()) {
+    let bytes = 0;
+    let first = true;
+    const guard = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        if (first) {
+          first = false;
+          if (!matchesSignature(mime, chunk)) return cb(new Error("FIRMA"));
+        }
+        bytes += chunk.length;
+        if (bytes > rule.max) return cb(new Error("TAMANO"));
+        cb(null, chunk);
+      },
+    });
+    try {
+      await pipeline(Readable.fromWeb(req.body as never), guard, await createLocalWriteStream(key));
+      if (bytes === 0) throw new Error("VACIO");
+    } catch (e) {
+      await deleteObject(key).catch(() => {}); // no deja archivos a medias
+      const code = e instanceof Error ? e.message : "";
+      if (code === "TAMANO") return tooBig();
+      if (code === "FIRMA") return json({ error: "El contenido no coincide con el tipo de archivo" }, 400);
+      return json({ error: "No se pudo recibir el archivo" }, 400);
+    }
+  } else {
+    // S3 / Spaces: se necesita el tamaño exacto, así que aquí sí se reúne en memoria (ya validado el máximo)
+    const buf = Buffer.from(await req.arrayBuffer());
+    if (buf.length === 0) return json({ error: "Archivo requerido" }, 400);
+    if (buf.length > rule.max) return tooBig();
+    if (!matchesSignature(mime, buf)) return json({ error: "El contenido no coincide con el tipo de archivo" }, 400);
+    await putObject(key, buf, mime);
+  }
 
   const ev = await prisma.taskEvidence.create({ data: { taskId: task.id, url: key, type: rule.type } });
   await prisma.auditLog.create({

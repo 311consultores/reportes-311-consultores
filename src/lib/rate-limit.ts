@@ -7,6 +7,7 @@ const store = new Map<string, Entry>();
 
 const MAX_FAILS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
+const MAX_ENTRIES = 2000;
 
 function live(key: string): Entry | undefined {
   const e = store.get(key);
@@ -17,6 +18,14 @@ function live(key: string): Entry | undefined {
   return e;
 }
 
+/** Evita que el mapa crezca sin límite con intentos de muchas IP distintas. */
+function prune() {
+  if (store.size < MAX_ENTRIES) return;
+  const now = Date.now();
+  for (const [k, e] of store) if (now - e.first > WINDOW_MS) store.delete(k);
+  if (store.size >= MAX_ENTRIES) store.clear();
+}
+
 export function isBlocked(key: string) {
   return (live(key)?.fails ?? 0) >= MAX_FAILS;
 }
@@ -24,7 +33,10 @@ export function isBlocked(key: string) {
 export function recordFailure(key: string) {
   const e = live(key);
   if (e) e.fails++;
-  else store.set(key, { fails: 1, first: Date.now() });
+  else {
+    prune();
+    store.set(key, { fails: 1, first: Date.now() });
+  }
 }
 
 export function clearFailures(key: string) {

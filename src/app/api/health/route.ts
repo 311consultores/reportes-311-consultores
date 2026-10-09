@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { pdfStats } from "@/lib/pdf-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +18,33 @@ const describe = (e: unknown) => {
  * Con ?token=<HEALTH_TOKEN> agrega el detalle del error (sin credenciales).
  * Prisma se carga dentro del try para poder reportar fallos del motor de la base de datos.
  */
+/** Hilos, memoria y descriptores abiertos de este proceso (hilos y descriptores solo en Linux). */
+function resources() {
+  const mem = process.memoryUsage();
+  const mb = (n: number) => Math.round(n / 1048576);
+  let threads: number | null = null;
+  let fds: number | null = null;
+  try {
+    threads = Number(/Threads:\s+(\d+)/.exec(fs.readFileSync("/proc/self/status", "utf8"))?.[1]) || null;
+    fds = fs.readdirSync("/proc/self/fd").length;
+  } catch {
+    /* no es Linux */
+  }
+  return {
+    pid: process.pid,
+    ppid: process.ppid,
+    nucleosDelServidor: os.availableParallelism?.() ?? os.cpus().length,
+    uptimeMin: Math.round(process.uptime() / 60),
+    rssMB: mb(mem.rss),
+    heapMB: mb(mem.heapUsed),
+    hilos: threads,
+    descriptoresAbiertos: fds,
+    instanciasPrisma: (globalThis as { __prismaCreated?: number }).__prismaCreated ?? 0,
+    pdf: pdfStats,
+    tokioWorkerThreads: process.env.TOKIO_WORKER_THREADS ?? null,
+  };
+}
+
 export async function GET(req: Request) {
   const env = {
     DATABASE_URL: !!process.env.DATABASE_URL,
@@ -31,12 +60,18 @@ export async function GET(req: Request) {
   };
 
   // Datos del servidor útiles para elegir el motor de Prisma correcto
-  const report = process.report?.getReport?.() as { header?: { glibcVersionRuntime?: string } } | undefined;
+  const token = new URL(req.url).searchParams.get("token");
+  const allowed = !!process.env.HEALTH_TOKEN && token === process.env.HEALTH_TOKEN;
+
+  // getReport() es costoso: solo se usa con el token (diagnóstico manual), nunca en revisiones automáticas
+  const report = allowed
+    ? (process.report?.getReport?.() as { header?: { glibcVersionRuntime?: string } } | undefined)
+    : undefined;
   const server = {
     node: process.version,
     platform: `${process.platform}-${process.arch}`,
     openssl: process.versions.openssl,
-    glibc: report?.header?.glibcVersionRuntime,
+    ...(allowed ? { glibc: report?.header?.glibcVersionRuntime } : {}),
     prismaEngineEnv: !!process.env.PRISMA_QUERY_ENGINE_LIBRARY,
   };
   let engines: string[] = [];
@@ -59,12 +94,19 @@ export async function GET(req: Request) {
     detail = describe(e);
   }
 
-  const token = new URL(req.url).searchParams.get("token");
-  const allowed = !!process.env.HEALTH_TOKEN && token === process.env.HEALTH_TOKEN;
   const ok = db === "ok" && env.DATABASE_URL && env.AUTH_SECRET;
 
   return Response.json(
-    { ok, server, engines, env, db, ...(allowed && detail ? { detail } : {}) },
+    {
+      ok,
+      server,
+      engines,
+      env,
+      db,
+      ...(allowed && detail ? { detail } : {}),
+      // Consumo de recursos del proceso (solo con token): sirve para detectar fugas o picos
+      ...(allowed ? { recursos: resources() } : {}),
+    },
     { status: ok ? 200 : 503 },
   );
 }
