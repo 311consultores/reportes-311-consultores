@@ -6,22 +6,34 @@ import { htmlToBlocks } from "@/lib/html-blocks";
 import { parseConsultants } from "@/lib/consultants";
 import { readLogo, readLogo311, type LogoImage } from "@/lib/branding";
 
+const ACCENT = "#007AFF"; // mismo azul del sistema
+
 const s = StyleSheet.create({
-  page: { padding: 40, paddingBottom: 55, fontSize: 10, fontFamily: "Helvetica", color: "#0f172a" },
+  page: { paddingTop: 36, paddingHorizontal: 40, paddingBottom: 55, fontSize: 10, fontFamily: "Helvetica", color: "#0f172a" },
+  topBar: { position: "absolute", top: 0, left: 0, right: 0, height: 6, backgroundColor: ACCENT },
   logos: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   logo: { maxHeight: 44, maxWidth: 160, objectFit: "contain" },
-  brand: { fontSize: 9, color: "#64748b", letterSpacing: 1 },
-  folio: { fontSize: 20, fontFamily: "Helvetica-Bold", marginTop: 2 },
-  sub: { fontSize: 11, color: "#475569", marginTop: 2 },
-  meta: { marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#cbd5e1" },
-  metaRow: { flexDirection: "row", marginBottom: 3 },
-  metaLabel: { width: 80, color: "#64748b" },
-  task: { marginTop: 16 },
-  taskTitle: { fontFamily: "Helvetica-Bold", fontSize: 11, marginBottom: 4, color: "#1e293b" },
-  p: { marginBottom: 3, lineHeight: 1.4 },
-  img: { marginTop: 6, maxHeight: 230, objectFit: "contain", objectPositionX: 0 },
-  note: { marginTop: 6, fontSize: 9, color: "#475569" },
-  footer: { position: "absolute", bottom: 25, left: 40, right: 40, fontSize: 8, color: "#94a3b8", flexDirection: "row", justifyContent: "space-between" },
+  brand: { fontSize: 8.5, color: ACCENT, letterSpacing: 1.2, fontFamily: "Helvetica-Bold" },
+  folio: { fontSize: 24, fontFamily: "Helvetica-Bold", marginTop: 3, color: "#0f172a" },
+  sub: { fontSize: 11.5, color: "#475569", marginTop: 3 },
+  meta: { marginTop: 14, flexDirection: "row", backgroundColor: "#f1f5f9", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 },
+  metaCol: { flex: 1, paddingRight: 8 },
+  metaLabel: { fontSize: 7.5, color: "#64748b", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 },
+  metaValue: { fontSize: 10, color: "#0f172a", lineHeight: 1.3 },
+  sectionTitle: { marginTop: 22, marginBottom: 8, fontSize: 9, letterSpacing: 1.2, color: "#64748b", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
+  card: { marginBottom: 12, borderWidth: 1, borderColor: "#dbe3ee", borderRadius: 8, overflow: "hidden" },
+  cardHead: { flexDirection: "row", alignItems: "center", backgroundColor: "#eaf2ff", paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#cfe0fb" },
+  badge: { width: 20, height: 20, borderRadius: 10, backgroundColor: ACCENT, color: "#ffffff", fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "center", paddingTop: 5, marginRight: 9 },
+  taskTitle: { flex: 1, fontFamily: "Helvetica-Bold", fontSize: 11.5, color: "#0b2a5b" },
+  cardBody: { paddingVertical: 10, paddingHorizontal: 14 },
+  p: { marginBottom: 5, lineHeight: 1.15 },
+  row: { flexDirection: "row", marginBottom: 5 },
+  bullet: { width: 16, lineHeight: 1.15 },
+  rowText: { flex: 1, lineHeight: 1.15 },
+  evidence: { flexDirection: "row", flexWrap: "wrap", marginTop: 6, marginHorizontal: -3 },
+  img: { height: 150, objectFit: "contain", backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 4, margin: 3 },
+  note: { marginTop: 6, fontSize: 9, color: "#475569", backgroundColor: "#f8fafc", borderRadius: 4, paddingVertical: 4, paddingHorizontal: 8 },
+  footer: { position: "absolute", bottom: 22, left: 40, right: 40, paddingTop: 6, borderTopWidth: 0.75, borderTopColor: "#e2e8f0", fontSize: 8, color: "#94a3b8", flexDirection: "row", justifyContent: "space-between" },
 });
 
 const font = (b: boolean, i: boolean) =>
@@ -66,6 +78,7 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
   const doc = (
     <Document title={report.folio} author="311 CONSULTORES">
       <Page size="LETTER" style={s.page}>
+        <View style={s.topBar} fixed />
         {(logo311 || logoClient) && (
           <View style={s.logos}>
             {/* eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt */}
@@ -81,44 +94,68 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
         </Text>
 
         <View style={s.meta}>
-          <View style={s.metaRow}>
+          <View style={[s.metaCol, { flex: 1.5 }]}>
             <Text style={s.metaLabel}>Periodo</Text>
-            <Text>
+            <Text style={s.metaValue}>
               {fmt(report.startDate)} – {fmt(report.endDate)}
             </Text>
           </View>
-          <View style={s.metaRow}>
+          <View style={s.metaCol}>
             <Text style={s.metaLabel}>Consultores</Text>
-            <Text>{parseConsultants(report.consultants).join(", ")}</Text>
+            <Text style={s.metaValue}>{parseConsultants(report.consultants).join(", ")}</Text>
           </View>
-          <View style={s.metaRow}>
+          <View style={s.metaCol}>
             <Text style={s.metaLabel}>Elaborado por</Text>
-            <Text>{report.createdBy.name}</Text>
+            <Text style={s.metaValue}>{report.createdBy.name}</Text>
           </View>
         </View>
 
+        <Text style={s.sectionTitle}>Actividades realizadas</Text>
+
         {tasks.map((t) => (
-          <View key={t.id} style={s.task}>
-            <Text style={s.taskTitle}>{t.title ? `Actividad ${t.num} — ${t.title}` : `Actividad ${t.num}`}</Text>
-            {t.blocks.map((b, i) => (
-              <Text key={i} style={s.p}>
-                {b.prefix}
-                {b.runs.map((r, j) => (
-                  <Text key={j} style={{ fontFamily: font(r.bold, r.italic) }}>
-                    {r.text}
+          <View key={t.id} style={s.card} minPresenceAhead={90}>
+            {/* minPresenceAhead (en la tarjeta) evita que una actividad empiece al filo de una página con solo el encabezado */}
+            <View style={s.cardHead}>
+              <Text style={s.badge}>{t.num}</Text>
+              <Text style={s.taskTitle}>{t.title ? t.title : `Actividad ${t.num}`}</Text>
+            </View>
+            <View style={s.cardBody}>
+              {t.blocks.map((b, i) =>
+                b.prefix ? (
+                  <View key={i} wrap={false} style={[s.row, { marginLeft: 14 * Math.floor((b.prefix.length - b.prefix.trimStart().length) / 4) }]}>
+                    <Text style={s.bullet}>{b.prefix.trim()}</Text>
+                    <Text style={s.rowText}>
+                      {b.runs.map((r, j) => (
+                        <Text key={j} style={{ fontFamily: font(r.bold, r.italic) }}>
+                          {r.text}
+                        </Text>
+                      ))}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text key={i} style={s.p}>
+                    {b.runs.map((r, j) => (
+                      <Text key={j} style={{ fontFamily: font(r.bold, r.italic) }}>
+                        {r.text}
+                      </Text>
+                    ))}
                   </Text>
-                ))}
-              </Text>
-            ))}
-            {t.images.map((img, i) => (
-              // eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt
-              <Image key={i} src={img} style={s.img} />
-            ))}
-            {t.others.map((o, i) => (
-              <Text key={i} style={s.note}>
-                Evidencia ({o.type}) disponible en la plataforma: {o.name}
-              </Text>
-            ))}
+                ),
+              )}
+              {t.images.length > 0 && (
+                <View style={s.evidence}>
+                  {t.images.map((img, i) => (
+                    // eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt
+                    <Image key={i} src={img} style={[s.img, { width: t.images.length === 1 ? "62%" : "47.5%" }]} />
+                  ))}
+                </View>
+              )}
+              {t.others.map((o, i) => (
+                <Text key={i} style={s.note}>
+                  Evidencia ({o.type}) disponible en la plataforma: {o.name}
+                </Text>
+              ))}
+            </View>
           </View>
         ))}
 
