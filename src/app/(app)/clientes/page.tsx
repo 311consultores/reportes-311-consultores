@@ -4,6 +4,7 @@ import { createProject, updateClientLogo } from "@/app/actions/admin";
 import { ActionForm } from "@/components/action-form";
 import { DeleteEntity } from "./delete-entity";
 import { NewClientForm } from "./new-client-form";
+import { ClientProfile } from "./client-profile";
 
 export default async function ClientsPage() {
   const user = await requireUser(["ADMIN", "EDITOR"]);
@@ -58,6 +59,27 @@ export default async function ClientsPage() {
             <div><label className="label">Proyecto</label><input name="projectName" required className="input" /></div>
             <div><label className="label">Correos del proyecto</label><input name="projectEmails" required className="input" /></div>
           </ActionForm>
+          <ClientProfile
+            clientId={c.id}
+            hasConstancia={!!c.constanciaUrl}
+            values={{
+              companyName: c.companyName,
+              requiresInvoice: c.requiresInvoice,
+              legalName: c.legalName ?? "",
+              rfc: c.rfc ?? "",
+              street: c.street ?? "",
+              colonia: c.colonia ?? "",
+              postalCode: c.postalCode ?? "",
+              city: c.city ?? "",
+              state: c.state ?? "",
+              contactName: c.contactName ?? "",
+              contactPhone: c.contactPhone ?? "",
+              contactEmail: c.contactEmail ?? "",
+              billingName: c.billingName ?? "",
+              billingPhone: c.billingPhone ?? "",
+              billingEmail: c.billingEmail ?? "",
+            }}
+          />
           <details>
             <summary className="link cursor-pointer text-sm">{c.logoUrl ? "Cambiar logo" : "Agregar logo"}</summary>
             <ActionForm

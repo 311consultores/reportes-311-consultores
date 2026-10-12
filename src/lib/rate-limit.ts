@@ -1,6 +1,6 @@
 /**
- * Limitador de intentos en memoria (ventana deslizante simple). Suficiente para una
- * sola instancia; con varias réplicas habría que moverlo a Redis o a la base de datos.
+ * Limitadores de intentos en memoria. Suficientes para una sola instancia; con varias réplicas
+ * habría que moverlos a Redis o a la base de datos.
  */
 type Entry = { fails: number; first: number };
 const store = new Map<string, Entry>();
@@ -41,4 +41,29 @@ export function recordFailure(key: string) {
 
 export function clearFailures(key: string) {
   store.delete(key);
+}
+
+// --- Límite de acciones por ventana (p. ej. envíos del formulario público de registro) ---
+const hits = new Map<string, { n: number; first: number }>();
+
+/** ¿Ya se alcanzó el máximo en la ventana? No cuenta nada (se usa antes de hacer el trabajo). */
+export function overLimit(key: string, max: number, windowMs: number): boolean {
+  const e = hits.get(key);
+  return !!e && Date.now() - e.first <= windowMs && e.n >= max;
+}
+
+/** Cuenta una acción y devuelve false si ya se superó el máximo permitido dentro de la ventana. */
+export function allowAction(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  if (hits.size >= MAX_ENTRIES) {
+    for (const [k, e] of hits) if (now - e.first > windowMs) hits.delete(k);
+    if (hits.size >= MAX_ENTRIES) hits.clear();
+  }
+  const e = hits.get(key);
+  if (!e || now - e.first > windowMs) {
+    hits.set(key, { n: 1, first: now });
+    return true;
+  }
+  e.n++;
+  return e.n <= max;
 }

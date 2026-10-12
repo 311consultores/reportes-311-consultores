@@ -4,7 +4,7 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // "native" para desarrollo; los demás cubren Docker (Debian) y hosting cPanel/CloudLinux (RHEL)
   binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-1.0.x"]
 }
@@ -30,22 +30,23 @@ enum DeletionStatus {
 }
 
 model User {
-  id               String            @id @default(uuid())
-  name             String
-  email            String            @unique
-  passwordHash     String
-  role             Role              @default(EDITOR)
-  active           Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  reportsCreated   Report[]          @relation("ReportCreator")
-  tasksCreated     ReportTask[]
-  deletionRequests DeletionRequest[] @relation("DeletionRequester")
-  deletionReviews  DeletionRequest[] @relation("DeletionReviewer")
-  auditLogs        AuditLog[]
-  clientAccess     ClientUser[]
-  theme            String?           @db.VarChar(10) // "light" | "dark"; null = automático según el sistema
-  passwordResets   PasswordReset[]
+  id                  String               @id @default(uuid())
+  name                String
+  email               String               @unique
+  passwordHash        String
+  role                Role                 @default(EDITOR)
+  active              Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  reportsCreated      Report[]             @relation("ReportCreator")
+  tasksCreated        ReportTask[]
+  deletionRequests    DeletionRequest[]    @relation("DeletionRequester")
+  deletionReviews     DeletionRequest[]    @relation("DeletionReviewer")
+  auditLogs           AuditLog[]
+  clientAccess        ClientUser[]
+  theme               String?              @db.VarChar(10) // "light" | "dark"; null = automático según el sistema
+  passwordResets      PasswordReset[]
+  registrationReviews ClientRegistration[]
 }
 
 model Client {
@@ -59,6 +60,65 @@ model Client {
   projects    Project[]
   reports     Report[]
   users       ClientUser[]
+
+  // Datos fiscales y de contacto (solo los ven Admin y Editor)
+  requiresInvoice Boolean             @default(false)
+  legalName       String?             @db.VarChar(255) // Razón social para facturar
+  rfc             String?             @db.VarChar(13)
+  street          String?             @db.VarChar(255) // Calle y número
+  colonia         String?             @db.VarChar(150)
+  postalCode      String?             @db.VarChar(5)
+  city            String?             @db.VarChar(120)
+  state           String?             @db.VarChar(120)
+  constanciaUrl   String? // Clave del PDF de la Constancia de Situación Fiscal (almacenamiento privado)
+  contactName     String?             @db.VarChar(150) // Contacto principal
+  contactPhone    String?             @db.VarChar(10)
+  contactEmail    String?             @db.VarChar(191)
+  billingName     String?             @db.VarChar(150) // Contacto de administración y facturación
+  billingPhone    String?             @db.VarChar(10)
+  billingEmail    String?             @db.VarChar(191)
+  registration    ClientRegistration?
+}
+
+enum RegistrationStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+/// Registro enviado por un cliente desde el formulario público; entra al catálogo al aprobarse.
+model ClientRegistration {
+  id        String             @id @default(uuid())
+  status    RegistrationStatus @default(PENDIENTE)
+  createdAt DateTime           @default(now())
+  ip        String?            @db.VarChar(64)
+
+  companyName     String  @db.VarChar(150)
+  logoUrl         String?
+  requiresInvoice Boolean @default(false)
+  legalName       String? @db.VarChar(255)
+  rfc             String? @db.VarChar(13)
+  street          String? @db.VarChar(255)
+  colonia         String? @db.VarChar(150)
+  postalCode      String? @db.VarChar(5)
+  city            String? @db.VarChar(120)
+  state           String? @db.VarChar(120)
+  constanciaUrl   String?
+  contactName     String  @db.VarChar(150)
+  contactPhone    String  @db.VarChar(10)
+  contactEmail    String  @db.VarChar(191)
+  billingName     String  @db.VarChar(150)
+  billingPhone    String  @db.VarChar(10)
+  billingEmail    String  @db.VarChar(191)
+
+  reviewedById    String?
+  reviewedBy      User?     @relation(fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  rejectionReason String?   @db.Text
+  clientId        String?   @unique
+  client          Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([status])
 }
 
 model Project {
@@ -107,17 +167,17 @@ model Report {
 }
 
 model ReportTask {
-  id              String   @id @default(uuid())
+  id              String         @id @default(uuid())
   reportId        String
-  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report          Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
   sequentialNum   Int
-  title           String?  @db.VarChar(191)
-  descriptionHtml String   @db.LongText // Rich Text HTML
+  title           String?        @db.VarChar(191)
+  descriptionHtml String         @db.LongText // Rich Text HTML
   evidences       TaskEvidence[]
   createdById     String
-  createdBy       User     @relation(fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([reportId])
 }

@@ -161,6 +161,17 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Variable opcional `APP_URL`** (por ejemplo `https://reportes.311consultores.com`): fija la dirección que usan los enlaces
   de los correos. Si no la defines, se deduce de la petición.
 
+### Evolutivo 3 (12 oct 2026) — registro público de clientes
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, pega y ejecuta
+  `database/migraciones/20261012164939_evolutivo3.sql`. Agrega los datos fiscales y de contacto a `Client` y crea
+  `ClientRegistration`.
+- **Rutas nuevas:** `/registro` (formulario público, sin sesión) y `/registros` (revisión; Admin y Editor).
+- **Enlace para clientes:** `https://reportes.311consultores.com/registro`. El Admin puede activarlo o desactivarlo en
+  *Registro de clientes*.
+- **Variable opcional `REGISTRO_NOTIFY_EMAIL`:** quién recibe el aviso de cada registro nuevo (por defecto
+  `admon@311consultores.com`).
+- La Constancia de Situación Fiscal solo la ven Admin y Editor. Al aprobar un registro se crea el cliente en el catálogo.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

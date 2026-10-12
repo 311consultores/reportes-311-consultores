@@ -150,7 +150,15 @@ export async function sendReport(reportId: string): Promise<{ error?: string; dr
   if (!report) return { error: "Reporte no encontrado" };
   if (report.status !== "APROBADO") return { error: "Solo se pueden enviar reportes aprobados" };
 
-  const to = Array.from(new Set([...splitEmails(report.client.mainEmails), ...splitEmails(report.project.projectEmails)]));
+  // Reciben el reporte: correos principales del cliente, correos del proyecto y el contacto principal.
+  // El contacto de administración y facturación NO lo recibe (su correo es solo para facturas).
+  const to = Array.from(
+    new Set([
+      ...splitEmails(report.client.mainEmails),
+      ...splitEmails(report.project.projectEmails),
+      ...(report.client.contactEmail ? [report.client.contactEmail] : []),
+    ].map((e) => e.toLowerCase())),
+  );
   if (to.length === 0) return { error: "El cliente y el proyecto no tienen correos" };
 
   try {

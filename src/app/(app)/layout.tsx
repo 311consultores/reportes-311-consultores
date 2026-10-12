@@ -1,4 +1,4 @@
-import { FileText, Building2, Users, Trash2, LogOut, Settings } from "lucide-react";
+import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
@@ -10,8 +10,9 @@ const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", CLIENTE: "Cliente
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [pendingDeletions, hasLogo] = await Promise.all([
+  const [pendingDeletions, pendingRegistrations, hasLogo] = await Promise.all([
     user.role === "ADMIN" ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
+    user.role !== "CLIENTE" ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     getLogo311Key().then((k) => !!k).catch(() => false),
   ]);
 
@@ -30,7 +31,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1">
           <NavLink href="/"><FileText size={18} /> Reportes</NavLink>
           {user.role !== "CLIENTE" && (
-            <NavLink href="/clientes"><Building2 size={18} /> Clientes y proyectos</NavLink>
+            <>
+              <NavLink href="/clientes"><Building2 size={18} /> Clientes y proyectos</NavLink>
+              <NavLink href="/registros">
+                <UserPlus size={18} /> Registro de clientes
+                {pendingRegistrations > 0 && (
+                  <span className="ml-auto rounded-full bg-[#FF3B30] px-2 py-0.5 text-xs font-semibold text-white">
+                    {pendingRegistrations}
+                  </span>
+                )}
+              </NavLink>
+            </>
           )}
           {user.role === "ADMIN" && (
             <>

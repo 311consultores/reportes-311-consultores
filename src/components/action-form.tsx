@@ -11,6 +11,7 @@ export function ActionForm({
   children,
   onSuccess,
   successMessage = "Guardado correctamente",
+  resetOnSuccess = true,
 }: {
   action: (prev: State, fd: FormData) => Promise<State>;
   submitLabel: string;
@@ -19,13 +20,15 @@ export function ActionForm({
   /** Se ejecuta al guardar con éxito (después de limpiar el formulario). */
   onSuccess?: () => void;
   successMessage?: string;
+  /** Limpia el formulario al guardar (desactívalo en formularios de edición, que deben conservar los valores). */
+  resetOnSuccess?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const ref = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (state?.ok) {
-      ref.current?.reset();
+      if (resetOnSuccess) ref.current?.reset();
       onSuccess?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

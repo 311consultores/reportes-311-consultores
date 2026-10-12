@@ -76,6 +76,67 @@ export function reportEmail(p: {
   return { subject, text, html };
 }
 
+/** Aviso interno: llegó un registro de cliente nuevo. */
+export function registroNuevoEmail(p: {
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  requiresInvoice: boolean;
+  link: string;
+  withLogo: boolean;
+}) {
+  const subject = `Nuevo registro de cliente: ${p.companyName}`;
+  const text = [
+    "Llegó un nuevo registro de cliente por el formulario público.",
+    "",
+    `Empresa: ${p.companyName}`,
+    `Contacto: ${p.contactName} (${p.contactEmail})`,
+    `Requiere factura: ${p.requiresInvoice ? "Sí" : "No"}`,
+    "",
+    "Revísalo y apruébalo aquí:",
+    p.link,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Llegó un <strong>nuevo registro de cliente</strong> por el formulario público.</p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Empresa</td><td><strong>${esc(p.companyName)}</strong></td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Contacto</td><td>${esc(p.contactName)} (${esc(p.contactEmail)})</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Requiere factura</td><td>${p.requiresInvoice ? "Sí" : "No"}</td></tr>
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Revisar registro")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
+/** Confirmación para quien se registró. */
+export function registroConfirmacionEmail(p: { contactName: string; companyName: string; withLogo: boolean }) {
+  const subject = "Recibimos tu registro — 311 Consultores";
+  const text = [
+    `Hola ${p.contactName},`,
+    "",
+    `Recibimos el registro de ${p.companyName}. Nuestro equipo lo revisará y, si necesitamos algo más, te contactaremos.`,
+    "",
+    "Gracias por confiar en nosotros.",
+    "Atentamente Equipo 311.",
+    "",
+    "Si tienes dudas, escríbenos a admon@311consultores.com",
+    "",
+    AVISO_PRIVACIDAD,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Hola <strong>${esc(p.contactName)}</strong>,</p>
+<p style="margin:0 0 16px;">Recibimos el registro de <strong>${esc(p.companyName)}</strong>. Nuestro equipo lo revisará y, si necesitamos algo más, te contactaremos.</p>
+<p style="margin:0 0 4px;">Gracias por confiar en nosotros.</p>
+<p style="margin:0 0 20px;"><strong>Atentamente Equipo 311.</strong></p>
+<p style="margin:0 0 16px;font-size:13px;color:#515154;">Si tienes dudas, escríbenos a admon@311consultores.com</p>
+<hr style="border:none;border-top:1px solid #e5e5ea;margin:0 0 16px;">
+<p style="margin:0;font-size:12px;color:#86868b;">${esc(AVISO_PRIVACIDAD)}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
 export function passwordResetEmail(p: { name: string; link: string; withLogo: boolean }) {
   const subject = "Restablece tu contraseña — Sistema de reportes 311";
   const text = [

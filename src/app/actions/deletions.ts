@@ -41,6 +41,7 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
     if (!client) return false;
     await prisma.client.delete({ where: { id: client.id } }); // proyectos y accesos en cascada
     if (client.logoUrl) await deleteObject(client.logoUrl).catch(() => {});
+    if (client.constanciaUrl) await deleteObject(client.constanciaUrl).catch(() => {}); // dato fiscal sensible
     return true;
   }
   if (type === "PROJECT") {
