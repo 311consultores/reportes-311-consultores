@@ -1,0 +1,9 @@
+{
+  "name": "manual-asistente-311",
+  "private": true,
+  "description": "Herramientas para generar el Manual de uso (capturas + PDF). No forma parte de la aplicacion.",
+  "dependencies": {
+    "pdfjs-dist": "^3.11.174",
+    "playwright-core": "1.49.1"
+  }
+}
