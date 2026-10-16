@@ -36,7 +36,7 @@ async function main() {
   await prisma.project.deleteMany();
   await prisma.client.deleteMany();
   await prisma.passwordReset.deleteMany();
-  await prisma.user.deleteMany({ where: { role: "CLIENTE" } });
+  await prisma.user.deleteMany({ where: { role: { in: ["CLIENTE", "TEAM_311"] } } });
   await prisma.appSetting.deleteMany({ where: { key: { in: ["logo311", "reparto_porcentajes", "datos_bancarios", "facturas_alerta_fecha"] } } });
   fs.rmSync(uploads, { recursive: true, force: true });
 

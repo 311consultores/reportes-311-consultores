@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
@@ -86,43 +85,4 @@ export async function createProject(_p: State, fd: FormData): Promise<State> {
   await prisma.project.create({ data: parsed.data });
   revalidatePath("/clientes");
   return { ok: true };
-}
-
-export async function createUser(_p: State, fd: FormData): Promise<State> {
-  await requireUser(["ADMIN"]);
-  const parsed = z
-    .object({
-      name: z.string().trim().min(2, "Nombre requerido"),
-      email: z.string().trim().toLowerCase().email("Correo inválido"),
-      password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
-      role: z.enum(["ADMIN", "EDITOR", "CLIENTE"]),
-      clientId: z.string().optional(),
-    })
-    .safeParse(Object.fromEntries(fd));
-  if (!parsed.success) return fail(parsed.error);
-  const { clientId, password, ...rest } = parsed.data;
-
-  if (rest.role === "CLIENTE" && !clientId) return { error: "Selecciona la empresa del usuario cliente" };
-  if (await prisma.user.findUnique({ where: { email: rest.email } })) {
-    return { error: "Ya existe un usuario con ese correo" };
-  }
-
-  await prisma.user.create({
-    data: {
-      ...rest,
-      passwordHash: await bcrypt.hash(password, 12),
-      ...(rest.role === "CLIENTE" && clientId ? { clientAccess: { create: { clientId } } } : {}),
-    },
-  });
-  revalidatePath("/usuarios");
-  return { ok: true };
-}
-
-export async function toggleUserActive(userId: string) {
-  const admin = await requireUser(["ADMIN"]);
-  if (admin.id === userId) return;
-  const u = await prisma.user.findUnique({ where: { id: userId } });
-  if (!u) return;
-  await prisma.user.update({ where: { id: userId }, data: { active: !u.active } });
-  revalidatePath("/usuarios");
 }

@@ -5,6 +5,7 @@ import { createReport } from "@/app/actions/reports";
 import { ActionForm } from "@/components/action-form";
 import { SearchSelect } from "@/components/search-select";
 import { DateInput } from "@/components/date-input";
+import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 
 type ClientOpt = { id: string; companyName: string; projects: { id: string; projectName: string }[] };
 
@@ -14,7 +15,7 @@ const addDays = (iso: string, days: number) => {
   return dt.toISOString().slice(0, 10);
 };
 
-export function NewReportForm({ clients }: { clients: ClientOpt[] }) {
+export function NewReportForm({ clients, team, initialConsultants }: { clients: ClientOpt[]; team: TeamOption[]; initialConsultants: string[] }) {
   const [clientId, setClientId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [start, setStart] = useState("");
@@ -81,8 +82,8 @@ export function NewReportForm({ clients }: { clients: ClientOpt[] }) {
         </div>
       </div>
       <div>
-        <label className="label">Consultores (separados por coma)</label>
-        <input name="consultants" required placeholder="Ana Pérez, Luis Gómez" className="input" />
+        <label className="label">Consultores</label>
+        <ConsultantPicker options={team} initial={initialConsultants} />
       </div>
     </ActionForm>
   );

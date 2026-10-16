@@ -1,12 +1,27 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { resolveDeletion } from "@/app/actions/deletions";
+import { EditRequestActions } from "./edit-request-actions";
 
 const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo" };
 const when = (d: Date) => d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 
 export default async function DeletionsPage() {
   await requireUser(["ADMIN"]);
+  const [editPending, editHistory] = await Promise.all([
+    prisma.editRequest.findMany({
+      where: { status: "PENDIENTE" },
+      include: { requestedBy: { select: { name: true } }, report: { select: { folio: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.editRequest.findMany({
+      where: { status: { not: "PENDIENTE" } },
+      include: { requestedBy: { select: { name: true } }, reviewedBy: { select: { name: true } }, report: { select: { folio: true } } },
+      orderBy: { resolvedAt: "desc" },
+      take: 30,
+    }),
+  ]);
   const [pending, history] = await Promise.all([
     prisma.deletionRequest.findMany({
       where: { status: "PENDIENTE" },
@@ -26,7 +41,24 @@ export default async function DeletionsPage() {
       <h1 className="page-title">Log</h1>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Solicitudes pendientes</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Solicitudes de edición pendientes</h2>
+        {editPending.map((r) => (
+          <div key={r.id} className="card flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-medium">
+                <Link href={`/reportes/${r.reportId}`} className="link">{r.report.folio}</Link> · edición solicitada por {r.requestedBy.name}
+              </p>
+              <p className="meta">{when(r.createdAt)}</p>
+              <p className="mt-1 text-sm">Motivo: {r.reason}</p>
+            </div>
+            <EditRequestActions id={r.id} />
+          </div>
+        ))}
+        {editPending.length === 0 && <p className="card meta">No hay solicitudes de edición pendientes.</p>}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold tracking-tight">Solicitudes de eliminación pendientes</h2>
         {pending.map((r) => (
           <div key={r.id} className="card flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -47,8 +79,33 @@ export default async function DeletionsPage() {
         {pending.length === 0 && <p className="card meta">No hay solicitudes pendientes.</p>}
       </section>
 
+      {editHistory.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Solicitudes de edición resueltas</h2>
+          <div className="card overflow-x-auto p-0">
+            <table className="w-full">
+              <thead className="border-b border-black/5 dark:border-white/10">
+                <tr><th className="th">Fecha</th><th className="th">Reporte</th><th className="th">Motivo</th><th className="th">Solicitó</th><th className="th">Resolvió</th><th className="th">Resultado</th></tr>
+              </thead>
+              <tbody className="divide-y divide-black/5 dark:divide-white/10">
+                {editHistory.map((r) => (
+                  <tr key={r.id}>
+                    <td className="td whitespace-nowrap">{r.resolvedAt ? when(r.resolvedAt) : "—"}</td>
+                    <td className="td"><Link href={`/reportes/${r.reportId}`} className="link">{r.report.folio}</Link></td>
+                    <td className="td">{r.reason}</td>
+                    <td className="td">{r.requestedBy.name}</td>
+                    <td className="td">{r.reviewedBy?.name ?? "—"}</td>
+                    <td className="td">{r.status === "APROBADO" ? "Aprobada" : "Rechazada"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold tracking-tight">Historial</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Historial de eliminaciones</h2>
         <div className="card overflow-x-auto p-0">
           <table className="w-full">
             <thead className="border-b border-black/5 dark:border-white/10">

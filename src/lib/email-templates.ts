@@ -137,6 +137,30 @@ export function registroConfirmacionEmail(p: { contactName: string; companyName:
   return { subject, text, html };
 }
 
+/** Aviso para Administración: un TEAM 311 terminó un reporte y espera revisión. */
+export function reporteTerminadoEmail(p: { folio: string; clientName: string; projectName: string; teamName: string; link: string; withLogo: boolean }) {
+  const subject = `Reporte ${p.folio} terminado por ${p.teamName} — listo para revisión`;
+  const text = [
+    `${p.teamName} marcó como terminado el reporte ${p.folio}.`,
+    "",
+    `Cliente: ${p.clientName}`,
+    `Proyecto: ${p.projectName}`,
+    "",
+    "Revísalo y apruébalo o recházalo aquí:",
+    p.link,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.teamName)}</strong> marcó como <strong>terminado</strong> el reporte <strong>${esc(p.folio)}</strong> y está listo para revisión.</p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Cliente</td><td>${esc(p.clientName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Proyecto</td><td>${esc(p.projectName)}</td></tr>
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Revisar reporte")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
 export type OverdueItem = { client: string; kind: string; number: string | null; description: string; total: string; dueDate: string; daysLate: number };
 
 /** Aviso diario para Administración: lista de facturas y recibos vencidos. */

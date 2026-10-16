@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, canEdit } from "@/lib/auth";
+import { getCurrentUser, canWorkReports, hasProjectAccess } from "@/lib/auth";
 import { putObject, deleteObject, usesLocalStorage, createLocalWriteStream } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
 import { MAX_EVIDENCES } from "@/lib/limits";
@@ -31,12 +31,12 @@ function matchesSignature(mime: string, b: Buffer) {
 
 async function load(id: string, taskId: string) {
   const user = await getCurrentUser();
-  if (!user || !canEdit(user.role)) return { error: json({ error: "No autorizado" }, 403) };
+  if (!user || !canWorkReports(user.role)) return { error: json({ error: "No autorizado" }, 403) };
   const task = await prisma.reportTask.findFirst({
     where: { id: taskId, reportId: id },
-    include: { report: { select: { status: true } }, evidences: true },
+    include: { report: { select: { status: true, projectId: true } }, evidences: true },
   });
-  if (!task) return { error: json({ error: "Actividad no encontrada" }, 404) };
+  if (!task || !hasProjectAccess(user, task.report.projectId)) return { error: json({ error: "Actividad no encontrada" }, 404) };
   if (task.report.status !== "EN_PROCESO" && task.report.status !== "RECHAZADO") {
     return { error: json({ error: "El reporte ya no es editable" }, 409) };
   }

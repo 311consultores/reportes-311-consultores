@@ -6,7 +6,8 @@ import { dateOnly, isValidIsoDate, monthRange, todayMx } from "@/lib/finance";
 
 /** Los clientes solo ven las facturas y recibos de su empresa. */
 export function invoiceScope(user: CurrentUser): Prisma.InvoiceWhereInput {
-  if (user.role !== "CLIENTE") return {};
+  if (user.role === "ADMIN" || user.role === "EDITOR") return {};
+  if (user.role === "TEAM_311") return { id: "sin-acceso" }; // el TEAM 311 no ve facturas
   return { clientId: { in: user.clientAccess.map((c) => c.clientId) } };
 }
 

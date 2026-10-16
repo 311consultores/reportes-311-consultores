@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { canEdit, getCurrentUser } from "@/lib/auth";
 import { contentTypeFor, getObject } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string; file: string }> }) {
   const { id, file } = await ctx.params;
   const user = await getCurrentUser();
-  if (!user || user.role === "CLIENTE") return new Response("No autorizado", { status: 403 });
+  if (!user || !canEdit(user.role)) return new Response("No autorizado", { status: 403 });
   if (file !== "logo" && file !== "constancia") return new Response("No encontrado", { status: 404 });
 
   const reg = await prisma.clientRegistration.findUnique({

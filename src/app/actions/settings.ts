@@ -19,9 +19,9 @@ export async function uploadLogo311(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
-/** Modo claro/oscuro del usuario (Editor y Admin). El rol Cliente siempre usa claro. */
+/** Modo claro/oscuro del usuario (Admin, Editor y TEAM 311). El rol Cliente siempre usa claro. */
 export async function setTheme(theme: "light" | "dark") {
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
   if (theme !== "light" && theme !== "dark") return;
   await prisma.user.update({ where: { id: user.id }, data: { theme } });
 }

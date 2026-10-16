@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus } from "lucide-react";
 import type { Prisma, ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireUser, reportScope, canEdit } from "@/lib/auth";
+import { requireUser, reportScope, canWorkReports } from "@/lib/auth";
 import { StatusBadge, STATUS_LABEL } from "@/components/status-badge";
 import { todayMx } from "@/lib/finance";
 import { periodLabel, periodWhere, parsePeriod } from "@/lib/report-period";
@@ -73,7 +73,7 @@ export default async function ReportsPage({
         <h1 className="page-title">Reportes</h1>
         <div className="flex flex-wrap items-center gap-3">
           <ReportSearch />
-          {canEdit(user.role) && (
+          {canWorkReports(user.role) && (
             <Link href="/reportes/nuevo" className="btn"><Plus size={16} /> Nuevo reporte</Link>
           )}
         </div>

@@ -211,6 +211,16 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Clientes y proyectos** pasa a cards, con ventanas emergentes para cada acción.
 - **Login y pantallas públicas:** solo el logo y el subtítulo «Portal de Operaciones».
 
+### Evolutivo 5 · Etapa B (16 oct 2026) — rol TEAM 311
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261016201537_evolutivo5b.sql`. Agrega el rol TEAM_311, la foto y el cumpleaños de los usuarios,
+  los proyectos asignados (`UserProject`), los consultores ligados a cada reporte y las solicitudes de edición (`EditRequest`).
+- **Variable opcional `TEAM_NOTIFY_EMAILS`:** a quién se avisa cuando un TEAM 311 termina un reporte (separados por coma).
+  Por defecto: `admon@311consultores.com,necesito@311consultores.com`.
+- **Después de actualizar:** en *Configuración › Usuarios* (Admin o Editor) crea a cada TEAM 311 con su foto, cumpleaños y los
+  proyectos que puede trabajar. Los proyectos nuevos NO se asignan solos.
+- Las fotos se guardan en la carpeta de evidencias (`perfiles/`), así que entran en los respaldos de esa carpeta.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

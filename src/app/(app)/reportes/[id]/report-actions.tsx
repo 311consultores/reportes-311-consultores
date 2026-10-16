@@ -53,7 +53,7 @@ export function ReportActions({
           <Send size={16} /> {busy ? "Enviando…" : "Enviar por correo"}
         </button>
       )}
-      {role !== "CLIENTE" && (
+      {(role === "ADMIN" || role === "EDITOR") && (
         <DeleteButton
           targetType="REPORT"
           targetId={reportId}

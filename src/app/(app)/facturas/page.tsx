@@ -20,7 +20,7 @@ const Kpi = ({ label, value, hint, tone }: { label: string; value: string; hint:
 );
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireUser();
+  const user = await requireUser(["ADMIN", "EDITOR", "CLIENTE"]); // el TEAM 311 no ve facturas
   const isClient = user.role === "CLIENTE";
   const sp = await searchParams;
   const f = parseFilters(sp);

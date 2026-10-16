@@ -10,6 +10,7 @@ export function TaskList({
   initialTasks,
   editable,
   canDelete,
+  directDelete,
   isAdmin,
   pendingTaskIds,
 }: {
@@ -17,6 +18,7 @@ export function TaskList({
   initialTasks: TaskData[];
   editable: boolean;
   canDelete: boolean;
+  directDelete: boolean;
   isAdmin: boolean;
   pendingTaskIds: string[];
 }) {
@@ -66,6 +68,7 @@ export function TaskList({
           number={i + 1}
           editable={editable}
           canDelete={canDelete}
+          directDelete={directDelete}
           isAdmin={isAdmin}
           deletionPending={pendingTaskIds.includes(t.id)}
           open={openId === t.id}

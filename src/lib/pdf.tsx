@@ -5,6 +5,7 @@ import { getObject } from "@/lib/storage";
 import { htmlToBlocks } from "@/lib/html-blocks";
 import { parseConsultants } from "@/lib/consultants";
 import { readLogo, readLogo311, type LogoImage } from "@/lib/branding";
+import { avatarColor, initialsOf } from "@/lib/avatar-style";
 
 const ACCENT = "#007AFF"; // mismo azul del sistema
 
@@ -20,6 +21,12 @@ const s = StyleSheet.create({
   metaCol: { flex: 1, paddingRight: 8 },
   metaLabel: { fontSize: 7.5, color: "#64748b", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 },
   metaValue: { fontSize: 10, color: "#0f172a", lineHeight: 1.3 },
+  people: { flexDirection: "row", flexWrap: "wrap" },
+  person: { flexDirection: "row", alignItems: "center", marginRight: 10, marginBottom: 4 },
+  avatar: { width: 20, height: 20, borderRadius: 10, objectFit: "cover", marginRight: 5 },
+  avatarInitials: { alignItems: "center", justifyContent: "center" },
+  avatarText: { color: "#ffffff", fontSize: 7.5, fontFamily: "Helvetica-Bold" },
+  personName: { fontSize: 10, color: "#0f172a" },
   sectionTitle: { marginTop: 22, marginBottom: 8, fontSize: 9, letterSpacing: 1.2, color: "#64748b", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
   card: { marginBottom: 12, borderWidth: 1, borderColor: "#dbe3ee", borderRadius: 8, overflow: "hidden" },
   cardHead: { flexDirection: "row", alignItems: "center", backgroundColor: "#eaf2ff", paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#cfe0fb" },
@@ -55,6 +62,24 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
   });
 
   const [logo311, logoClient] = await Promise.all([readLogo311(), readLogo(report.client.logoUrl)]);
+
+  // Consultores con foto: los reportes nuevos guardan los ids de los usuarios TEAM 311; los anteriores, solo nombres (iniciales)
+  const names = parseConsultants(report.consultants);
+  let ids: string[] = [];
+  try {
+    const v = report.consultantIds ? JSON.parse(report.consultantIds) : [];
+    ids = Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    ids = [];
+  }
+  const people = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, photoUrl: true } }) : [];
+  const consultants = await Promise.all(
+    names.map(async (n, i) => {
+      const u = people.find((p) => p.id === ids[i]);
+      const photo = u?.photoUrl ? await readLogo(u.photoUrl) : null; // readLogo lee cualquier imagen guardada (PNG o JPG)
+      return { name: u?.name ?? n, photo };
+    }),
+  );
 
   const tasks = await Promise.all(
     report.tasks.map(async (t, idx) => {
@@ -102,7 +127,21 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
           </View>
           <View style={s.metaCol}>
             <Text style={s.metaLabel}>Consultores</Text>
-            <Text style={s.metaValue}>{parseConsultants(report.consultants).join(", ")}</Text>
+            <View style={s.people}>
+              {consultants.map((c, i) => (
+                <View key={i} style={s.person} wrap={false}>
+                  {c.photo ? (
+                    // eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt
+                    <Image src={src(c.photo)} style={s.avatar} />
+                  ) : (
+                    <View style={[s.avatar, s.avatarInitials, { backgroundColor: avatarColor(c.name) }]}>
+                      <Text style={s.avatarText}>{initialsOf(c.name)}</Text>
+                    </View>
+                  )}
+                  <Text style={s.personName}>{c.name}</Text>
+                </View>
+              ))}
+            </View>
           </View>
           <View style={s.metaCol}>
             <Text style={s.metaLabel}>Elaborado por</Text>

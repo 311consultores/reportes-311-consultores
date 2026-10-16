@@ -2,13 +2,15 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireUser, reportScope } from "@/lib/auth";
+import { requireUser, reportScope, canWorkReports } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
+import { AvatarChip } from "@/components/avatar";
 import { parseConsultants } from "@/lib/consultants";
 import { getLogo311Key } from "@/lib/branding";
 import { TaskList } from "./task-list";
 import { StatusControls } from "./status-controls";
 import { ReportActions } from "./report-actions";
+import { EditRequestPanel } from "./edit-request-panel";
 
 const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -29,6 +31,8 @@ function actionLabel(action: string) {
   if (action.startsWith("DELETED_TASK_")) return `Eliminó la actividad ${num}`;
   if (action.startsWith("UPLOADED_EVIDENCE_TASK_")) return `Subió evidencia a la actividad ${num}`;
   if (action.startsWith("REMOVED_EVIDENCE_TASK_")) return `Quitó la evidencia de la actividad ${num}`;
+  if (action === "EDIT_REQUESTED") return "Solicitó permiso de edición";
+  if (action === "EDIT_REQUEST_REJECTED") return "Rechazó la solicitud de edición";
   return action;
 }
 
@@ -57,8 +61,27 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   if (!report) notFound();
 
   const editable =
-    user.role !== "CLIENTE" && (report.status === "EN_PROCESO" || report.status === "RECHAZADO");
+    canWorkReports(user.role) && (report.status === "EN_PROCESO" || report.status === "RECHAZADO");
   const isAdmin = user.role === "ADMIN";
+  const isTeam = user.role === "TEAM_311";
+
+  // Consultores: los reportes nuevos guardan los ids de los usuarios TEAM 311 (foto); los anteriores, solo nombres
+  const names = parseConsultants(report.consultants);
+  let ids: string[] = [];
+  try {
+    const v = report.consultantIds ? JSON.parse(report.consultantIds) : [];
+    ids = Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    ids = [];
+  }
+  const people = ids.length
+    ? new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, photoUrl: true } })).map((u) => [u.id, u]))
+    : new Map<string, { id: string; name: string; photoUrl: string | null }>();
+
+  const pendingEdit = await prisma.editRequest.findFirst({
+    where: { reportId: report.id, status: "PENDIENTE" },
+    include: { requestedBy: { select: { name: true } } },
+  });
 
   const logo311Key = await getLogo311Key();
   const hasLogo311 = !!logo311Key;
@@ -112,7 +135,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
         <dl className="grid gap-2 text-sm md:grid-cols-3">
           <div><dt className="text-muted-foreground">Periodo</dt><dd>{fmt(report.startDate)} – {fmt(report.endDate)}</dd></div>
-          <div><dt className="text-muted-foreground">Consultores</dt><dd>{parseConsultants(report.consultants).join(", ")}</dd></div>
+          <div>
+            <dt className="mb-1 text-muted-foreground">Consultores</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {names.map((n, i) => {
+                const p = people.get(ids[i] ?? "");
+                return <AvatarChip key={`${n}-${i}`} name={p?.name ?? n} userId={p?.id} photoKey={p?.photoUrl} size={26} />;
+              })}
+            </dd>
+          </div>
           <div><dt className="text-muted-foreground">Creado por</dt><dd>{report.createdBy.name}</dd></div>
         </dl>
         {report.status === "RECHAZADO" && report.rejectionComment && (
@@ -131,10 +162,20 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         />
       </div>
 
+      {user.role !== "CLIENTE" && (
+        <EditRequestPanel
+          reportId={report.id}
+          role={user.role}
+          status={report.status}
+          pending={pendingEdit ? { id: pendingEdit.id, reason: pendingEdit.reason, by: pendingEdit.requestedBy.name } : null}
+        />
+      )}
+
       <TaskList
         reportId={report.id}
         editable={editable}
         canDelete={user.role !== "CLIENTE" && (isAdmin || editable)}
+        directDelete={isTeam}
         isAdmin={isAdmin}
         pendingTaskIds={pending.filter((p) => p.targetType === "TASK").map((p) => p.targetId)}
         initialTasks={report.tasks.map((t) => ({

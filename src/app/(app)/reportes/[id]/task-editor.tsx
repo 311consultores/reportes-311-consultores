@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, ChevronDown, Italic, List, ListOrdered } from "lucide-react";
-import { saveTask } from "@/app/actions/reports";
+import { Bold, ChevronDown, Italic, List, ListOrdered, Trash2 } from "lucide-react";
+import { deleteTaskDirect, saveTask } from "@/app/actions/reports";
+import { useDialogs } from "@/components/dialogs";
 import { cn } from "@/lib/utils";
 import { Evidence, type EvidenceItem } from "./evidence";
 import { DeleteButton } from "@/components/delete-button";
@@ -26,6 +27,7 @@ export function TaskEditor({
   number,
   editable,
   canDelete,
+  directDelete,
   isAdmin,
   deletionPending,
   onDeleted,
@@ -37,12 +39,14 @@ export function TaskEditor({
   number: number;
   editable: boolean;
   canDelete: boolean;
+  directDelete: boolean;
   isAdmin: boolean;
   deletionPending: boolean;
   onDeleted: () => void;
   open: boolean;
   onToggle: () => void;
 }) {
+  const { confirm } = useDialogs();
   const [state, setState] = useState<SaveState>("idle");
   const [title, setTitle] = useState(task.title ?? "");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -87,6 +91,11 @@ export function TaskEditor({
       schedule();
     },
   });
+
+  // Si el reporte deja de ser editable (p. ej. se marcó como terminado), el texto se bloquea sin recargar
+  useEffect(() => {
+    editor?.setEditable(editable);
+  }, [editor, editable]);
 
   // Guardar cambios pendientes al cerrar la pestaña o desmontar
   useEffect(() => {
@@ -136,7 +145,20 @@ export function TaskEditor({
               {state === "error" && <span className="text-destructive">Error al guardar, reintentando al editar</span>}
             </span>
           )}
-          {canDelete && (
+          {canDelete && directDelete && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#FF3B30] transition-all duration-200 ease-out hover:opacity-70 active:scale-[0.98]"
+              onClick={async () => {
+                if (!(await confirm({ title: "Eliminar actividad", message: "La actividad y sus evidencias se eliminan. Esta acción no se puede deshacer.", confirmLabel: "Eliminar", danger: true }))) return;
+                const r = await deleteTaskDirect(task.id);
+                if (!r.error) onDeleted();
+              }}
+            >
+              <Trash2 size={13} /> Eliminar
+            </button>
+          )}
+          {canDelete && !directDelete && (
             <DeleteButton
               targetType="TASK"
               targetId={task.id}

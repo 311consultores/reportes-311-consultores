@@ -13,6 +13,7 @@ enum Role {
   ADMIN
   EDITOR
   CLIENTE
+  TEAM_311 // consultores de 311: solo trabajan reportes de los proyectos que se les asignan
 }
 
 enum ReportStatus {
@@ -53,6 +54,11 @@ model User {
   ledgerEntries       LedgerEntry[]
   expensesCreated     Expense[]
   movementsCreated    Movement[]
+  photoUrl            String? // Clave de la foto de perfil (TEAM 311) en el almacenamiento
+  birthday            String?              @db.VarChar(5) // "MM-DD": solo día y mes
+  projectAccess       UserProject[]
+  editRequests        EditRequest[]        @relation("EditRequester")
+  editReviews         EditRequest[]        @relation("EditReviewer")
 }
 
 model Client {
@@ -129,15 +135,27 @@ model ClientRegistration {
 }
 
 model Project {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   clientId      String
-  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   projectName   String
-  projectEmails String   @db.Text // Comma-separated emails
-  createdAt     DateTime @default(now())
+  projectEmails String        @db.Text // Comma-separated emails
+  createdAt     DateTime      @default(now())
   reports       Report[]
+  teamMembers   UserProject[]
 
   @@index([clientId])
+}
+
+/// Proyectos asignados a un usuario TEAM 311 (el cliente se deduce del proyecto). Los proyectos nuevos no se asignan solos.
+model UserProject {
+  userId    String
+  projectId String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([projectId])
 }
 
 model ClientUser {
@@ -150,27 +168,46 @@ model ClientUser {
 }
 
 model Report {
-  id               String       @id @default(uuid())
-  folio            String       @unique // E.g., "LAJ001071026" = prefijo + consecutivo + DDMMAA
+  id               String        @id @default(uuid())
+  folio            String        @unique // E.g., "LAJ001071026" = prefijo + consecutivo + DDMMAA
   clientId         String
-  client           Client       @relation(fields: [clientId], references: [id])
+  client           Client        @relation(fields: [clientId], references: [id])
   projectId        String
-  project          Project      @relation(fields: [projectId], references: [id])
+  project          Project       @relation(fields: [projectId], references: [id])
   startDate        DateTime
   endDate          DateTime
-  consultants      String       @db.Text // Lista JSON de nombres de 311 CONSULTORES (MariaDB no soporta String[])
-  status           ReportStatus @default(EN_PROCESO)
-  rejectionComment String?      @db.Text
+  consultants      String        @db.Text // Lista JSON de nombres de 311 CONSULTORES (MariaDB no soporta String[])
+  consultantIds    String?       @db.Text // Lista JSON de ids de usuarios TEAM 311 (reportes nuevos); los anteriores solo tienen nombres
+  status           ReportStatus  @default(EN_PROCESO)
+  rejectionComment String?       @db.Text
   createdById      String
-  createdBy        User         @relation("ReportCreator", fields: [createdById], references: [id])
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdBy        User          @relation("ReportCreator", fields: [createdById], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
   tasks            ReportTask[]
   auditLogs        AuditLog[]
+  editRequests     EditRequest[]
 
   @@index([clientId])
   @@index([projectId])
   @@index([status])
+}
+
+/// Solicitud de un TEAM 311 para volver a editar un reporte Terminado; Admin o Editor la aprueban (vuelve a En proceso) o rechazan.
+model EditRequest {
+  id            String         @id @default(uuid())
+  reportId      String
+  report        Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User           @relation("EditRequester", fields: [requestedById], references: [id])
+  reason        String         @db.Text
+  status        DeletionStatus @default(PENDIENTE)
+  reviewedById  String?
+  reviewedBy    User?          @relation("EditReviewer", fields: [reviewedById], references: [id])
+  createdAt     DateTime       @default(now())
+  resolvedAt    DateTime?
+
+  @@index([reportId, status])
 }
 
 model ReportTask {
