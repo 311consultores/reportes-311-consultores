@@ -17,6 +17,16 @@ const photo = (title, c1, c2) => `
 <div style="font-size:120px">&#128247;</div><div style="font-size:54px;font-weight:700;margin-top:10px">${title}</div>
 <div style="font-size:28px;opacity:.85;margin-top:8px">Imagen de ejemplo</div></div></body></html>`;
 
+// Retratos de ejemplo (siluetas sencillas sobre color): no son personas reales
+const persona = (c1, c2, skin) => `
+<html><body style="margin:0"><div id="c" style="width:400px;height:400px;background:linear-gradient(160deg,${c1},${c2});position:relative;overflow:hidden">
+  <svg viewBox="0 0 400 400" width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="200" cy="420" rx="170" ry="150" fill="rgba(255,255,255,.85)"/>
+    <rect x="170" y="235" width="60" height="70" rx="22" fill="${skin}"/>
+    <circle cx="200" cy="175" r="78" fill="${skin}"/>
+    <path d="M120 170 C120 95 165 80 200 80 C245 80 282 105 280 170 C262 140 240 128 200 128 C160 128 138 142 120 170Z" fill="#2b2118"/>
+  </svg></div></body></html>`;
+
 const browser = await launch();
 const page = await browser.newPage({ deviceScaleFactor: 2 });
 
@@ -32,6 +42,8 @@ if (!fs.existsSync(path.join(ASSETS, "logo-311.png"))) {
 await shot(logo("HRZ", "#0F766E", "Constructora Horizonte"), "logo-horizonte.png", { omit: true });
 await shot(logo("CSA", "#B91C1C", "Clínica Santa Aurora"), "logo-aurora.png", { omit: true });
 await shot(logo("ECA", "#7C3AED", "Estudio Creativo Aurora"), "logo-estudio.png", { omit: true });
+await shot(persona("#60A5FA", "#2563EB", "#E8B994"), "persona-ana.jpg", { type: "jpeg" });
+await shot(persona("#34D399", "#047857", "#C68642"), "persona-luis.jpg", { type: "jpeg" });
 await shot(photo("Reunión de arranque", "#2563EB", "#7C3AED"), "foto-1.jpg", { type: "jpeg" });
 await shot(photo("Recorrido en obra", "#059669", "#0EA5E9"), "foto-2.jpg", { type: "jpeg" });
 await shot(photo("Entrega de avances", "#EA580C", "#DB2777"), "foto-3.jpg", { type: "jpeg" });

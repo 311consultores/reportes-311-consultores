@@ -51,6 +51,20 @@ async function main() {
     create: { name: "Mariana Asistente", email: "editor@311consultores.com", passwordHash: await bcrypt.hash(editorPass, 10), role: "EDITOR", theme: "light" },
   });
 
+  // 2b) Usuarios TEAM 311 de ejemplo (con y sin foto)
+  const teamPass = await bcrypt.hash("TeamDemo2026", 10);
+  const person = async (name: string, email: string, photo: string | null, birthday: string) => {
+    let photoUrl: string | null = null;
+    if (photo) {
+      photoUrl = `perfiles/${randomUUID()}.jpg`;
+      await putObject(photoUrl, A(photo), "image/jpeg");
+    }
+    return prisma.user.create({ data: { name, email, passwordHash: teamPass, role: "TEAM_311", theme: "light", photoUrl, birthday } });
+  };
+  const ana = await person("Ana Pérez", "ana.perez@ejemplo.test", "persona-ana.jpg", "03-15");
+  const luis = await person("Luis Gómez", "luis.gomez@ejemplo.test", "persona-luis.jpg", "09-02");
+  const sofia = await person("Sofía Ríos", "sofia.rios@ejemplo.test", null, "11-27");
+
   // 3) Logos
   const k311 = `branding/311-${randomUUID()}.png`;
   await putObject(k311, A("logo-311.png"), "image/png");
@@ -83,6 +97,14 @@ async function main() {
   const torre = await prisma.project.create({ data: { clientId: hrz.id, projectName: "Torre Norte", projectEmails: "coordinador@horizonte.example" } });
   await prisma.project.create({ data: { clientId: hrz.id, projectName: "Plaza Comercial Sur", projectEmails: "plaza@horizonte.example" } });
   const expedientes = await prisma.project.create({ data: { clientId: csa.id, projectName: "Modernización de expedientes", projectEmails: "sistemas@aurora.example" } });
+  const plaza = await prisma.project.findFirstOrThrow({ where: { clientId: hrz.id, projectName: "Plaza Comercial Sur" } });
+  await prisma.userProject.createMany({
+    data: [
+      { userId: ana.id, projectId: torre.id }, { userId: ana.id, projectId: plaza.id },
+      { userId: luis.id, projectId: torre.id }, { userId: luis.id, projectId: expedientes.id },
+      { userId: sofia.id, projectId: expedientes.id },
+    ],
+  });
 
   // 5) Reportes
   type T = { title: string; html: string; photos: string[] };
@@ -90,7 +112,7 @@ async function main() {
     const r = await prisma.report.create({
       data: {
         folio, clientId, projectId, status, startDate: d(start), endDate: d(end), createdAt: d(created), createdById: editor.id,
-        consultants: JSON.stringify(["Ana Pérez", "Luis Gómez"]), rejectionComment: rejection ?? null,
+        consultants: JSON.stringify([ana.name, luis.name]), consultantIds: JSON.stringify([ana.id, luis.id]), rejectionComment: rejection ?? null,
       },
     });
     await prisma.auditLog.create({ data: { reportId: r.id, userId: editor.id, action: "CREATED_REPORT", createdAt: d(created) } });
@@ -127,12 +149,44 @@ async function main() {
   await report("HRZ001220926", hrz.id, torre.id, "ENVIADO", "2026-09-14", "2026-09-18", "2026-09-22", [{ title: "Reunión de arranque", html: p1, photos: ["foto-1.jpg"] }]);
   await report("HRZ002290926", hrz.id, torre.id, "APROBADO", "2026-09-21", "2026-09-25", "2026-09-29", [{ title: "Recorrido en obra", html: p2, photos: ["foto-2.jpg"] }, { title: "Entrega de avances", html: p3, photos: ["foto-3.jpg"] }]);
   await report("CSA001071026", csa.id, expedientes.id, "RECHAZADO", "2026-09-28", "2026-10-02", "2026-10-07", [{ title: "Capacitación al personal", html: p1, photos: [] }], "Falta la evidencia de la actividad 1. Por favor agrega una foto o lista de asistencia.");
-  await report("CSA002091026", csa.id, expedientes.id, "TERMINADO", "2026-10-05", "2026-10-09", "2026-10-09", [{ title: "Revisión de expedientes", html: p2, photos: ["foto-2.jpg"] }]);
+  const csa2 = await report("CSA002091026", csa.id, expedientes.id, "TERMINADO", "2026-10-05", "2026-10-09", "2026-10-09", [{ title: "Revisión de expedientes", html: p2, photos: ["foto-2.jpg"] }]);
+  // Solicitud de edición pendiente de un TEAM 311 (la atiende Admin o Editor)
+  await prisma.editRequest.create({
+    data: { reportId: csa2.id, requestedById: luis.id, reason: "Falta anexar el listado de asistencia de la revisión de expedientes.", createdAt: d("2026-10-14") },
+  });
   await report("HRZ003091026", hrz.id, torre.id, "EN_PROCESO", "2026-10-05", "2026-10-09", "2026-10-09", [
     { title: "Reunión de arranque", html: p1, photos: ["foto-1.jpg", "foto-2.jpg"] },
     { title: "Recorrido en obra", html: p2, photos: ["foto-2.jpg"] },
     { title: "", html: "", photos: [] },
   ]);
+
+  // 5b) Facturas y recibos de ejemplo (importes inventados)
+  const inv = (
+    kind: "FACTURA" | "RECIBO", number: string, clientId: string, rfc: string | null, description: string, subtotal: number,
+    due: string, sent: string, status: "ENVIADA" | "PAGADA", software = false,
+  ) => {
+    const vat = kind === "FACTURA" ? Math.round(subtotal * 16) / 100 : 0;
+    return prisma.invoice.create({
+      data: {
+        kind, number, clientId, rfc, description, subtotal: subtotal.toFixed(2), vat: vat.toFixed(2), total: (subtotal + vat).toFixed(2), isSoftware: software,
+        dueDate: new Date(`${due}T00:00:00.000Z`), status, sentAt: d(sent), createdAt: d(sent), createdById: editor.id,
+        ...(status === "PAGADA" ? { paidAt: d("2026-10-02"), collectedOn: new Date("2026-10-02T00:00:00.000Z"), account: "TRIADA" as const, paidById: editor.id } : {}),
+      },
+    });
+  };
+  await inv("FACTURA", "A-2026-012", hrz.id, hrz.rfc, "SERVICIOS DE CONSULTORÍA — AGOSTO 2026", 12000, "2026-09-30", "2026-09-15", "PAGADA");
+  await inv("FACTURA", "A-2026-014", hrz.id, hrz.rfc, "SERVICIOS DE CONSULTORÍA — SEPTIEMBRE 2026", 15000, "2026-10-05", "2026-09-28", "ENVIADA");
+  await inv("FACTURA", "A-2026-015", hrz.id, hrz.rfc, "DESARROLLO DE PORTAL DE PROVEEDORES — OCTUBRE", 8000, "2026-11-15", "2026-10-12", "ENVIADA", true);
+  await inv("RECIBO", "R-007", csa.id, null, "TALLER DE CAPACITACIÓN AL PERSONAL", 3500, "2026-10-30", "2026-10-13", "ENVIADA");
+  await prisma.appSetting.create({
+    data: {
+      key: "datos_bancarios",
+      value: JSON.stringify([
+        { title: "FACTURA — EMPRESA DE EJEMPLO", holder: "EMPRESA DE EJEMPLO S.A. DE C.V.", rfc: "XAXX010101000", bank: "BANCO EJEMPLO", clabe: "000000000000000001", account: "0000000001", card: "" },
+        { title: "FACTURA O SIN FACTURA — PERSONA DE EJEMPLO", holder: "PERSONA DE EJEMPLO UNO", rfc: "XEXX010101000", bank: "BANCO EJEMPLO", clabe: "000000000000000002", account: "", card: "0000 0000 0000 0000" },
+      ]),
+    },
+  });
 
   // 6) Registros pendientes (los envia el cliente desde el formulario publico)
   const regId = randomUUID();
