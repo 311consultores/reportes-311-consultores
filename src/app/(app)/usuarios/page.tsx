@@ -6,6 +6,7 @@ import { Avatar } from "@/components/avatar";
 import { formatBirthday } from "./birthday-field";
 import { TeamEditor } from "./team-editor";
 import { UserForm } from "./user-form";
+import { DeleteUserButton, UserEditor } from "./user-editor";
 
 const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", CLIENTE: "Cliente", TEAM_311: "TEAM 311" } as const;
 
@@ -16,7 +17,7 @@ export default async function UsersPage() {
     prisma.user.findMany({
       where: isAdmin ? {} : { role: "TEAM_311" }, // el Editor solo gestiona a los TEAM 311
       orderBy: { createdAt: "asc" },
-      include: { projectAccess: { select: { projectId: true } } },
+      include: { projectAccess: { select: { projectId: true } }, clientAccess: { select: { clientId: true } } },
     }),
     prisma.client.findMany({ orderBy: { companyName: "asc" }, include: { projects: { orderBy: { projectName: "asc" } } } }),
   ]);
@@ -57,13 +58,21 @@ export default async function UsersPage() {
                 <td className="td">
                   <div className="flex items-center justify-end gap-2">
                     {u.role === "TEAM_311" && (
-                      <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, projectIds: u.projectAccess.map((p) => p.projectId) }} assign={assign} />
+                      <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, projectIds: u.projectAccess.map((p) => p.projectId) }} assign={assign} email={isAdmin ? u.email : undefined} />
+                    )}
+                    {isAdmin && u.role !== "TEAM_311" && (
+                      <UserEditor
+                        user={{ id: u.id, name: u.name, email: u.email, role: u.role, clientId: u.clientAccess[0]?.clientId ?? null }}
+                        companies={clients.map((c) => ({ id: c.id, name: c.companyName }))}
+                        isSelf={u.id === me.id}
+                      />
                     )}
                     {u.id !== me.id && (
                       <form action={toggleUserActive.bind(null, u.id)}>
                         <button className="btn-outline">{u.active ? "Desactivar" : "Activar"}</button>
                       </form>
                     )}
+                    {isAdmin && u.id !== me.id && <DeleteUserButton userId={u.id} name={u.name} />}
                   </div>
                 </td>
               </tr>

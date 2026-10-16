@@ -12,7 +12,7 @@ import { BirthdayField } from "./birthday-field";
 export type TeamUser = { id: string; name: string; photoUrl: string | null; birthday: string | null; projectIds: string[] };
 
 /** Edición de un usuario TEAM 311: nombre, foto, cumpleaños, proyectos asignados y nueva contraseña (opcional). */
-export function TeamEditor({ user, assign }: { user: TeamUser; assign: AssignClient[] }) {
+export function TeamEditor({ user, assign, email }: { user: TeamUser; assign: AssignClient[]; email?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -22,6 +22,7 @@ export function TeamEditor({ user, assign }: { user: TeamUser; assign: AssignCli
           <input type="hidden" name="id" value={user.id} />
           <div className="grid gap-4 md:grid-cols-2">
             <div><label className="label">Nombre</label><input name="name" required defaultValue={user.name} className="input" /></div>
+            {email !== undefined && <div><label className="label">Correo</label><input name="email" type="email" required defaultValue={email} className="input" /></div>}
             <div><label className="label">Nueva contraseña (solo si quieres cambiarla)</label><input name="password" type="password" minLength={8} className="input" autoComplete="new-password" /></div>
             <div><label className="label">Foto de perfil</label><PhotoField name="photo" userId={user.id} photoKey={user.photoUrl} current={user.name} /></div>
             <div><label className="label">Fecha de cumpleaños</label><BirthdayField value={user.birthday} /></div>

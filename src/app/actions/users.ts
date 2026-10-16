@@ -78,11 +78,12 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
 
 /** Edición de un usuario TEAM 311: nombre, foto, cumpleaños, proyectos asignados y (opcional) nueva contraseña. */
 export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
-  await requireUser(["ADMIN", "EDITOR"]);
+  const me = await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
     .object({
       id: z.string().uuid(),
       name: nameField,
+      email: z.string().trim().toLowerCase().email("Correo inválido").optional(),
       password: z.string().optional(),
       birthMonth: z.string().optional(),
       birthDay: z.string().optional(),
@@ -97,6 +98,13 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   const b = parseBirthday(d.birthMonth ?? "", d.birthDay ?? "");
   if (!b.ok) return { error: b.error };
 
+  // Solo el Administrador cambia el correo
+  const email = me.role === "ADMIN" ? d.email : undefined;
+  if (email) {
+    const dup = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (dup && dup.id !== d.id) return { error: "Ya existe un usuario con ese correo" };
+  }
+
   let photoUrl: string | undefined;
   const file = photoFile(fd);
   if (file) {
@@ -109,12 +117,78 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   await prisma.$transaction([
     prisma.user.update({
       where: { id: d.id },
-      data: { name: d.name, birthday: b.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
+      data: { name: d.name, ...(email ? { email } : {}), birthday: b.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
     }),
     prisma.userProject.deleteMany({ where: { userId: d.id } }),
     prisma.userProject.createMany({ data: projectIds.map((projectId) => ({ userId: d.id, projectId })) }),
   ]);
   if (photoUrl) await removePhoto(target.photoUrl);
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+/** Edición de un usuario ADMIN, EDITOR o CLIENTE (solo Administrador). */
+export async function updateUser(_p: State, fd: FormData): Promise<State> {
+  const me = await requireUser(["ADMIN"]);
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      name: nameField,
+      email: z.string().trim().toLowerCase().email("Correo inválido"),
+      password: z.string().optional(),
+      role: z.enum(["ADMIN", "EDITOR", "CLIENTE"]),
+      clientId: z.string().optional(),
+    })
+    .safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true } });
+  if (!target || target.role === "TEAM_311") return { error: "Usuario no encontrado" };
+  if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
+  if (d.id === me.id && d.role !== "ADMIN") return { error: "No puedes quitarte a ti mismo el rol de Administrador" };
+  if (d.role === "CLIENTE" && !d.clientId) return { error: "Selecciona la empresa del usuario cliente" };
+  const dup = await prisma.user.findUnique({ where: { email: d.email }, select: { id: true } });
+  if (dup && dup.id !== d.id) return { error: "Ya existe un usuario con ese correo" };
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: d.id },
+      data: { name: d.name, email: d.email, role: d.role, ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
+    }),
+    prisma.clientUser.deleteMany({ where: { userId: d.id } }),
+    ...(d.role === "CLIENTE" && d.clientId ? [prisma.clientUser.create({ data: { userId: d.id, clientId: d.clientId } })] : []),
+  ]);
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+/** Elimina un usuario (solo Administrador). Si ya tiene historial, no se borra: hay que desactivarlo. */
+export async function deleteUser(userId: string): Promise<{ error?: string; ok?: boolean }> {
+  const me = await requireUser(["ADMIN"]);
+  if (me.id === userId) return { error: "No puedes eliminar tu propio usuario" };
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      _count: {
+        select: {
+          reportsCreated: true, tasksCreated: true, deletionRequests: true, deletionReviews: true, auditLogs: true,
+          registrationReviews: true, invoicesCreated: true, invoicesCollected: true, invoiceLogs: true, ledgerEntries: true,
+          expensesCreated: true, movementsCreated: true, editRequests: true, editReviews: true,
+        },
+      },
+    },
+  });
+  if (!u) return { error: "Usuario no encontrado" };
+  if (u.role === "ADMIN" && u.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) {
+    return { error: "No puedes eliminar al único Administrador activo" };
+  }
+  if (Object.values(u._count).some((n) => n > 0)) {
+    return { error: "Este usuario ya tiene historial (reportes, facturas o movimientos) y no puede eliminarse. Desactívalo para quitarle el acceso." };
+  }
+  const photo = u.photoUrl;
+  await prisma.user.delete({ where: { id: userId } }); // asignaciones y accesos se borran en cascada
+  await removePhoto(photo);
   revalidatePath("/usuarios");
   return { ok: true };
 }
@@ -147,6 +221,7 @@ export async function toggleUserActive(userId: string) {
   const u = await prisma.user.findUnique({ where: { id: userId } });
   if (!u) return;
   if (me.role === "EDITOR" && u.role !== "TEAM_311") return;
+  if (u.role === "ADMIN" && u.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) return;
   await prisma.user.update({ where: { id: userId }, data: { active: !u.active } });
   revalidatePath("/usuarios");
 }
