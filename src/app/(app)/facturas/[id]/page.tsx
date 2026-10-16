@@ -4,8 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import {
-  accountLabel, centsToDecimal, decimalToCents, displayStatus, fmtDate, fmtDateTime, formatDecimal, isoDate, KIND_LABEL, todayMx,
+  accountLabel, centsToDecimal, decimalToCents, displayStatus, fmtDate, fmtDateTime, formatCents, formatDecimal, isoDate, KIND_LABEL, todayMx,
 } from "@/lib/finance";
+import { boxLabel, CASH_LABEL, parseSnapshot } from "@/lib/ledger";
 import { EditInvoiceForm } from "./edit-form";
 import { RevertButton } from "./revert-button";
 import { DeleteInvoice } from "./delete-invoice";
@@ -53,6 +54,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
   const today = todayMx();
   const st = displayStatus(inv, today);
+  const snapshot = parseSnapshot(inv.distribution);
   const pending = await prisma.deletionRequest.findFirst({ where: { targetType: "INVOICE", targetId: inv.id, status: "PENDIENTE" }, select: { id: true } });
 
   return (
@@ -89,6 +91,24 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           {inv.status === "ENVIADA" && <DeleteInvoice id={inv.id} isAdmin={isAdmin} alreadyPending={!!pending} />}
         </div>
       </div>
+
+      {isAdmin && snapshot && (
+        <section className="card space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">Reparto del cobro</h2>
+          <p className="meta">
+            Entró como <strong>{CASH_LABEL[snapshot.cashType].toLowerCase()}</strong>
+            {inv.isSoftware ? " · proyecto de software (incluye DEV)" : ""}. Se guardó con los porcentajes vigentes al cobrar.
+          </p>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-black/5 dark:divide-white/10">
+              {snapshot.lines.map((l) => (
+                <tr key={l.box}><td className="td">{boxLabel(l.box)}</td><td className="td text-right font-medium">{formatCents(l.cents)}</td></tr>
+              ))}
+              <tr><td className="td font-semibold">Total repartido</td><td className="td text-right font-semibold">{formatCents(snapshot.lines.reduce((s, l) => s + l.cents, 0))}</td></tr>
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {inv.status === "ENVIADA" && (
         <section className="card space-y-4">

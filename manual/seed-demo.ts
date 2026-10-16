@@ -22,6 +22,10 @@ async function main() {
   if (!uploads.includes(".uploads")) throw new Error("Carpeta de archivos inesperada: " + uploads);
 
   // 1) Limpieza
+  await prisma.ledgerEntry.deleteMany(); // finanzas (Evolutivo 4)
+  await prisma.expense.deleteMany();
+  await prisma.movement.deleteMany();
+  await prisma.invoice.deleteMany();
   await prisma.deletionRequest.deleteMany();
   await prisma.clientRegistration.deleteMany();
   await prisma.auditLog.deleteMany();
@@ -33,7 +37,7 @@ async function main() {
   await prisma.client.deleteMany();
   await prisma.passwordReset.deleteMany();
   await prisma.user.deleteMany({ where: { role: "CLIENTE" } });
-  await prisma.appSetting.deleteMany({ where: { key: "logo311" } });
+  await prisma.appSetting.deleteMany({ where: { key: { in: ["logo311", "reparto_porcentajes", "datos_bancarios", "facturas_alerta_fecha"] } } });
   fs.rmSync(uploads, { recursive: true, force: true });
 
   // 2) Usuarios de ejemplo

@@ -55,6 +55,7 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
     const invoice = await prisma.invoice.findUnique({ where: { id: targetId } });
     if (!invoice) return false;
     if (invoice.status === "PAGADA") return false; // un cobro registrado no se borra: primero se revierte el pago
+    if ((await prisma.ledgerEntry.count({ where: { invoiceId: invoice.id } })) > 0) return false; // conserva su historial contable
     await prisma.invoice.delete({ where: { id: invoice.id } }); // su historial se borra en cascada
     return true;
   }
@@ -142,6 +143,9 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
     const invoice = await prisma.invoice.findUnique({ where: { id: targetId }, select: { status: true } });
     if (!invoice) return { error: "El elemento no existe" };
     if (invoice.status === "PAGADA") return { error: "Un documento pagado no se puede eliminar. El Administrador debe revertir el pago primero." };
+    if ((await prisma.ledgerEntry.count({ where: { invoiceId: targetId } })) > 0) {
+      return { error: "Este documento ya tuvo un cobro registrado en las cajas, por eso se conserva en el historial y no se puede eliminar." };
+    }
   } else {
     const reportStatus =
       targetType === "TASK"

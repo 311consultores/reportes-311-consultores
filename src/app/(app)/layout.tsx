@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus, Receipt } from "lucide-react";
+import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus, Receipt, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
@@ -67,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   </span>
                 )}
               </NavLink>
+              <NavLink href="/finanzas"><Wallet size={18} /> Finanzas</NavLink>
               <NavLink href="/configuracion"><Settings size={18} /> Configuración</NavLink>
             </>
           )}

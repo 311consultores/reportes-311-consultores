@@ -50,6 +50,9 @@ model User {
   invoicesCreated     Invoice[]            @relation("InvoiceCreator")
   invoicesCollected   Invoice[]            @relation("InvoiceCollector")
   invoiceLogs         InvoiceLog[]
+  ledgerEntries       LedgerEntry[]
+  expensesCreated     Expense[]
+  movementsCreated    Movement[]
 }
 
 model Client {
@@ -264,30 +267,32 @@ enum PaymentAccount {
 }
 
 model Invoice {
-  id          String          @id @default(uuid())
-  kind        InvoiceKind     @default(FACTURA)
-  number      String?         @db.VarChar(60) // Folio fiscal / número de factura (opcional)
-  clientId    String
-  client      Client          @relation(fields: [clientId], references: [id])
-  rfc         String?         @db.VarChar(13) // RFC del cliente al momento de registrar
-  description String          @db.VarChar(500)
-  subtotal    Decimal         @db.Decimal(12, 2)
-  vat         Decimal         @db.Decimal(12, 2)
-  total       Decimal         @db.Decimal(12, 2)
-  isSoftware  Boolean         @default(false) // Proyecto de software (la etapa 2 aplica el 30 % DEV)
-  dueDate     DateTime        @db.Date // Fecha límite de pago
-  status      InvoiceStatus   @default(ENVIADA)
-  sentAt      DateTime        @default(now()) // Cuándo se registró el envío
-  createdById String
-  createdBy   User            @relation("InvoiceCreator", fields: [createdById], references: [id])
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  paidAt      DateTime? // Marca de tiempo del cambio a Pagada
-  collectedOn DateTime?       @db.Date // Fecha real en que entró el dinero
-  account     PaymentAccount?
-  paidById    String?
-  paidBy      User?           @relation("InvoiceCollector", fields: [paidById], references: [id])
-  logs        InvoiceLog[]
+  id           String          @id @default(uuid())
+  kind         InvoiceKind     @default(FACTURA)
+  number       String?         @db.VarChar(60) // Folio fiscal / número de factura (opcional)
+  clientId     String
+  client       Client          @relation(fields: [clientId], references: [id])
+  rfc          String?         @db.VarChar(13) // RFC del cliente al momento de registrar
+  description  String          @db.VarChar(500)
+  subtotal     Decimal         @db.Decimal(12, 2)
+  vat          Decimal         @db.Decimal(12, 2)
+  total        Decimal         @db.Decimal(12, 2)
+  isSoftware   Boolean         @default(false) // Proyecto de software (la etapa 2 aplica el 30 % DEV)
+  dueDate      DateTime        @db.Date // Fecha límite de pago
+  status       InvoiceStatus   @default(ENVIADA)
+  sentAt       DateTime        @default(now()) // Cuándo se registró el envío
+  createdById  String
+  createdBy    User            @relation("InvoiceCreator", fields: [createdById], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  paidAt       DateTime? // Marca de tiempo del cambio a Pagada
+  collectedOn  DateTime?       @db.Date // Fecha real en que entró el dinero
+  account      PaymentAccount?
+  paidById     String?
+  paidBy       User?           @relation("InvoiceCollector", fields: [paidById], references: [id])
+  distribution String?         @db.Text // Etapa 2: reparto "congelado" al cobrar (JSON con porcentajes y montos)
+  logs         InvoiceLog[]
+  ledger       LedgerEntry[]
 
   @@index([clientId])
   @@index([status, dueDate])
@@ -304,4 +309,109 @@ model InvoiceLog {
   createdAt DateTime @default(now())
 
   @@index([invoiceId])
+}
+
+// ---------- Evolutivo 4, etapa 2: cajas, reparto y gastos ----------
+
+enum Box {
+  NOMINA
+  AHORRO
+  NAVIDAD
+  GASTOS // caja chica de gastos
+  UTILIDAD
+  IMPUESTOS
+  MARKETING
+  GANANCIA_INTERNA
+  DEV
+  UTILIDAD_JOHNNY
+  UTILIDAD_YISUS
+}
+
+enum CashType {
+  EFECTIVO
+  BANCO
+}
+
+enum LedgerKind {
+  DISTRIBUCION // reparto de un cobro
+  REVERSA // se deshizo el pago de una factura
+  GASTO
+  ANULA_GASTO
+  SALDO_INICIAL
+  TRASLADO
+  RETIRO
+  ANULA_MOVIMIENTO
+}
+
+enum MovementKind {
+  SALDO_INICIAL
+  TRASLADO
+  RETIRO
+}
+
+enum ExpenseKind {
+  NOMINA
+  OTRO
+}
+
+/// Libro de movimientos de las cajas: el saldo de una caja es la suma de sus renglones. Nada se borra ni se edita.
+model LedgerEntry {
+  id          String     @id @default(uuid())
+  box         Box
+  cashType    CashType
+  amount      Decimal    @db.Decimal(12, 2) // + entra, − sale
+  kind        LedgerKind
+  occurredOn  DateTime   @db.Date
+  invoiceId   String?
+  invoice     Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  expenseId   String?
+  movementId  String?
+  note        String?    @db.VarChar(191)
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+
+  @@index([box, cashType])
+  @@index([occurredOn])
+  @@index([invoiceId])
+  @@index([expenseId])
+  @@index([movementId])
+}
+
+model Expense {
+  id          String      @id @default(uuid())
+  concept     String      @db.VarChar(200)
+  kind        ExpenseKind @default(OTRO) // NOMINA descuenta de la caja Nómina; OTRO, de la caja Gastos
+  cashAmount  Decimal     @db.Decimal(12, 2)
+  bankAmount  Decimal     @db.Decimal(12, 2)
+  total       Decimal     @db.Decimal(12, 2)
+  occurredOn  DateTime    @db.Date
+  createdById String
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+  voidedAt    DateTime?
+  voidReason  String?     @db.VarChar(300)
+  voidedById  String?
+
+  @@index([occurredOn])
+}
+
+model Movement {
+  id          String       @id @default(uuid())
+  kind        MovementKind
+  fromBox     Box?
+  fromType    CashType?
+  toBox       Box?
+  toType      CashType?
+  amount      Decimal      @db.Decimal(12, 2)
+  concept     String       @db.VarChar(200)
+  occurredOn  DateTime     @db.Date
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  voidedAt    DateTime?
+  voidReason  String?      @db.VarChar(300)
+  voidedById  String?
+
+  @@index([occurredOn])
 }

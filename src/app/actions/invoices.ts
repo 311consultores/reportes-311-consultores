@@ -9,6 +9,9 @@ import {
   accountsFor, centsToDecimal, dateOnly, decimalToCents, isValidIsoDate, parseMoney, todayMx, vatOf,
 } from "@/lib/finance";
 import { cleanBankAccounts, saveBankAccounts } from "@/lib/invoices";
+import {
+  computeDistribution, firstNegative, getBalances, getSplitConfig, writeEntries, type DistributionSnapshot,
+} from "@/lib/ledger";
 
 type State = { error?: string; ok?: boolean } | undefined;
 
@@ -113,13 +116,37 @@ export async function markInvoicePaid(id: string, account: string, collectedOn: 
   if (!isValidIsoDate(collectedOn)) return { error: "Indica la fecha en que entró el dinero" };
   if (collectedOn > todayMx()) return { error: "La fecha de cobro no puede ser futura" };
 
-  await prisma.invoice.update({
-    where: { id },
-    data: { status: "PAGADA", paidAt: new Date(), collectedOn: dateOnly(collectedOn), account: allowed.value as PaymentAccount, paidById: user.id },
-  });
+  // Reparto del cobro en las cajas (Etapa 2): se guarda "congelado" con los porcentajes de este momento
+  const cfg = await getSplitConfig();
+  let lines;
+  try {
+    lines = computeDistribution({ subtotal: decimalToCents(inv.subtotal), vat: decimalToCents(inv.vat), isSoftware: inv.isSoftware }, cfg);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo calcular el reparto" };
+  }
+  const collected = dateOnly(collectedOn);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const upd = await tx.invoice.updateMany({
+        where: { id, status: "ENVIADA" },
+        data: { status: "PAGADA", paidAt: new Date(), collectedOn: collected, account: allowed.value as PaymentAccount, paidById: user.id },
+      });
+      if (upd.count === 0) throw new Error("Este documento ya está pagado");
+      await writeEntries(
+        tx,
+        lines.map((l) => ({ box: l.box, cashType: allowed.type, cents: l.cents, kind: "DISTRIBUCION" as const, occurredOn: collected, createdById: user.id, invoiceId: id })),
+      );
+      const snapshot: DistributionSnapshot = { cfg, cashType: allowed.type, total: decimalToCents(inv.total), lines };
+      await tx.invoice.update({ where: { id }, data: { distribution: JSON.stringify(snapshot) } });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo registrar el cobro" };
+  }
   await log(id, user.id, "PAID", { account: allowed.value, collectedOn });
   revalidatePath("/facturas");
   revalidatePath(`/facturas/${id}`);
+  revalidatePath("/finanzas");
   return {};
 }
 
@@ -129,13 +156,29 @@ export async function revertInvoicePaid(id: string, reason: string): Promise<{ e
   if (reason.trim().length < 3) return { error: "Escribe el motivo" };
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv || inv.status !== "PAGADA") return { error: "El documento no está pagado" };
-  await prisma.invoice.update({
-    where: { id },
-    data: { status: "ENVIADA", paidAt: null, collectedOn: null, account: null, paidById: null },
-  });
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Lo que este documento tiene vigente en las cajas (reparto menos reversas anteriores) se devuelve
+      const outstanding = await tx.ledgerEntry.groupBy({ by: ["box", "cashType"], where: { invoiceId: id }, _sum: { amount: true } });
+      const back = outstanding
+        .map((o) => ({ box: o.box, cashType: o.cashType, cents: -decimalToCents(o._sum.amount ?? 0) }))
+        .filter((o) => o.cents !== 0);
+      const blocked = firstNegative(await getBalances(tx), back);
+      if (blocked) throw new Error(`No se puede revertir: la caja ${blocked} ya no tiene saldo suficiente para devolver ese reparto (se gastó o se movió). Ajusta primero ese movimiento.`);
+      await writeEntries(tx, back.map((b) => ({ ...b, kind: "REVERSA" as const, occurredOn: dateOnly(todayMx()), createdById: user.id, invoiceId: id, note: "Pago revertido" })));
+      await tx.invoice.update({
+        where: { id },
+        data: { status: "ENVIADA", paidAt: null, collectedOn: null, account: null, paidById: null, distribution: null },
+      });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo revertir" };
+  }
   await log(id, user.id, "REVERTED", { reason: reason.trim(), was: { account: inv.account, collectedOn: inv.collectedOn?.toISOString().slice(0, 10) } });
   revalidatePath("/facturas");
   revalidatePath(`/facturas/${id}`);
+  revalidatePath("/finanzas");
   return {};
 }
 

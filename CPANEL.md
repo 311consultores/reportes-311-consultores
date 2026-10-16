@@ -187,6 +187,20 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Después de actualizar:** el Administrador captura los datos bancarios en *Facturas › Datos bancarios*
   (no van en el código ni en GitHub).
 
+### Evolutivo 4 · Etapa 2 (16 oct 2026) — cajas, reparto y gastos (solo Administrador)
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261016174317_evolutivo4b.sql`. Agrega la columna `distribution` a `Invoice` y crea las tablas
+  `LedgerEntry`, `Expense` y `Movement`. No hay variables de entorno nuevas.
+- **Menú nuevo «Finanzas»** (solo Admin): *Resumen* (cajas, utilidad individual, ingresos y egresos por mes), *Gastos*,
+  *Movimientos* y *Porcentajes*. La exportación está en `/api/finanzas/export`.
+- **Después de actualizar, en este orden:**
+  1. *Finanzas › Porcentajes*: revisa los porcentajes (vienen de fábrica: nómina 45, ahorro 3, navidad 2, gastos 10,
+     DEV 30, IVA 50/25/25 y 50 % de la utilidad para cada socio).
+  2. *Finanzas › Movimientos › Saldo inicial*: captura lo que ya hay en cada caja (efectivo y banco).
+  3. Si ya había facturas **Pagadas** de la Etapa 1, en *Porcentajes* aparece el botón «Repartir cobros anteriores»:
+     úsalo UNA vez para que esos cobros también entren a las cajas.
+- **Desde ahora**, cada factura o recibo que se marca como Pagada reparte su dinero en las cajas de forma automática.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
