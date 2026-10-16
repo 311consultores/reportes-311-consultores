@@ -1,20 +1,27 @@
-import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus } from "lucide-react";
+import { cookies } from "next/headers";
+import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus, Receipt } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
 import { getLogo311Key } from "@/lib/branding";
+import { formatDecimal, OVERDUE_COOKIE, todayMx } from "@/lib/finance";
+import { overdueSummary } from "@/lib/invoices";
 import { NavLink } from "@/components/nav-link";
+import { OverdueBanner } from "@/components/overdue-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", CLIENTE: "Cliente" } as const;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [pendingDeletions, pendingRegistrations, hasLogo] = await Promise.all([
+  const [pendingDeletions, pendingRegistrations, hasLogo, overdue] = await Promise.all([
     user.role === "ADMIN" ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     user.role !== "CLIENTE" ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     getLogo311Key().then((k) => !!k).catch(() => false),
+    user.role !== "CLIENTE" ? overdueSummary() : Promise.resolve({ count: 0, total: null }),
   ]);
+  const today = todayMx();
+  const bannerDismissed = (await cookies()).get(OVERDUE_COOKIE)?.value === today;
 
   return (
     <div className="flex min-h-screen">
@@ -30,6 +37,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="flex-1 space-y-1">
           <NavLink href="/"><FileText size={18} /> Reportes</NavLink>
+          <NavLink href="/facturas">
+            <Receipt size={18} /> Facturas
+            {overdue.count > 0 && (
+              <span className="ml-auto rounded-full bg-[#FF3B30] px-2 py-0.5 text-xs font-semibold text-white">{overdue.count}</span>
+            )}
+          </NavLink>
           {user.role !== "CLIENTE" && (
             <>
               <NavLink href="/clientes"><Building2 size={18} /> Clientes y proyectos</NavLink>
@@ -71,7 +84,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 p-10">{children}</main>
+      <main className="min-w-0 flex-1 p-10">
+        {overdue.count > 0 && (
+          <OverdueBanner count={overdue.count} total={formatDecimal(overdue.total ?? 0)} today={today} dismissed={bannerDismissed} />
+        )}
+        {children}
+      </main>
     </div>
   );
 }

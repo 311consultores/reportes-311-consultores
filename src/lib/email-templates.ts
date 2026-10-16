@@ -137,6 +137,44 @@ export function registroConfirmacionEmail(p: { contactName: string; companyName:
   return { subject, text, html };
 }
 
+export type OverdueItem = { client: string; kind: string; number: string | null; description: string; total: string; dueDate: string; daysLate: number };
+
+/** Aviso diario para Administración: lista de facturas y recibos vencidos. */
+export function facturasVencidasEmail(p: { items: OverdueItem[]; total: string; link: string; withLogo: boolean }) {
+  const n = p.items.length;
+  const subject = `${n === 1 ? "1 factura vencida" : `${n} facturas vencidas`} por ${p.total} — seguimiento de cobro`;
+  const text = [
+    `Hay ${n === 1 ? "1 documento vencido" : `${n} documentos vencidos`} pendiente(s) de cobro (total ${p.total}):`,
+    "",
+    ...p.items.map(
+      (i) => `• ${i.kind}${i.number ? ` ${i.number}` : ""} — ${i.client} — ${i.total} — límite ${i.dueDate} (${i.daysLate} día(s) de atraso)\n  ${i.description}`,
+    ),
+    "",
+    "Ver en el sistema:",
+    p.link,
+  ].join("\n");
+  const rows = p.items
+    .map(
+      (i) => `<tr>
+<td style="padding:8px 10px;border-bottom:1px solid #e5e5ea;"><strong>${esc(i.client)}</strong><br><span style="color:#86868b;font-size:12px;">${esc(i.kind)}${i.number ? ` ${esc(i.number)}` : ""} · ${esc(i.description)}</span></td>
+<td style="padding:8px 10px;border-bottom:1px solid #e5e5ea;text-align:right;white-space:nowrap;">${esc(i.total)}</td>
+<td style="padding:8px 10px;border-bottom:1px solid #e5e5ea;white-space:nowrap;">${esc(i.dueDate)}<br><span style="color:#D70015;font-size:12px;">${i.daysLate} día(s) de atraso</span></td>
+</tr>`,
+    )
+    .join("");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Hay <strong>${n === 1 ? "1 documento vencido" : `${n} documentos vencidos`}</strong> pendiente(s) de cobro por un total de <strong>${esc(p.total)}</strong>.</p>
+<table style="width:100%;margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><th style="text-align:left;padding:6px 10px;color:#86868b;font-weight:500;">Cliente</th><th style="text-align:right;padding:6px 10px;color:#86868b;font-weight:500;">Total</th><th style="text-align:left;padding:6px 10px;color:#86868b;font-weight:500;">Fecha límite</th></tr>
+${rows}
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Ver facturas vencidas")}</p>
+<p style="margin:16px 0 0;font-size:12px;color:#86868b;">Este aviso se envía todos los días mientras haya documentos vencidos.</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
 export function passwordResetEmail(p: { name: string; link: string; withLogo: boolean }) {
   const subject = "Restablece tu contraseña — Sistema de reportes 311";
   const text = [

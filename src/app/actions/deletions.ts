@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { deleteObject } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
 
-type TargetType = "TASK" | "REPORT" | "CLIENT" | "PROJECT";
+type TargetType = "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE";
 
 /** Texto legible del elemento, para el historial de eliminaciones (queda guardado aunque se borre). */
 async function describeTarget(type: TargetType, id: string): Promise<string | null> {
@@ -19,6 +19,13 @@ async function describeTarget(type: TargetType, id: string): Promise<string | nu
       select: { projectName: true, client: { select: { companyName: true } } },
     });
     return p ? `Proyecto ${p.projectName} (${p.client.companyName})` : null;
+  }
+  if (type === "INVOICE") {
+    const i = await prisma.invoice.findUnique({
+      where: { id },
+      select: { kind: true, number: true, client: { select: { companyName: true } } },
+    });
+    return i ? `${i.kind === "FACTURA" ? "Factura" : "Recibo"}${i.number ? ` ${i.number}` : ""} de ${i.client.companyName}` : null;
   }
   if (type === "TASK") {
     const t = await prisma.reportTask.findUnique({
@@ -42,6 +49,13 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
     await prisma.client.delete({ where: { id: client.id } }); // proyectos y accesos en cascada
     if (client.logoUrl) await deleteObject(client.logoUrl).catch(() => {});
     if (client.constanciaUrl) await deleteObject(client.constanciaUrl).catch(() => {}); // dato fiscal sensible
+    return true;
+  }
+  if (type === "INVOICE") {
+    const invoice = await prisma.invoice.findUnique({ where: { id: targetId } });
+    if (!invoice) return false;
+    if (invoice.status === "PAGADA") return false; // un cobro registrado no se borra: primero se revierte el pago
+    await prisma.invoice.delete({ where: { id: invoice.id } }); // su historial se borra en cascada
     return true;
   }
   if (type === "PROJECT") {
@@ -124,15 +138,21 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
     return { executed: true as const };
   }
 
-  const reportStatus =
-    targetType === "TASK"
-      ? (await prisma.reportTask.findUnique({ where: { id: targetId }, select: { report: { select: { status: true } } } }))
-          ?.report.status
-      : (await prisma.report.findUnique({ where: { id: targetId }, select: { status: true } }))?.status;
-  if (!reportStatus) return { error: "El elemento no existe" };
+  if (targetType === "INVOICE") {
+    const invoice = await prisma.invoice.findUnique({ where: { id: targetId }, select: { status: true } });
+    if (!invoice) return { error: "El elemento no existe" };
+    if (invoice.status === "PAGADA") return { error: "Un documento pagado no se puede eliminar. El Administrador debe revertir el pago primero." };
+  } else {
+    const reportStatus =
+      targetType === "TASK"
+        ? (await prisma.reportTask.findUnique({ where: { id: targetId }, select: { report: { select: { status: true } } } }))
+            ?.report.status
+        : (await prisma.report.findUnique({ where: { id: targetId }, select: { status: true } }))?.status;
+    if (!reportStatus) return { error: "El elemento no existe" };
 
-  if (!isAdmin && (reportStatus === "ENVIADO" || reportStatus === "APROBADO")) {
-    return { error: "Un reporte aprobado o enviado solo puede eliminarlo un administrador" };
+    if (!isAdmin && (reportStatus === "ENVIADO" || reportStatus === "APROBADO")) {
+      return { error: "Un reporte aprobado o enviado solo puede eliminarlo un administrador" };
+    }
   }
 
   const dup = await prisma.deletionRequest.findFirst({ where: { targetType, targetId, status: "PENDIENTE" } });
@@ -153,6 +173,7 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
       },
     });
     revalidatePath("/");
+    revalidatePath("/facturas");
     revalidatePath("/eliminaciones");
     return { executed: true as const };
   }
@@ -178,4 +199,5 @@ export async function resolveDeletion(requestId: string, approve: boolean): Prom
   });
   revalidatePath("/eliminaciones");
   revalidatePath("/");
+  revalidatePath("/facturas");
 }

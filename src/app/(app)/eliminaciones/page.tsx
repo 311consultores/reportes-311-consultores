@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { resolveDeletion } from "@/app/actions/deletions";
 
-const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto" };
+const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo" };
 const when = (d: Date) => d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 
 export default async function DeletionsPage() {

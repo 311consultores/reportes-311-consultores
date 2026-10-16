@@ -172,6 +172,21 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   `admon@311consultores.com`).
 - La Constancia de Situación Fiscal solo la ven Admin y Editor. Al aprobar un registro se crea el cliente en el catálogo.
 
+### Evolutivo 4 · Etapa 1 (16 oct 2026) — facturas y recibos
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261016155034_evolutivo4a.sql`. Crea las tablas `Invoice` e `InvoiceLog`.
+- **Variable nueva `CRON_TOKEN`** (Setup Node.js App › Environment variables): una clave larga inventada por ti
+  (solo letras y números, 30 o más caracteres). Protege la ruta del aviso diario de facturas vencidas.
+  Opcional: `FACTURAS_ALERT_EMAIL` (por defecto `admon@311consultores.com`).
+- **Tarea programada (cPanel › Cron Jobs):** una vez al día, con este comando (cambia `TU_CRON_TOKEN`):
+  `curl -s "https://reportes.311consultores.com/api/cron/facturas?token=TU_CRON_TOKEN" > /dev/null 2>&1`
+  Revisa vencidas y manda UN correo a Administración con la lista (una vez por día, solo si hay vencidas).
+  Para probarlo sin esperar, abre esa misma dirección en el navegador agregando `&force=1`.
+- **Rutas nuevas:** `/facturas`, `/facturas/[id]`, `/facturas/datos-bancarios`, `/api/facturas/export` (Excel/CSV)
+  y `/api/cron/facturas`.
+- **Después de actualizar:** el Administrador captura los datos bancarios en *Facturas › Datos bancarios*
+  (no van en el código ni en GitHub).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
