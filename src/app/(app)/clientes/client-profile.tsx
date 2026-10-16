@@ -6,7 +6,7 @@ import { ActionForm } from "@/components/action-form";
 import { ClientDataFields, type ClientFieldValues } from "@/components/client-data-fields";
 import { CopyButton } from "@/components/copy-button";
 
-type Props = { clientId: string; values: ClientFieldValues; hasConstancia: boolean };
+type Props = { clientId: string; values: ClientFieldValues; hasConstancia: boolean; editOpen?: boolean };
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="space-y-0.5">
@@ -47,56 +47,52 @@ function Contact({ title, name, phone, email }: { title: string; name: string; p
 }
 
 /** Datos fiscales y de contacto de un cliente: consulta con botones de copiar, y edición (Admin y Editor). */
-export function ClientProfile({ clientId, values: v, hasConstancia }: Props) {
+export function ClientProfileBody({ clientId, values: v, hasConstancia, editOpen = false }: Props) {
   const address = [v.street, v.colonia, v.postalCode && `C.P. ${v.postalCode}`, v.city, v.state].filter(Boolean).join(", ");
   const empty = !v.contactName && !v.billingName && !v.rfc && !address;
 
   return (
-    <details className="rounded-xl border border-black/5 dark:border-white/10">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-        Datos fiscales y de contacto {empty && <span className="font-normal text-zinc-500">· sin capturar</span>}
-      </summary>
-      <div className="space-y-5 border-t border-black/5 p-4 dark:border-white/10">
-        <dl className="grid gap-4 md:grid-cols-2">
-          <Row label="Requiere factura">{v.requiresInvoice ? "Sí" : "No"}</Row>
-          {v.requiresInvoice && (
-            <>
-              <Row label="Razón social">{v.legalName || "—"}</Row>
-              <Row label="RFC">
-                {v.rfc ? <span className="inline-flex items-center gap-1">{v.rfc}<CopyButton text={v.rfc} /></span> : "—"}
-              </Row>
-            </>
-          )}
-          <Row label="Dirección">{address || "—"}</Row>
-          {v.requiresInvoice && (
-            <Row label="Constancia de Situación Fiscal">
-              {hasConstancia ? (
-                <a className="link" href={`/api/clients/${clientId}/constancia`} target="_blank" rel="noreferrer">Ver PDF</a>
-              ) : (
-                "No cargada"
-              )}
+    <div className="space-y-5">
+      {empty && <p className="text-sm text-zinc-500">Aún no hay datos fiscales ni de contacto capturados.</p>}
+      <dl className="grid gap-4 md:grid-cols-2">
+        <Row label="Requiere factura">{v.requiresInvoice ? "Sí" : "No"}</Row>
+        {v.requiresInvoice && (
+          <>
+            <Row label="Razón social">{v.legalName || "—"}</Row>
+            <Row label="RFC">
+              {v.rfc ? <span className="inline-flex items-center gap-1">{v.rfc}<CopyButton text={v.rfc} /></span> : "—"}
             </Row>
-          )}
-        </dl>
-        <div className="grid gap-5 md:grid-cols-2">
-          <Contact title="Contacto principal" name={v.contactName} phone={v.contactPhone} email={v.contactEmail} />
-          <Contact title="Administración y facturación" name={v.billingName} phone={v.billingPhone} email={v.billingEmail} />
-        </div>
-
-        <details>
-          <summary className="link cursor-pointer text-sm">Editar datos</summary>
-          <ActionForm
-            action={updateClientProfile}
-            submitLabel="Guardar datos"
-            className="mt-4 space-y-5"
-            resetOnSuccess={false}
-            successMessage="Datos guardados"
-          >
-            <input type="hidden" name="clientId" value={clientId} />
-            <ClientDataFields defaults={v} showConstancia constanciaHref={hasConstancia ? `/api/clients/${clientId}/constancia` : null} />
-          </ActionForm>
-        </details>
+          </>
+        )}
+        <Row label="Dirección">{address || "—"}</Row>
+        {v.requiresInvoice && (
+          <Row label="Constancia de Situación Fiscal">
+            {hasConstancia ? (
+              <a className="link" href={`/api/clients/${clientId}/constancia`} target="_blank" rel="noreferrer">Ver PDF</a>
+            ) : (
+              "No cargada"
+            )}
+          </Row>
+        )}
+      </dl>
+      <div className="grid gap-5 md:grid-cols-2">
+        <Contact title="Contacto principal" name={v.contactName} phone={v.contactPhone} email={v.contactEmail} />
+        <Contact title="Administración y facturación" name={v.billingName} phone={v.billingPhone} email={v.billingEmail} />
       </div>
-    </details>
+
+      <details open={editOpen}>
+        <summary className="link cursor-pointer text-sm">Editar datos</summary>
+        <ActionForm
+          action={updateClientProfile}
+          submitLabel="Guardar datos"
+          className="mt-4 space-y-5"
+          resetOnSuccess={false}
+          successMessage="Datos guardados"
+        >
+          <input type="hidden" name="clientId" value={clientId} />
+          <ClientDataFields defaults={v} showConstancia constanciaHref={hasConstancia ? `/api/clients/${clientId}/constancia` : null} />
+        </ActionForm>
+      </details>
+    </div>
   );
 }

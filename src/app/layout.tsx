@@ -4,8 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { DialogProvider } from "@/components/dialogs";
 
 export const metadata: Metadata = {
-  title: "311 CONSULTORES | Reportes",
-  description: "Plataforma de reportes de actividades de 311 CONSULTORES",
+  title: "Portal de Operaciones",
+  description: "Portal de Operaciones de 311 CONSULTORES",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

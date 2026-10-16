@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
-import { FileText, Building2, Users, Trash2, LogOut, Settings, UserPlus, Receipt, Wallet } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
 import { getLogo311Key } from "@/lib/branding";
 import { formatDecimal, OVERDUE_COOKIE, todayMx } from "@/lib/finance";
 import { overdueSummary } from "@/lib/invoices";
-import { NavLink } from "@/components/nav-link";
+import { AppShell, type NavGroup } from "@/components/app-shell";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -23,74 +23,80 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const today = todayMx();
   const bannerDismissed = (await cookies()).get(OVERDUE_COOKIE)?.value === today;
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="glass sticky top-0 z-10 flex h-screen w-64 shrink-0 flex-col border-y-0 border-l-0 p-4">
-        <div className="mb-8 px-3 pt-2">
-          {hasLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src="/api/branding/logo" alt="311 Consultores" className="mb-1 max-h-12 max-w-[170px] object-contain" />
-          ) : (
-            <p className="text-lg font-semibold tracking-tight">311 CONSULTORES</p>
-          )}
-          <p className="meta">Reportes</p>
-        </div>
-        <nav className="flex-1 space-y-1">
-          <NavLink href="/"><FileText size={18} /> Reportes</NavLink>
-          <NavLink href="/facturas">
-            <Receipt size={18} /> Facturas
-            {overdue.count > 0 && (
-              <span className="ml-auto rounded-full bg-[#FF3B30] px-2 py-0.5 text-xs font-semibold text-white">{overdue.count}</span>
-            )}
-          </NavLink>
-          {user.role !== "CLIENTE" && (
-            <>
-              <NavLink href="/clientes"><Building2 size={18} /> Clientes y proyectos</NavLink>
-              <NavLink href="/registros">
-                <UserPlus size={18} /> Registro de clientes
-                {pendingRegistrations > 0 && (
-                  <span className="ml-auto rounded-full bg-[#FF3B30] px-2 py-0.5 text-xs font-semibold text-white">
-                    {pendingRegistrations}
-                  </span>
-                )}
-              </NavLink>
-            </>
-          )}
-          {user.role === "ADMIN" && (
-            <>
-              <NavLink href="/usuarios"><Users size={18} /> Usuarios</NavLink>
-              <NavLink href="/eliminaciones">
-                <Trash2 size={18} /> Eliminaciones
-                {pendingDeletions > 0 && (
-                  <span className="ml-auto rounded-full bg-[#FF3B30] px-2 py-0.5 text-xs font-semibold text-white">
-                    {pendingDeletions}
-                  </span>
-                )}
-              </NavLink>
-              <NavLink href="/finanzas"><Wallet size={18} /> Finanzas</NavLink>
-              <NavLink href="/configuracion"><Settings size={18} /> Configuración</NavLink>
-            </>
-          )}
-        </nav>
-        <div className="border-t border-black/5 pt-3 dark:border-white/10">
-          <p className="px-3 text-sm font-medium">{user.name}</p>
-          <p className="meta px-3 pb-2">{ROLE_LABEL[user.role]}</p>
-          <div className="flex items-center gap-1">
-            <form action={logout} className="flex-1">
-              <button className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out hover:bg-black/5 active:scale-[0.98] dark:text-zinc-300 dark:hover:bg-white/10">
-                <LogOut size={18} /> Cerrar sesión
-              </button>
-            </form>
-            {user.role !== "CLIENTE" && <ThemeToggle />}
-          </div>
-        </div>
-      </aside>
-      <main className="min-w-0 flex-1 p-10">
-        {overdue.count > 0 && (
-          <OverdueBanner count={overdue.count} total={formatDecimal(overdue.total ?? 0)} today={today} dismissed={bannerDismissed} />
-        )}
-        {children}
-      </main>
+  const isStaff = user.role !== "CLIENTE";
+  const isAdmin = user.role === "ADMIN";
+
+  // Menú por rol: Operación, Administración y (abajo) Configuración
+  const groups: NavGroup[] = [
+    {
+      id: "operacion",
+      title: "Operación",
+      items: [
+        { href: "/", label: "Reportes", icon: "reportes" },
+        ...(isStaff
+          ? [
+              { href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const },
+              { href: "/registros", label: "Registro de clientes", icon: "registros" as const, badge: pendingRegistrations },
+            ]
+          : []),
+      ],
+    },
+    {
+      id: "administracion",
+      title: "Administración",
+      items: [
+        { href: "/facturas", label: "Facturas", icon: "facturas", badge: overdue.count },
+        ...(isAdmin ? [{ href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }] : []),
+      ],
+    },
+  ];
+  const bottomGroups: NavGroup[] = isAdmin
+    ? [
+        {
+          id: "configuracion",
+          title: "Configuración",
+          items: [
+            { href: "/configuracion", label: "General", icon: "general" },
+            { href: "/eliminaciones", label: "Log", icon: "log", badge: pendingDeletions },
+            { href: "/usuarios", label: "Usuarios", icon: "usuarios" },
+          ],
+        },
+      ]
+    : [];
+
+  const brand = (
+    <>
+      {hasLogo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src="/api/branding/logo" alt="311 Consultores" className="mb-1 max-h-12 max-w-[170px] object-contain" />
+      ) : (
+        <p className="text-lg font-semibold tracking-tight">311 CONSULTORES</p>
+      )}
+      <p className="meta">Portal de Operaciones</p>
+    </>
+  );
+
+  const footer = (
+    <div>
+      <p className="px-3 text-sm font-medium">{user.name}</p>
+      <p className="meta px-3 pb-2">{ROLE_LABEL[user.role]}</p>
+      <div className="flex items-center gap-1">
+        <form action={logout} className="flex-1">
+          <button className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-600 transition-all duration-200 ease-out hover:bg-black/5 active:scale-[0.98] dark:text-zinc-300 dark:hover:bg-white/10">
+            <LogOut size={18} /> Cerrar sesión
+          </button>
+        </form>
+        {isStaff && <ThemeToggle />}
+      </div>
     </div>
+  );
+
+  return (
+    <AppShell brand={brand} groups={groups} bottomGroups={bottomGroups} footer={footer}>
+      {overdue.count > 0 && (
+        <OverdueBanner count={overdue.count} total={formatDecimal(overdue.total ?? 0)} today={today} dismissed={bannerDismissed} />
+      )}
+      {children}
+    </AppShell>
   );
 }

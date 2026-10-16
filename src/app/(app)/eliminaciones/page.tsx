@@ -23,7 +23,7 @@ export default async function DeletionsPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="page-title">Eliminaciones</h1>
+      <h1 className="page-title">Log</h1>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold tracking-tight">Solicitudes pendientes</h2>

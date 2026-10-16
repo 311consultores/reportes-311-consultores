@@ -4,6 +4,9 @@ import type { Prisma, ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser, reportScope, canEdit } from "@/lib/auth";
 import { StatusBadge, STATUS_LABEL } from "@/components/status-badge";
+import { todayMx } from "@/lib/finance";
+import { periodLabel, periodWhere, parsePeriod } from "@/lib/report-period";
+import { PeriodFilter } from "./period-filter";
 import { ReportSearch } from "./report-search";
 
 const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
@@ -33,23 +36,29 @@ function orderBy(sort: SortKey | undefined, dir: "asc" | "desc"): Prisma.ReportO
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const status = (Object.keys(STATUS_LABEL) as ReportStatus[]).find((s) => s === sp.status);
-  const sort = COLUMNS.find((c) => c.key === sp.sort)?.key;
-  const dir: "asc" | "desc" = sp.dir === "desc" ? "desc" : "asc";
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const status = (Object.keys(STATUS_LABEL) as ReportStatus[]).find((s) => s === one(sp.status));
+  const sort = COLUMNS.find((c) => c.key === one(sp.sort))?.key;
+  const dir: "asc" | "desc" = one(sp.dir) === "desc" ? "desc" : "asc";
+  const period = parsePeriod(sp, user.role === "CLIENTE");
 
   const reports = await prisma.report.findMany({
-    where: { ...reportScope(user), ...(status ? { status } : {}) },
+    where: { AND: [reportScope(user), status ? { status } : {}, periodWhere(period, todayMx())] },
     include: { client: true, project: true, _count: { select: { tasks: true } } },
     orderBy: orderBy(sort, dir),
   });
 
   const qs = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const all = { status, sort, dir: sort ? dir : undefined, ...extra };
+    const all = {
+      status, sort, dir: sort ? dir : undefined,
+      periodo: one(sp.periodo) ? period.periodo : undefined, desde: period.desde || undefined, hasta: period.hasta || undefined,
+      ...extra,
+    };
     for (const [k, v] of Object.entries(all)) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/?${s}` : "/";
@@ -62,7 +71,7 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="page-title">Reportes</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ReportSearch />
           {canEdit(user.role) && (
             <Link href="/reportes/nuevo" className="btn"><Plus size={16} /> Nuevo reporte</Link>
@@ -70,14 +79,20 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      {user.role !== "CLIENTE" && (
-        <div className="flex flex-wrap gap-2">
-          <Link href={qs({ status: undefined })} className={tab(!status)}>Todos</Link>
-          {(Object.keys(STATUS_LABEL) as ReportStatus[]).map((s) => (
-            <Link key={s} href={qs({ status: s })} className={tab(status === s)}>{STATUS_LABEL[s]}</Link>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {user.role !== "CLIENTE" ? (
+          <div className="flex flex-wrap gap-2">
+            <Link href={qs({ status: undefined })} className={tab(!status)}>Todos</Link>
+            {(Object.keys(STATUS_LABEL) as ReportStatus[]).map((s) => (
+              <Link key={s} href={qs({ status: s })} className={tab(status === s)}>{STATUS_LABEL[s]}</Link>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+        <PeriodFilter periodo={period.periodo} desde={period.desde} hasta={period.hasta} />
+      </div>
+      <p className="meta -mt-3">{periodLabel(period)} · {reports.length} reporte(s)</p>
 
       <div className="card overflow-x-auto p-0">
         <table className="w-full">

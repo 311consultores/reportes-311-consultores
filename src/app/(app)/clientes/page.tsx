@@ -1,99 +1,61 @@
+import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { createProject, updateClientLogo } from "@/app/actions/admin";
-import { ActionForm } from "@/components/action-form";
-import { DeleteEntity } from "./delete-entity";
 import { NewClientForm } from "./new-client-form";
-import { ClientProfile } from "./client-profile";
+import { ClientsGrid } from "./clients-grid";
+import type { CardClient } from "./client-card";
 
 export default async function ClientsPage() {
   const user = await requireUser(["ADMIN", "EDITOR"]);
   const isAdmin = user.role === "ADMIN"; // solo el Admin elimina clientes y proyectos
   const clients = await prisma.client.findMany({
-    include: { projects: { orderBy: { createdAt: "asc" } } },
+    include: { projects: { orderBy: { createdAt: "asc" } }, _count: { select: { reports: true } } },
     orderBy: { companyName: "asc" },
   });
+
+  const cards: CardClient[] = clients.map((c) => ({
+    id: c.id,
+    companyName: c.companyName,
+    folioPrefix: c.folioPrefix,
+    mainEmails: c.mainEmails,
+    logoUrl: c.logoUrl,
+    reportCount: c._count.reports,
+    createdAt: c.createdAt.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }),
+    projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails })),
+    hasConstancia: !!c.constanciaUrl,
+    values: {
+      companyName: c.companyName,
+      requiresInvoice: c.requiresInvoice,
+      legalName: c.legalName ?? "",
+      rfc: c.rfc ?? "",
+      street: c.street ?? "",
+      colonia: c.colonia ?? "",
+      postalCode: c.postalCode ?? "",
+      city: c.city ?? "",
+      state: c.state ?? "",
+      contactName: c.contactName ?? "",
+      contactPhone: c.contactPhone ?? "",
+      contactEmail: c.contactEmail ?? "",
+      billingName: c.billingName ?? "",
+      billingPhone: c.billingPhone ?? "",
+      billingEmail: c.billingEmail ?? "",
+    },
+  }));
 
   return (
     <div className="space-y-6">
       <h1 className="page-title">Clientes y proyectos</h1>
 
-      <section className="card">
-        <h2 className="mb-4 text-lg font-semibold tracking-tight">Nuevo cliente</h2>
-        <NewClientForm existing={clients.map((c) => ({ prefix: c.folioPrefix, name: c.companyName }))} />
-      </section>
+      <details className="card group space-y-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <span className="btn"><Plus size={16} /> Nuevo cliente</span>
+        </summary>
+        <div className="space-y-4 pt-4">
+          <NewClientForm existing={clients.map((c) => ({ prefix: c.folioPrefix, name: c.companyName }))} />
+        </div>
+      </details>
 
-      {clients.map((c) => (
-        <section key={c.id} className="card space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {c.logoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/clients/${c.id}/logo?v=${encodeURIComponent(c.logoUrl)}`}
-                  alt={`Logo de ${c.companyName}`}
-                  className="max-h-14 max-w-[120px] rounded-lg object-contain"
-                />
-              )}
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">
-                  {c.companyName} <span className="meta font-normal">· {c.folioPrefix}001DDMMAA</span>
-                </h2>
-                <p className="meta">{c.mainEmails.replaceAll(",", ", ")}</p>
-              </div>
-            </div>
-            {isAdmin && <DeleteEntity type="CLIENT" id={c.id} />}
-          </div>
-          <ul className="divide-y divide-black/5 overflow-hidden rounded-xl border border-black/5 text-sm dark:divide-white/10 dark:border-white/10">
-            {c.projects.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <span>{p.projectName}</span>
-                <span className="meta ml-auto">{p.projectEmails.replaceAll(",", ", ")}</span>
-                {isAdmin && <DeleteEntity type="PROJECT" id={p.id} />}
-              </li>
-            ))}
-            {c.projects.length === 0 && <li className="px-4 py-3 text-zinc-500">Sin proyectos</li>}
-          </ul>
-          <ActionForm action={createProject} submitLabel="Agregar proyecto" className="grid items-end gap-3 md:grid-cols-3">
-            <input type="hidden" name="clientId" value={c.id} />
-            <div><label className="label">Proyecto</label><input name="projectName" required className="input" /></div>
-            <div><label className="label">Correos del proyecto</label><input name="projectEmails" required className="input" /></div>
-          </ActionForm>
-          <ClientProfile
-            clientId={c.id}
-            hasConstancia={!!c.constanciaUrl}
-            values={{
-              companyName: c.companyName,
-              requiresInvoice: c.requiresInvoice,
-              legalName: c.legalName ?? "",
-              rfc: c.rfc ?? "",
-              street: c.street ?? "",
-              colonia: c.colonia ?? "",
-              postalCode: c.postalCode ?? "",
-              city: c.city ?? "",
-              state: c.state ?? "",
-              contactName: c.contactName ?? "",
-              contactPhone: c.contactPhone ?? "",
-              contactEmail: c.contactEmail ?? "",
-              billingName: c.billingName ?? "",
-              billingPhone: c.billingPhone ?? "",
-              billingEmail: c.billingEmail ?? "",
-            }}
-          />
-          <details>
-            <summary className="link cursor-pointer text-sm">{c.logoUrl ? "Cambiar logo" : "Agregar logo"}</summary>
-            <ActionForm
-              action={updateClientLogo}
-              submitLabel="Guardar logo"
-              className="mt-3 flex flex-wrap items-end gap-3"
-              successMessage="Logo actualizado"
-            >
-              <input type="hidden" name="clientId" value={c.id} />
-              <input type="file" name="logo" accept="image/png,image/jpeg" required className="input max-w-sm" />
-            </ActionForm>
-          </details>
-        </section>
-      ))}
+      <ClientsGrid clients={cards} isAdmin={isAdmin} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, Landmark } from "lucide-react";
+import { Download, Landmark, Plus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
@@ -61,19 +61,25 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       </div>
 
       {!isClient && (
-        <section className="card space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight">Registrar factura o recibo enviado</h2>
-          <InvoiceForm clients={clients} />
-        </section>
-      )}
-
-      {!isClient && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Facturado" value={sum(facturado)} hint="Todo lo registrado" />
           <Kpi label="Cobrado" value={sum(cobrado)} hint="Documentos pagados" tone="green" />
           <Kpi label="Pendiente por cobrar" value={sum(pendiente)} hint="Enviadas dentro de su plazo" tone="blue" />
           <Kpi label="Vencido" value={sum(vencido)} hint="Enviadas con fecha límite pasada" tone="red" />
         </div>
+      )}
+
+      {!isClient && (
+        <details className="card group space-y-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="btn"><Plus size={16} /> Registrar factura o recibo</span>
+            <span className="meta hidden group-open:inline">Clic de nuevo para plegar</span>
+          </summary>
+          <div className="space-y-4 pt-4">
+            <h2 className="text-lg font-semibold tracking-tight">Registrar factura o recibo enviado</h2>
+            <InvoiceForm clients={clients} />
+          </div>
+        </details>
       )}
 
       <form method="get" className="card grid items-end gap-3 md:grid-cols-7">

@@ -38,6 +38,12 @@ export const dateOnly = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
+/** Suma (o resta) días a una fecha "AAAA-MM-DD". */
+export const addDaysIso = (iso: string, days: number) => isoDate(new Date(dateOnly(iso).getTime() + days * 86_400_000));
+
+/** Instante en que empieza ese día en la Ciudad de México (para comparar con marcas de tiempo guardadas en UTC). */
+export const mxDayStart = (iso: string) => new Date(`${iso}T0${MX_OFFSET_HOURS}:00:00.000Z`);
+
 export const isValidIsoDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(dateOnly(s).getTime()) && isoDate(dateOnly(s)) === s;
 
 /** Rango [inicio, fin) de un mes "AAAA-MM": para campos DATE (medianoche UTC) o DATETIME (inicio del día en México). */

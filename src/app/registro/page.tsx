@@ -1,8 +1,9 @@
 import { getLogo311Key } from "@/lib/branding";
+import { PortalBrand } from "@/components/portal-brand";
 import { registroActivo } from "@/lib/registro";
 import { RegistroForm } from "./registro-form";
 
-export const metadata = { title: "Registro de clientes | 311 CONSULTORES" };
+export const metadata = { title: "Registro de clientes | Portal de Operaciones" };
 
 export default async function RegistroPage() {
   const [activo, hasLogo] = await Promise.all([registroActivo(), getLogo311Key().then((k) => !!k).catch(() => false)]);
@@ -11,11 +12,8 @@ export default async function RegistroPage() {
     <main className="mx-auto flex min-h-screen max-w-3xl items-start justify-center p-4 py-10">
       <div className="card w-full space-y-8 p-6 sm:p-10">
         <div className="space-y-3 text-center">
-          {hasLogo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src="/api/branding/logo" alt="311 Consultores" className="mx-auto max-h-16 max-w-[220px] object-contain" />
-          )}
-          <h1 className="text-2xl font-semibold tracking-tight">Registro de clientes</h1>
+          <PortalBrand hasLogo={hasLogo} />
+          <h1 className="pt-2 text-2xl font-semibold tracking-tight">Registro de clientes</h1>
           <p className="meta">Completa tus datos para darte de alta con 311 Consultores. Solo toma unos minutos.</p>
         </div>
 

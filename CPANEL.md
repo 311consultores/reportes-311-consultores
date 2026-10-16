@@ -201,6 +201,16 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
      úsalo UNA vez para que esos cobros también entren a las cajas.
 - **Desde ahora**, cada factura o recibo que se marca como Pagada reparte su dinero en las cajas de forma automática.
 
+### Evolutivo 5 · Etapa A (16 oct 2026) — menú, filtros y cards
+- **Sin migración de base de datos y sin variables nuevas:** basta reemplazar la carpeta `app` y reiniciar.
+- **Menú nuevo** agrupado: *Operación* (Reportes, Clientes y proyectos, Registro de clientes), *Administración*
+  (Facturas, Finanzas) y, abajo, *Configuración* (General, Log —antes «Eliminaciones»— y Usuarios). En celular y tableta
+  el menú se oculta tras un botón.
+- **Reportes:** por defecto se ve el mes en curso (más los reportes abiertos de meses anteriores). El selector de periodo
+  está a la derecha de los filtros de estatus.
+- **Clientes y proyectos** pasa a cards, con ventanas emergentes para cada acción.
+- **Login y pantallas públicas:** solo el logo y el subtítulo «Portal de Operaciones».
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
