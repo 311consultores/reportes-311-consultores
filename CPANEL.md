@@ -245,6 +245,13 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Actividades:** el título se edita con el lápiz junto a «Actividad N»; la casilla «Indicar fecha y hora de ejecución» muestra
   la fecha y hora debajo del título (en pantalla y en el PDF).
 
+### Evolutivo 6 · Etapa 3 (19 oct 2026) — fusión de clientes y cambio de cliente en un reporte
+- **Sin migración de base de datos y sin variables nuevas:** basta reemplazar la carpeta `app` y reiniciar.
+- **Respaldo antes de actualizar (obligatorio):** la fusión mueve proyectos, reportes y facturas de un cliente a otro y **no se puede deshacer**; conviene tener un respaldo reciente de la base.
+- **Fusionar clientes** (Admin y Editor): en *Clientes y proyectos*, botón de la tarjeta «Fusionar con otro cliente». Se elige, dato por dato, cuál versión queda; los correos se pueden unir. Los folios ya emitidos NO cambian. Queda registrado en *Log › Fusiones de clientes*. Se bloquea si hay solicitudes de eliminación pendientes de esos clientes.
+- **Duplicados en el registro público:** ahora el aviso aparece solo cuando coincide el RFC o algún correo (ya no el nombre).
+- **Cambiar el cliente de un reporte** (Admin y Editor, cualquier estado): botón «Cambiar cliente» en el reporte. Regenera el folio con el prefijo del cliente nuevo y su siguiente consecutivo (conserva la fecha del folio) y guarda el folio anterior en el historial. Permite crear el proyecto en ese momento. Si el reporte ya se envió, pide escribir el folio actual para confirmar.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

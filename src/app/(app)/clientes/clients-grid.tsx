@@ -8,8 +8,8 @@ import { ClientCard, type CardClient } from "./client-card";
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Cards de clientes con buscador (por nombre, prefijo, correos o proyecto). 1 columna en celular, 2 en tableta y 3 en pantalla grande. */
-export function ClientsGrid({ clients, isAdmin }: { clients: CardClient[]; isAdmin: boolean }) {
-  const [q, setQ] = useState("");
+export function ClientsGrid({ clients, isAdmin, initialQuery = "" }: { clients: CardClient[]; isAdmin: boolean; initialQuery?: string }) {
+  const [q, setQ] = useState(initialQuery);
   const [creating, setCreating] = useState(false);
   const shown = useMemo(() => {
     const n = norm(q.trim());
@@ -33,7 +33,7 @@ export function ClientsGrid({ clients, isAdmin }: { clients: CardClient[]; isAdm
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {shown.map((c) => <ClientCard key={c.id} client={c} isAdmin={isAdmin} />)}
+        {shown.map((c) => <ClientCard key={c.id} client={c} isAdmin={isAdmin} others={clients.filter((o) => o.id !== c.id)} />)}
       </div>
       {shown.length === 0 && <p className="card meta">{clients.length === 0 ? "Aún no hay clientes." : "No hay clientes que coincidan con la búsqueda."}</p>}
     </div>

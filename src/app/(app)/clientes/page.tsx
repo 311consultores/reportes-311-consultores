@@ -4,7 +4,8 @@ import { fullName } from "@/lib/client-data";
 import { ClientsGrid } from "./clients-grid";
 import type { CardClient } from "./client-card";
 
-export default async function ClientsPage() {
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams;
   const user = await requireUser(["ADMIN", "EDITOR"]);
   const isAdmin = user.role === "ADMIN"; // solo el Admin elimina clientes y proyectos
   const clients = await prisma.client.findMany({
@@ -47,7 +48,7 @@ export default async function ClientsPage() {
     <div className="space-y-6">
       <h1 className="page-title">Clientes y proyectos</h1>
 
-      <ClientsGrid clients={cards} isAdmin={isAdmin} />
+      <ClientsGrid clients={cards} isAdmin={isAdmin} initialQuery={q ?? ""} />
     </div>
   );
 }

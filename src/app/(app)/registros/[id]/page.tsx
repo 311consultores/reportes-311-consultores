@@ -13,7 +13,7 @@ export default async function RegistroReviewPage({ params }: { params: Promise<{
   const reg = await prisma.clientRegistration.findUnique({ where: { id }, include: { reviewedBy: { select: { name: true } } } });
   if (!reg) notFound();
 
-  const duplicates = reg.status === "PENDIENTE" ? await findDuplicates({ companyName: reg.companyName, rfc: reg.rfc }, reg.id) : [];
+  const duplicates = reg.status === "PENDIENTE" ? await findDuplicates({ rfc: reg.rfc, emails: [reg.contactEmail, reg.billingEmail] }, reg.id) : [];
 
   return (
     <div className="max-w-3xl space-y-6">

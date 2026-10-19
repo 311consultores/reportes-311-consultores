@@ -319,3 +319,79 @@ export async function resolveEditRequest(requestId: string, approve: boolean): P
   revalidatePath("/eliminaciones");
   return {};
 }
+
+
+/**
+ * Cambia el cliente (y proyecto) de un reporte. Solo Admin y Editor, en cualquier estado.
+ * El folio se regenera con el prefijo del cliente nuevo y su siguiente consecutivo, conservando la fecha original del folio;
+ * el folio anterior queda en el historial del reporte. Si el reporte ya se envió, hay que escribir el folio para confirmar.
+ */
+export async function changeReportClient(input: {
+  reportId: string;
+  clientId: string;
+  projectId?: string;
+  newProject?: { name: string; emails: string; responsibleName: string; responsibleLastName: string };
+  confirmFolio?: string;
+}): Promise<{ error?: string; folio?: string }> {
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const report = await prisma.report.findUnique({
+    where: { id: input.reportId },
+    include: { client: { select: { companyName: true } }, project: { select: { projectName: true } } },
+  });
+  if (!report) return { error: "Reporte no encontrado" };
+  if (report.clientId === input.clientId) return { error: "Elige un cliente distinto al actual" };
+  if (report.status === "ENVIADO" && (input.confirmFolio ?? "").trim().toUpperCase() !== report.folio.toUpperCase()) {
+    return { error: "Este reporte ya se envió al cliente. Escribe su folio actual para confirmar el cambio." };
+  }
+  const client = await prisma.client.findUnique({ where: { id: input.clientId }, select: { id: true, companyName: true } });
+  if (!client) return { error: "El cliente elegido no existe" };
+
+  let projectName = "";
+  let newProjectData: { projectName: string; projectEmails: string; responsibleName: string; responsibleLastName: string } | null = null;
+  if (input.projectId) {
+    const p = await prisma.project.findFirst({ where: { id: input.projectId, clientId: client.id }, select: { projectName: true } });
+    if (!p) return { error: "El proyecto no pertenece al cliente elegido" };
+    projectName = p.projectName;
+  } else if (input.newProject) {
+    const n = input.newProject;
+    const emails = n.emails.split(/[,;\s]+/).filter(Boolean);
+    if (n.name.trim().length < 2) return { error: "Escribe el nombre del proyecto nuevo" };
+    if (n.responsibleName.trim().length < 2 || n.responsibleLastName.trim().length < 2) return { error: "Escribe nombre y apellido del responsable del proyecto" };
+    if (!emails.every((e) => z.string().email().safeParse(e).success)) return { error: "Hay un correo inválido en el proyecto nuevo" };
+    projectName = n.name.trim();
+    newProjectData = {
+      projectName, projectEmails: [...new Set(emails.map((e) => e.toLowerCase()))].join(","),
+      responsibleName: n.responsibleName.trim(), responsibleLastName: n.responsibleLastName.trim(),
+    };
+  } else {
+    return { error: "Elige un proyecto del cliente nuevo o crea uno" };
+  }
+
+  let folio = "";
+  for (let attempt = 0; attempt < 3 && !folio; attempt++) {
+    try {
+      folio = await prisma.$transaction(async (tx) => {
+        const projectId = input.projectId ?? (await tx.project.create({ data: { clientId: client.id, ...newProjectData! } })).id;
+        const next = await nextFolio(tx, client.id, report.createdAt); // la fecha del folio es la de creación original
+        await tx.report.update({ where: { id: report.id }, data: { clientId: client.id, projectId, folio: next } });
+        await tx.auditLog.create({
+          data: {
+            reportId: report.id, userId: user.id, action: "CHANGED_CLIENT",
+            details: auditDetails({
+              note: `Folio anterior ${report.folio} → nuevo folio ${next}. Cliente: ${report.client.companyName} → ${client.companyName}. Proyecto: ${report.project.projectName} → ${projectName}.`,
+              oldFolio: report.folio, newFolio: next,
+            }),
+          },
+        });
+        return next;
+      });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e; // colisión de folio: reintentar
+    }
+  }
+  if (!folio) return { error: "No se pudo generar el folio nuevo. Intenta de nuevo." };
+
+  revalidatePath("/");
+  revalidatePath(`/reportes/${report.id}`);
+  return { folio };
+}

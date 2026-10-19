@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { approveRegistration, rejectRegistration } from "@/app/actions/registros";
@@ -50,11 +51,15 @@ export function ReviewForm({
           <ul className="list-disc pl-5">
             {duplicates.map((d) => (
               <li key={`${d.kind}-${d.id}`}>
-                {d.kind === "cliente" ? "Cliente ya registrado" : "Otro registro pendiente"}: <strong>{d.companyName}</strong> ({d.why})
+                {d.kind === "cliente" ? (
+                  <>Cliente ya registrado: <Link href={`/clientes?q=${encodeURIComponent(d.companyName)}`} className="underline"><strong>{d.companyName}</strong></Link></>
+                ) : (
+                  <>Otro registro pendiente: <Link href={`/registros/${d.id}`} className="underline"><strong>{d.companyName}</strong></Link></>
+                )} ({d.why})
               </li>
             ))}
           </ul>
-          <p>Puedes aprobarlo de todos modos si es una empresa distinta.</p>
+          <p>Si es la misma empresa, revisa el cliente existente: desde su tarjeta en «Clientes y proyectos» puedes <strong>fusionar</strong> clientes. Si es una empresa distinta, puedes aprobarlo sin problema.</p>
         </div>
       )}
 

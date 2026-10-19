@@ -11,6 +11,7 @@ import { TaskList } from "./task-list";
 import { StatusControls } from "./status-controls";
 import { ReportActions } from "./report-actions";
 import { EditRequestPanel } from "./edit-request-panel";
+import { ChangeClientButton } from "./change-client";
 
 const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -31,16 +32,18 @@ function actionLabel(action: string) {
   if (action.startsWith("DELETED_TASK_")) return `Eliminó la actividad ${num}`;
   if (action.startsWith("UPLOADED_EVIDENCE_TASK_")) return `Subió evidencia a la actividad ${num}`;
   if (action.startsWith("REMOVED_EVIDENCE_TASK_")) return `Quitó la evidencia de la actividad ${num}`;
+  if (action === "CHANGED_CLIENT") return "Cambió el cliente del reporte";
   if (action === "EDIT_REQUESTED") return "Solicitó permiso de edición";
   if (action === "EDIT_REQUEST_REJECTED") return "Rechazó la solicitud de edición";
   return action;
 }
 
+/** Texto de detalle del historial: motivo, o nota (p. ej. folio anterior y nuevo en un cambio de cliente). */
 function detailReason(details: string | null): string | null {
   if (!details) return null;
   try {
-    const v = JSON.parse(details) as { reason?: unknown };
-    return typeof v.reason === "string" ? v.reason : null;
+    const v = JSON.parse(details) as { reason?: unknown; note?: unknown };
+    return typeof v.reason === "string" ? v.reason : typeof v.note === "string" ? v.note : null;
   } catch {
     return null;
   }
@@ -95,6 +98,13 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           orderBy: { createdAt: "desc" },
           take: 100,
         });
+
+  const canChangeClient = user.role === "ADMIN" || user.role === "EDITOR";
+  const clientOptions = canChangeClient
+    ? (await prisma.client.findMany({ orderBy: { companyName: "asc" }, include: { projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true } } } })).map((c) => ({
+        id: c.id, name: c.companyName, prefix: c.folioPrefix, mainEmails: c.mainEmails, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })),
+      }))
+    : [];
 
   const pending = await prisma.deletionRequest.findMany({
     where: {
@@ -159,6 +169,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           status={report.status}
           role={user.role}
           deletionPending={pending.some((p) => p.targetType === "REPORT")}
+          extra={canChangeClient ? <ChangeClientButton reportId={report.id} folio={report.folio} status={report.status} currentClientId={report.clientId} clients={clientOptions} /> : undefined}
         />
       </div>
 
@@ -198,7 +209,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                   <span className="font-medium">{actionLabel(h.action)}</span>
                   <span className="text-muted-foreground"> · {h.user.name}</span>
                   {detailReason(h.details) && (
-                    <span className="block text-xs text-zinc-500">Motivo: {detailReason(h.details)}</span>
+                    <span className="block text-xs text-zinc-500">{h.action === "CHANGED_CLIENT" ? "" : "Motivo: "}{detailReason(h.details)}</span>
                   )}
                 </span>
                 <time className="shrink-0 text-muted-foreground">

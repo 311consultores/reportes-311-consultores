@@ -22,6 +22,12 @@ export default async function DeletionsPage() {
       take: 30,
     }),
   ]);
+  const merges = await prisma.auditLog.findMany({
+    where: { action: "MERGED_CLIENTS" },
+    include: { user: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
   const [pending, history] = await Promise.all([
     prisma.deletionRequest.findMany({
       where: { status: "PENDIENTE" },
@@ -98,6 +104,34 @@ export default async function DeletionsPage() {
                     <td className="td">{r.status === "APROBADO" ? "Aprobada" : "Rechazada"}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {merges.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight">Fusiones de clientes</h2>
+          <div className="card overflow-x-auto p-0">
+            <table className="w-full">
+              <thead className="border-b border-black/5 dark:border-white/10">
+                <tr><th className="th">Fecha</th><th className="th">Se conservó</th><th className="th">Se fusionó (desapareció)</th><th className="th">Pasaron</th><th className="th">Lo hizo</th></tr>
+              </thead>
+              <tbody className="divide-y divide-black/5 dark:divide-white/10">
+                {merges.map((m) => {
+                  let d: { kept?: { name: string; prefix: string }; removed?: { name: string; prefix: string }; moved?: { projects: number; reports: number; invoices: number } } = {};
+                  try { d = JSON.parse(m.details ?? "{}"); } catch { /* sin detalle */ }
+                  return (
+                    <tr key={m.id}>
+                      <td className="td whitespace-nowrap">{when(m.createdAt)}</td>
+                      <td className="td">{d.kept ? `${d.kept.name} (${d.kept.prefix})` : "—"}</td>
+                      <td className="td">{d.removed ? `${d.removed.name} (${d.removed.prefix})` : "—"}</td>
+                      <td className="td">{d.moved ? `${d.moved.projects} proyecto(s), ${d.moved.reports} reporte(s), ${d.moved.invoices} factura(s)` : "—"}</td>
+                      <td className="td">{m.user.name}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

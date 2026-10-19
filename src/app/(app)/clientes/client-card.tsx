@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, FolderPlus, ImagePlus, Maximize2, Trash2 } from "lucide-react";
+import { FileText, FolderPlus, GitMerge, ImagePlus, Maximize2, Trash2 } from "lucide-react";
 import { createProject, updateClientLogo } from "@/app/actions/admin";
 import { requestDeletion } from "@/app/actions/deletions";
 import { ActionForm } from "@/components/action-form";
@@ -13,6 +13,7 @@ import { Modal } from "@/components/modal";
 import { EmailPills } from "@/components/email-pills";
 import { ClientProfileBody } from "./client-profile";
 import { DeleteEntity } from "./delete-entity";
+import { MergeClientModal } from "./merge-client";
 
 export type CardClient = {
   id: string;
@@ -27,9 +28,9 @@ export type CardClient = {
   hasConstancia: boolean;
 };
 
-type ModalKind = null | "detalle" | "proyecto" | "fiscal" | "logo";
+type ModalKind = null | "detalle" | "proyecto" | "fiscal" | "logo" | "fusion";
 
-export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin: boolean }) {
+export function ClientCard({ client: c, isAdmin, others }: { client: CardClient; isAdmin: boolean; others: CardClient[] }) {
   const router = useRouter();
   const { askReason } = useDialogs();
   const [modal, setModal] = useState<ModalKind>(null);
@@ -82,6 +83,7 @@ export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin
         <IconAction label="Agregar proyecto" onClick={() => setModal("proyecto")}><FolderPlus size={17} /></IconAction>
         <IconAction label="Datos fiscales y de contacto" onClick={() => setModal("fiscal")}><FileText size={17} /></IconAction>
         <IconAction label={c.logoUrl ? "Cambiar logo" : "Agregar logo"} onClick={() => setModal("logo")}><ImagePlus size={17} /></IconAction>
+        <IconAction label="Fusionar con otro cliente" onClick={() => setModal("fusion")}><GitMerge size={17} /></IconAction>
         {isAdmin && (
           <span className="ml-auto"><IconAction label="Eliminar cliente" danger onClick={remove}><Trash2 size={17} /></IconAction></span>
         )}
@@ -140,6 +142,8 @@ export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin
       <Modal open={modal === "fiscal"} onClose={close} wide title="Datos fiscales y de contacto" subtitle={c.companyName}>
         <ClientProfileBody clientId={c.id} values={c.values} mainEmails={c.mainEmails} hasConstancia={c.hasConstancia} editOpen />
       </Modal>
+
+      {modal === "fusion" && <MergeClientModal open onClose={close} client={c} others={others} />}
 
       <Modal open={modal === "logo"} onClose={close} title={c.logoUrl ? "Cambiar logo" : "Agregar logo"} subtitle={c.companyName}>
         <ActionForm action={updateClientLogo} submitLabel="Guardar logo" className="space-y-4" successMessage="Logo actualizado" onSuccess={() => setTimeout(close, 700)}>

@@ -13,11 +13,14 @@ export function ReportActions({
   status,
   role,
   deletionPending,
+  extra,
 }: {
   reportId: string;
   status: ReportStatus;
   role: Role;
   deletionPending: boolean;
+  /** Botones adicionales (p. ej. «Cambiar cliente»). */
+  extra?: React.ReactNode;
 }) {
   const router = useRouter();
   const { confirm } = useDialogs();
@@ -53,6 +56,7 @@ export function ReportActions({
           <Send size={16} /> {busy ? "Enviando…" : "Enviar por correo"}
         </button>
       )}
+      {extra}
       {(role === "ADMIN" || role === "EDITOR") && (
         <DeleteButton
           targetType="REPORT"

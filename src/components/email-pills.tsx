@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { isEmail, splitEmails, uniqueEmails } from "@/lib/emails";
 
@@ -10,16 +10,19 @@ import { isEmail, splitEmails, uniqueEmails } from "@/lib/emails";
  * Envía los correos separados por coma en un campo oculto con el nombre indicado.
  */
 export function EmailPills({
-  name, defaultValue = "", required, placeholder = "correo@empresa.com",
+  name, defaultValue = "", required, placeholder = "correo@empresa.com", onChange,
 }: {
   name: string;
   defaultValue?: string;
   required?: boolean;
   placeholder?: string;
+  /** Se llama con los correos (separados por coma) cada vez que cambia la lista. */
+  onChange?: (csv: string) => void;
 }) {
   const [list, setList] = useState<string[]>(() => uniqueEmails(splitEmails(defaultValue)));
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
+  useEffect(() => onChange?.(list.join(",")), [list, onChange]);
 
   /** Convierte el texto escrito en pills; lo que no es un correo válido se queda en el cuadro con un aviso. */
   function commit(text: string) {
