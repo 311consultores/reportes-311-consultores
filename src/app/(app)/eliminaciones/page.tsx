@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { resolveDeletion } from "@/app/actions/deletions";
 import { EditRequestActions } from "./edit-request-actions";
 
-const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo", USER: "Usuario" };
+const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo", USER: "Usuario", WORKTASK: "Tarea" };
 const when = (d: Date) => d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 
 export default async function DeletionsPage() {

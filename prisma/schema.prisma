@@ -59,6 +59,9 @@ model User {
   projectAccess       UserProject[]
   editRequests        EditRequest[]        @relation("EditRequester")
   editReviews         EditRequest[]        @relation("EditReviewer")
+  workTasksCreated    Task[]               @relation("TaskCreator")
+  workTaskAssignments TaskAssignee[]
+  taskEvents          TaskEvent[]
 }
 
 model Client {
@@ -93,6 +96,7 @@ model Client {
   billingEmail    String?             @db.VarChar(191)
   registration    ClientRegistration?
   invoices        Invoice[]
+  tasks           Task[]
 }
 
 enum RegistrationStatus {
@@ -139,16 +143,17 @@ model ClientRegistration {
 }
 
 model Project {
-  id            String        @id @default(uuid())
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  projectName   String
-  projectEmails String        @db.Text // Comma-separated emails (puede quedar vacío)
-  responsibleName     String? @db.VarChar(120) // Responsable del proyecto
-  responsibleLastName String? @db.VarChar(120)
-  createdAt     DateTime      @default(now())
-  reports       Report[]
-  teamMembers   UserProject[]
+  id                  String        @id @default(uuid())
+  clientId            String
+  client              Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectName         String
+  projectEmails       String        @db.Text // Comma-separated emails (puede quedar vacío)
+  responsibleName     String?       @db.VarChar(120) // Responsable del proyecto
+  responsibleLastName String?       @db.VarChar(120)
+  createdAt           DateTime      @default(now())
+  reports             Report[]
+  teamMembers         UserProject[]
+  tasks               Task[]
 
   @@index([clientId])
 }
@@ -217,7 +222,7 @@ model EditRequest {
 }
 
 model ReportTask {
-  executedAt     String?  @db.VarChar(16) // Fecha y hora en que se ejecutó la actividad: "AAAA-MM-DD HH:mm" (hora local, opcional)
+  executedAt      String?        @db.VarChar(16) // Fecha y hora en que se ejecutó la actividad: "AAAA-MM-DD HH:mm" (hora local, opcional)
   id              String         @id @default(uuid())
   reportId        String
   report          Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -458,4 +463,76 @@ model Movement {
   voidedById  String?
 
   @@index([occurredOn])
+}
+
+enum TaskStatus {
+  PENDIENTE
+  EN_PROCESO
+  PARA_REVISAR
+  TERMINADA
+}
+
+// Panel de tareas (Evolutivo 7): tareas asignadas al equipo TEAM 311 por Admin o Editor
+model Task {
+  id               String         @id @default(uuid())
+  clientId         String
+  client           Client         @relation(fields: [clientId], references: [id])
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id])
+  title            String         @db.VarChar(191)
+  descriptionHtml  String         @db.Text
+  dueAt            DateTime // Fecha y hora de entrega
+  status           TaskStatus     @default(PENDIENTE)
+  createdById      String
+  createdBy        User           @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  readyAt          DateTime? // Cuándo el TEAM 311 la marcó «Lista»
+  acceptedAt       DateTime? // Cuándo pasó a TERMINADA
+  surprise         Boolean        @default(false) // Sorpresa de felicitación habilitada al aceptar
+  surpriseOpenedAt DateTime?
+  hiddenAt         DateTime? // «Limpiar terminadas»: se oculta del tablero pero queda en el historial
+  assignees        TaskAssignee[]
+  resources        TaskResource[]
+  events           TaskEvent[]
+
+  @@index([status])
+  @@index([dueAt])
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model TaskAssignee {
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model TaskResource {
+  id       String @id @default(uuid())
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title    String @db.VarChar(191)
+  url      String @db.VarChar(1000)
+  position Int    @default(0)
+
+  @@index([taskId])
+}
+
+// Historial de la tarea: creación, movimientos, «Lista», aceptación, devoluciones, ediciones
+model TaskEvent {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  kind      String   @db.VarChar(30)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
 }

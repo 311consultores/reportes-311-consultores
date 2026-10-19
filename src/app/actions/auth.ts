@@ -40,6 +40,7 @@ export async function login(_prev: State, formData: FormData) {
   const keys = [`ip:${await clientIp()}`, `email:${parsed.data.email}`];
   if (keys.some(isBlocked)) return { error: "Demasiados intentos. Intenta de nuevo en 15 minutos." };
 
+  let role: string | undefined;
   try {
     const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
     const ok = user?.active && (await bcrypt.compare(parsed.data.password, user.passwordHash));
@@ -50,6 +51,7 @@ export async function login(_prev: State, formData: FormData) {
 
     keys.forEach(clearFailures);
     await createSession(user.id);
+    role = user.role;
   } catch (e) {
     // Muestra solo un código (nunca el detalle) para poder diagnosticar la instalación
     console.error("[login] error:", e);
@@ -58,7 +60,9 @@ export async function login(_prev: State, formData: FormData) {
     const hint = /AUTH_SECRET/.test(err.message ?? "") ? " Falta la variable AUTH_SECRET." : "";
     return { error: `Error del servidor (${code}).${hint} Revisa /api/health.` };
   }
-  redirect(await safeNext(formData.get("next")));
+  // El TEAM 311 aterriza en su tablero de tareas (si venía de un enlace concreto, se respeta)
+  const next = formData.get("next");
+  redirect(typeof next === "string" && next && next !== "/" ? await safeNext(next) : role === "TEAM_311" ? "/tareas" : "/");
 }
 
 export async function logout() {

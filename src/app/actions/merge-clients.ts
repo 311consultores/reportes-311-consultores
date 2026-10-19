@@ -94,6 +94,7 @@ export async function mergeClients(input: z.infer<typeof mergeSchema>): Promise<
       moved.projects = (await tx.project.updateMany({ where: { clientId: removeId }, data: { clientId: keepId } })).count;
       moved.reports = (await tx.report.updateMany({ where: { clientId: removeId }, data: { clientId: keepId } })).count;
       moved.invoices = (await tx.invoice.updateMany({ where: { clientId: removeId }, data: { clientId: keepId } })).count;
+      await tx.task.updateMany({ where: { clientId: removeId }, data: { clientId: keepId } }); // tareas del panel de tareas
 
       // Usuarios cliente: pasan al que queda (si ya tenían acceso a ambos, solo se conserva uno)
       const links = await tx.clientUser.findMany({ where: { clientId: removeId } });

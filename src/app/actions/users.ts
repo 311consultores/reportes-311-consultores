@@ -176,7 +176,7 @@ export async function deleteUser(userId: string, reason: string): Promise<{ erro
         select: {
           reportsCreated: true, tasksCreated: true, deletionRequests: true, deletionReviews: true, auditLogs: true,
           registrationReviews: true, invoicesCreated: true, invoicesCollected: true, invoiceLogs: true, ledgerEntries: true,
-          expensesCreated: true, movementsCreated: true, editRequests: true, editReviews: true,
+          expensesCreated: true, movementsCreated: true, editRequests: true, editReviews: true, workTasksCreated: true, taskEvents: true,
         },
       },
     },

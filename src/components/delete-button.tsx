@@ -11,6 +11,7 @@ const TITLES = {
   CLIENT: "cliente",
   PROJECT: "proyecto",
   INVOICE: "factura o recibo",
+  WORKTASK: "tarea",
 } as const;
 
 export function DeleteButton({
@@ -21,7 +22,7 @@ export function DeleteButton({
   onExecuted,
   label,
 }: {
-  targetType: "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE";
+  targetType: "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE" | "WORKTASK";
   targetId: string;
   isAdmin: boolean;
   alreadyPending: boolean;

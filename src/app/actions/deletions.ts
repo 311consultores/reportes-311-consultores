@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { deleteObject } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
 
-type TargetType = "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE";
+type TargetType = "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE" | "WORKTASK";
 
 /** Texto legible del elemento, para el historial de eliminaciones (queda guardado aunque se borre). */
 async function describeTarget(type: TargetType, id: string): Promise<string | null> {
@@ -26,6 +26,10 @@ async function describeTarget(type: TargetType, id: string): Promise<string | nu
       select: { kind: true, number: true, client: { select: { companyName: true } } },
     });
     return i ? `${i.kind === "FACTURA" ? "Factura" : "Recibo"}${i.number ? ` ${i.number}` : ""} de ${i.client.companyName}` : null;
+  }
+  if (type === "WORKTASK") {
+    const t = await prisma.task.findUnique({ where: { id }, select: { title: true, client: { select: { companyName: true } } } });
+    return t ? `Tarea «${t.title}» (${t.client.companyName})` : null;
   }
   if (type === "TASK") {
     const t = await prisma.reportTask.findUnique({
@@ -63,6 +67,12 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
     const project = await prisma.project.findUnique({ where: { id: targetId } });
     if (!project) return false;
     await prisma.project.delete({ where: { id: project.id } });
+    return true;
+  }
+  if (type === "WORKTASK") {
+    const t = await prisma.task.findUnique({ where: { id: targetId }, select: { id: true } });
+    if (!t) return false;
+    await prisma.task.delete({ where: { id: t.id } }); // asignaciones, recursos e historial en cascada
     return true;
   }
   if (type === "TASK") {
@@ -122,6 +132,10 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
     if (reports > 0) {
       return { error: `No se puede eliminar: tiene ${reports} reporte(s) asociado(s). Elimina los reportes primero.` };
     }
+    const tasks = await prisma.task.count({ where: targetType === "CLIENT" ? { clientId: targetId } : { projectId: targetId } });
+    if (tasks > 0) {
+      return { error: `No se puede eliminar: tiene ${tasks} tarea(s) en el panel de tareas. Elimina las tareas primero.` };
+    }
     if (!(await performDeletion(targetType, targetId, user.id, cleanReason))) return { error: "El elemento no existe" };
     await prisma.deletionRequest.create({
       data: {
@@ -146,6 +160,8 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
     if ((await prisma.ledgerEntry.count({ where: { invoiceId: targetId } })) > 0) {
       return { error: "Este documento ya tuvo un cobro registrado en las cajas, por eso se conserva en el historial y no se puede eliminar." };
     }
+  } else if (targetType === "WORKTASK") {
+    // Las tareas del panel no dependen de ningún estado de reporte
   } else {
     const reportStatus =
       targetType === "TASK"

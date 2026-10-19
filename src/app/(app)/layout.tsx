@@ -20,12 +20,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isOps = isAdmin || user.role === "EDITOR"; // personal de operación
   const isTeam = user.role === "TEAM_311";
 
-  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue] = await Promise.all([
+  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview] = await Promise.all([
     isAdmin ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0), // las de edición se suman en el globo del Log
     isOps ? prisma.editRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     isOps ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     getLogo311Key().then((k) => !!k).catch(() => false),
     isOps ? overdueSummary() : Promise.resolve({ count: 0, total: null }),
+    isOps ? prisma.task.count({ where: { status: "PARA_REVISAR" } }) : Promise.resolve(0), // tareas esperando revisión
   ]);
   const today = todayMx();
   const bannerDismissed = (await cookies()).get(OVERDUE_COOKIE)?.value === today;
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       id: "operacion",
       title: "Operación",
       items: [
+        { href: "/tareas", label: "Tareas", icon: "tareas", badge: tasksToReview },
         { href: "/", label: "Reportes", icon: "reportes", badge: pendingEdits },
         ...(isOps
           ? [

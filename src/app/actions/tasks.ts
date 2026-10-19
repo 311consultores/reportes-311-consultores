@@ -1,0 +1,184 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import type { TaskStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireUser, type CurrentUser } from "@/lib/auth";
+import { sendMail } from "@/lib/mailer";
+import { readLogo311 } from "@/lib/branding";
+import { getBaseUrl } from "@/lib/base-url";
+import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
+import { canMove, formatMx, parseMxInput, STATUS_ORDER } from "@/lib/tasks-shared";
+
+type Result = { error?: string; ok?: boolean; taskId?: string };
+
+const isOps = (u: CurrentUser) => u.role === "ADMIN" || u.role === "EDITOR";
+
+/** Direcciones que se avisan cuando una tarea queda lista para revisión (misma configuración que los reportes terminados). */
+const reviewNotifyEmails = () =>
+  (process.env.TEAM_NOTIFY_EMAILS ?? "admon@311consultores.com,necesito@311consultores.com").split(/[,;\s]+/).filter(Boolean);
+
+/** Envía un correo con el logo de 311; si falla, la acción ya quedó hecha. */
+async function notify(to: string[], build: (withLogo: boolean) => { subject: string; text: string; html: string }) {
+  if (to.length === 0) return;
+  try {
+    const logo = await readLogo311();
+    await sendMail({
+      to,
+      ...build(!!logo),
+      inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined,
+    });
+  } catch (e) {
+    console.error("[tareas] no se pudo enviar el aviso:", e);
+  }
+}
+
+const taskLink = async (id: string) => `${await getBaseUrl()}/tareas?tarea=${id}`;
+
+/** Lee y valida los campos del formulario de tarea (crear y editar). */
+async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
+  clientId: string; projectId: string; title: string; descriptionHtml: string; dueAt: Date; assigneeIds: string[];
+  resources: { title: string; url: string }[];
+}> {
+  const clientId = String(fd.get("clientId") ?? "");
+  const projectId = String(fd.get("projectId") ?? "");
+  const title = String(fd.get("title") ?? "").trim().slice(0, 191);
+  const descriptionHtml = String(fd.get("descriptionHtml") ?? "");
+  const dueAt = parseMxInput(String(fd.get("dueAt") ?? ""));
+
+  if (!/^[0-9a-f-]{36}$/i.test(clientId)) return { error: "Selecciona un cliente" };
+  if (!/^[0-9a-f-]{36}$/i.test(projectId)) return { error: "Selecciona un proyecto" };
+  if (title.length < 2) return { error: "Escribe el nombre de la tarea" };
+  if (!dueAt) return { error: "Indica la fecha y hora de entrega" };
+  if (!(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
+
+  const wanted = [...new Set(fd.getAll("consultantIds").map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
+  const team = await prisma.user.findMany({ where: { id: { in: wanted }, role: "TEAM_311", active: true }, select: { id: true } });
+  if (team.length === 0) return { error: "Asigna la tarea al menos a una persona del TEAM 311" };
+
+  // Recursos: pares título + link (los renglones vacíos se ignoran)
+  const titles = fd.getAll("resourceTitle").map(String);
+  const urls = fd.getAll("resourceUrl").map(String);
+  const resources: { title: string; url: string }[] = [];
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i].trim();
+    const t = (titles[i] ?? "").trim();
+    if (!url && !t) continue;
+    if (!/^https?:\/\/[^\s]+$/i.test(url) || url.length > 1000) return { error: `El recurso «${t || url}» necesita un link válido (que empiece con http:// o https://)` };
+    resources.push({ title: (t || url).slice(0, 191), url });
+  }
+  return { clientId, projectId, title, descriptionHtml, dueAt, assigneeIds: team.map((t) => t.id), resources };
+}
+
+/** Crea una tarea (solo Admin y Editor). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
+export async function createTask(fd: FormData): Promise<Result> {
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const d = await parseTaskForm(fd);
+  if ("error" in d) return { error: d.error };
+
+  const task = await prisma.task.create({
+    data: {
+      clientId: d.clientId, projectId: d.projectId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, createdById: user.id,
+      assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
+      resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
+      events: { create: { userId: user.id, kind: "CREATED" } },
+    },
+    include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
+  });
+
+  const link = await taskLink(task.id);
+  await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
+    tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
+  );
+  revalidatePath("/tareas");
+  return { ok: true, taskId: task.id };
+}
+
+/** Edita una tarea (solo Admin y Editor): nombre, fecha, descripción, personas y recursos. */
+export async function updateTask(taskId: string, fd: FormData): Promise<Result> {
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const current = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: true } });
+  if (!current) return { error: "La tarea no existe" };
+  const d = await parseTaskForm(fd);
+  if ("error" in d) return { error: d.error };
+
+  const before = new Set(current.assignees.map((a) => a.userId));
+  const added = d.assigneeIds.filter((id) => !before.has(id));
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt } }),
+    prisma.taskAssignee.deleteMany({ where: { taskId } }),
+    prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
+    prisma.taskResource.deleteMany({ where: { taskId } }),
+    prisma.taskResource.createMany({ data: d.resources.map((r, position) => ({ ...r, taskId, position })) }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED" } }),
+  ]);
+
+  if (added.length) {
+    const [people, ctx] = await Promise.all([
+      prisma.user.findMany({ where: { id: { in: added } }, select: { email: true } }),
+      prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } }),
+    ]);
+    const link = await taskLink(taskId);
+    await notify(people.map((p) => p.email), (withLogo) =>
+      tareaAsignadaEmail({ title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", due: formatMx(d.dueAt), byName: user.name, link, withLogo }),
+    );
+  }
+  revalidatePath("/tareas");
+  return { ok: true, taskId };
+}
+
+/**
+ * Mueve una tarea de fase. El TEAM 311 asignado solo avanza (Pendiente ↔ En proceso → Para revisar);
+ * Admin y Editor mueven a cualquier fase. Al terminar se puede habilitar la «sorpresa» de felicitación;
+ * al devolver de «Para revisar» a «En proceso» el comentario es obligatorio.
+ */
+export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: string; surprise?: boolean } = {}): Promise<Result> {
+  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  if (!STATUS_ORDER.includes(to)) return { error: "Fase no válida" };
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { assignees: { select: { userId: true, user: { select: { email: true } } } }, client: { select: { companyName: true } }, project: { select: { projectName: true } } },
+  });
+  if (!task) return { error: "La tarea no existe" };
+  const mine = task.assignees.some((a) => a.userId === user.id);
+  if (!isOps(user) && !mine) return { error: "Esa tarea no es tuya" };
+  if (!canMove(user.role, mine, task.status, to)) return { error: "No puedes mover la tarea a esa fase" };
+
+  const note = opts.note?.trim().slice(0, 2000) || null;
+  const from = task.status;
+  const returning = from === "PARA_REVISAR" && to === "EN_PROCESO";
+  if (returning && !note) return { error: "Escribe un comentario para devolver la tarea" };
+
+  const now = new Date();
+  const data: Record<string, unknown> = { status: to };
+  let kind = "MOVED";
+  if (to === "PARA_REVISAR") { data.readyAt = now; kind = "READY"; }
+  if (to === "TERMINADA") { data.acceptedAt = now; data.surprise = !!opts.surprise; data.surpriseOpenedAt = null; data.hiddenAt = null; kind = "ACCEPTED"; }
+  if (from === "TERMINADA" && to !== "TERMINADA") { data.acceptedAt = null; data.surprise = false; data.surpriseOpenedAt = null; data.hiddenAt = null; }
+  if (returning) kind = "RETURNED";
+
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: taskId }, data }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind, note: note ?? (kind === "MOVED" ? `${from} → ${to}` : null) } }),
+  ]);
+
+  const link = await taskLink(taskId);
+  if (to === "PARA_REVISAR" && !isOps(user)) {
+    await notify(reviewNotifyEmails(), (withLogo) =>
+      tareaParaRevisarEmail({ title: task.title, teamName: user.name, clientName: task.client.companyName, projectName: task.project.projectName, note, link, withLogo }),
+    );
+  }
+  if (returning) {
+    await notify(task.assignees.map((a) => a.user.email), (withLogo) => tareaDevueltaEmail({ title: task.title, byName: user.name, note: note ?? "", link, withLogo }));
+  }
+  revalidatePath("/tareas");
+  return { ok: true, taskId };
+}
+
+/** «Limpiar terminadas» (Admin y Editor): oculta del tablero las tareas terminadas; siguen en el historial. */
+export async function clearFinished(): Promise<{ count: number }> {
+  await requireUser(["ADMIN", "EDITOR"]);
+  const r = await prisma.task.updateMany({ where: { status: "TERMINADA", hiddenAt: null }, data: { hiddenAt: new Date() } });
+  revalidatePath("/tareas");
+  return { count: r.count };
+}

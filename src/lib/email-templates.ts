@@ -222,3 +222,71 @@ export function passwordResetEmail(p: { name: string; link: string; withLogo: bo
   );
   return { subject, text, html };
 }
+
+
+/** Aviso al TEAM 311: se le asignó una tarea nueva. */
+export function tareaAsignadaEmail(p: { title: string; clientName: string; projectName: string; due: string; byName: string; link: string; withLogo: boolean }) {
+  const subject = `Nueva tarea para ti: ${p.title}`;
+  const text = [
+    `${p.byName} te asignó una tarea nueva:`,
+    "",
+    p.title,
+    `Cliente: ${p.clientName}`,
+    `Proyecto: ${p.projectName}`,
+    `Fecha de entrega: ${p.due}`,
+    "",
+    "Ábrela aquí:",
+    p.link,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.byName)}</strong> te asignó una tarea nueva:</p>
+<p style="margin:0 0 16px;font-size:17px;"><strong>${esc(p.title)}</strong></p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Cliente</td><td>${esc(p.clientName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Proyecto</td><td>${esc(p.projectName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Entrega</td><td>${esc(p.due)}</td></tr>
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Abrir la tarea")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
+/** Aviso a Administración: un TEAM 311 marcó una tarea como lista y espera revisión. */
+export function tareaParaRevisarEmail(p: { title: string; teamName: string; clientName: string; projectName: string; note: string | null; link: string; withLogo: boolean }) {
+  const subject = `Tarea lista para revisar: ${p.title} (${p.teamName})`;
+  const text = [
+    `${p.teamName} marcó como lista la tarea «${p.title}».`,
+    "",
+    `Cliente: ${p.clientName}`,
+    `Proyecto: ${p.projectName}`,
+    ...(p.note ? ["", `Comentario: ${p.note}`] : []),
+    "",
+    "Revísala y acéptala o devuélvela aquí:",
+    p.link,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.teamName)}</strong> marcó como <strong>lista</strong> la tarea <strong>${esc(p.title)}</strong> y espera tu revisión.</p>
+<table style="margin:0 0 16px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Cliente</td><td>${esc(p.clientName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Proyecto</td><td>${esc(p.projectName)}</td></tr>
+</table>
+${p.note ? `<p style="margin:0 0 16px;padding:10px 14px;background:#f5f5f7;border-radius:10px;font-size:14px;">${esc(p.note)}</p>` : ""}
+<p style="margin:0 0 8px;">${button(p.link, "Revisar tarea")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
+/** Aviso al TEAM 311: la tarea se devolvió a «En proceso» con un comentario. */
+export function tareaDevueltaEmail(p: { title: string; byName: string; note: string; link: string; withLogo: boolean }) {
+  const subject = `Tu tarea volvió a «En proceso»: ${p.title}`;
+  const text = [`${p.byName} devolvió la tarea «${p.title}» a En proceso.`, "", `Comentario: ${p.note}`, "", p.link].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.byName)}</strong> devolvió la tarea <strong>${esc(p.title)}</strong> a <strong>En proceso</strong>:</p>
+<p style="margin:0 0 16px;padding:10px 14px;background:#f5f5f7;border-radius:10px;font-size:14px;">${esc(p.note)}</p>
+<p style="margin:0 0 8px;">${button(p.link, "Abrir la tarea")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

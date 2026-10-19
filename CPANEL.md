@@ -252,6 +252,17 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Duplicados en el registro público:** ahora el aviso aparece solo cuando coincide el RFC o algún correo (ya no el nombre).
 - **Cambiar el cliente de un reporte** (Admin y Editor, cualquier estado): botón «Cambiar cliente» en el reporte. Regenera el folio con el prefijo del cliente nuevo y su siguiente consecutivo (conserva la fecha del folio) y guarda el folio anterior en el historial. Permite crear el proyecto en ese momento. Si el reporte ya se envió, pide escribir el folio actual para confirmar.
 
+### Evolutivo 7 · Etapa 1 (19 oct 2026) — panel de tareas (Kanban)
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261019230000_evolutivo7a.sql`. Solo CREA tablas nuevas (`Task`, `TaskAssignee`, `TaskResource`,
+  `TaskEvent`) y **no toca ningún dato existente**. Se ejecuta una sola vez.
+- Sin variables nuevas. Los avisos de «tarea lista para revisar» usan `TEAM_NOTIFY_EMAILS` (por defecto admon@ y necesito@).
+- **Menú:** nueva opción **Tareas** en *Operación* (Admin, Editor y TEAM 311). El TEAM 311 aterriza en Tareas al iniciar sesión.
+- Admin y Editor crean, editan y eliminan tareas (la eliminación del Editor la aprueba el Admin desde el Log); el TEAM 311 mueve sus tareas
+  Pendiente ↔ En proceso → Para revisar con arrastrar o con el botón «Lista». Solo Admin y Editor aceptan (Terminada).
+- Las terminadas se ocultan solas a los 15 días; «Limpiar terminadas» las oculta de inmediato y quedan en *Historial*.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.
