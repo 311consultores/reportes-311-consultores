@@ -10,6 +10,7 @@ import type { ClientFieldValues } from "@/components/client-data-fields";
 import { useDialogs } from "@/components/dialogs";
 import { IconAction } from "@/components/icon-action";
 import { Modal } from "@/components/modal";
+import { EmailPills } from "@/components/email-pills";
 import { ClientProfileBody } from "./client-profile";
 import { DeleteEntity } from "./delete-entity";
 
@@ -21,7 +22,7 @@ export type CardClient = {
   logoUrl: string | null;
   reportCount: number;
   createdAt: string;
-  projects: { id: string; projectName: string; projectEmails: string }[];
+  projects: { id: string; projectName: string; projectEmails: string; responsible: string }[];
   values: ClientFieldValues;
   hasConstancia: boolean;
 };
@@ -105,8 +106,8 @@ export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin
             <ul className="divide-y divide-black/5 overflow-hidden rounded-xl border border-black/5 text-sm dark:divide-white/10 dark:border-white/10">
               {c.projects.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
-                  <span className="font-medium">{p.projectName}</span>
-                  <span className="meta ml-auto truncate">{p.projectEmails.replaceAll(",", ", ")}</span>
+                  <span className="font-medium">{p.projectName}<span className="meta ml-2 font-normal">{p.responsible ? `Responsable: ${p.responsible}` : "Sin responsable"}</span></span>
+                  <span className="meta ml-auto truncate">{p.projectEmails ? p.projectEmails.replaceAll(",", ", ") : "Sin correos propios"}</span>
                   {isAdmin && <DeleteEntity type="PROJECT" id={p.id} />}
                 </li>
               ))}
@@ -115,7 +116,7 @@ export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin
           </div>
           <div>
             <h3 className="mb-2 text-sm font-semibold">Datos fiscales y de contacto</h3>
-            <ClientProfileBody clientId={c.id} values={c.values} hasConstancia={c.hasConstancia} />
+            <ClientProfileBody clientId={c.id} values={c.values} mainEmails={c.mainEmails} hasConstancia={c.hasConstancia} />
           </div>
         </div>
       </Modal>
@@ -124,12 +125,20 @@ export function ClientCard({ client: c, isAdmin }: { client: CardClient; isAdmin
         <ActionForm action={createProject} submitLabel="Agregar proyecto" className="space-y-4" successMessage="Proyecto agregado" onSuccess={() => setTimeout(close, 700)}>
           <input type="hidden" name="clientId" value={c.id} />
           <div><label className="label">Proyecto</label><input name="projectName" required className="input" /></div>
-          <div><label className="label">Correos del proyecto</label><input name="projectEmails" required className="input" placeholder="a@x.com, b@x.com" /></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><label className="label">Responsable del proyecto: nombre</label><input name="responsibleName" required maxLength={120} className="input" /></div>
+            <div><label className="label">Apellido</label><input name="responsibleLastName" required maxLength={120} className="input" /></div>
+          </div>
+          <div>
+            <label className="label">Correos del proyecto</label>
+            {/* Se sugieren los correos principales del cliente; se pueden quitar o agregar otros. Si coinciden, el reporte se envía una sola vez */}
+            <EmailPills name="projectEmails" defaultValue={c.mainEmails} />
+          </div>
         </ActionForm>
       </Modal>
 
       <Modal open={modal === "fiscal"} onClose={close} wide title="Datos fiscales y de contacto" subtitle={c.companyName}>
-        <ClientProfileBody clientId={c.id} values={c.values} hasConstancia={c.hasConstancia} editOpen />
+        <ClientProfileBody clientId={c.id} values={c.values} mainEmails={c.mainEmails} hasConstancia={c.hasConstancia} editOpen />
       </Modal>
 
       <Modal open={modal === "logo"} onClose={close} title={c.logoUrl ? "Cambiar logo" : "Agregar logo"} subtitle={c.companyName}>

@@ -1,7 +1,6 @@
-import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { NewClientForm } from "./new-client-form";
+import { fullName } from "@/lib/client-data";
 import { ClientsGrid } from "./clients-grid";
 import type { CardClient } from "./client-card";
 
@@ -21,7 +20,7 @@ export default async function ClientsPage() {
     logoUrl: c.logoUrl,
     reportCount: c._count.reports,
     createdAt: c.createdAt.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }),
-    projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails })),
+    projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails, responsible: fullName(p.responsibleName, p.responsibleLastName) })),
     hasConstancia: !!c.constanciaUrl,
     values: {
       companyName: c.companyName,
@@ -34,9 +33,11 @@ export default async function ClientsPage() {
       city: c.city ?? "",
       state: c.state ?? "",
       contactName: c.contactName ?? "",
+      contactLastName: c.contactLastName ?? "",
       contactPhone: c.contactPhone ?? "",
       contactEmail: c.contactEmail ?? "",
       billingName: c.billingName ?? "",
+      billingLastName: c.billingLastName ?? "",
       billingPhone: c.billingPhone ?? "",
       billingEmail: c.billingEmail ?? "",
     },
@@ -45,15 +46,6 @@ export default async function ClientsPage() {
   return (
     <div className="space-y-6">
       <h1 className="page-title">Clientes y proyectos</h1>
-
-      <details className="card group space-y-4">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-          <span className="btn"><Plus size={16} /> Nuevo cliente</span>
-        </summary>
-        <div className="space-y-4 pt-4">
-          <NewClientForm existing={clients.map((c) => ({ prefix: c.folioPrefix, name: c.companyName }))} />
-        </div>
-      </details>
 
       <ClientsGrid clients={cards} isAdmin={isAdmin} />
     </div>

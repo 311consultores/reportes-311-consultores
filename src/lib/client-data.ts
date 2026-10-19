@@ -20,9 +20,11 @@ export type ClientData = {
   city: string | null;
   state: string | null;
   contactName: string;
+  contactLastName: string;
   contactPhone: string;
   contactEmail: string;
   billingName: string;
+  billingLastName: string;
   billingPhone: string;
   billingEmail: string;
 };
@@ -30,6 +32,9 @@ export type ClientData = {
 type Raw = { get(name: string): FormDataEntryValue | null };
 
 const clean = (v: FormDataEntryValue | null) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+
+/** Nombre completo a partir de nombre y apellido (para correos y pantallas). */
+export const fullName = (first?: string | null, last?: string | null) => [first, last].filter(Boolean).join(" ");
 
 export const isValidRfc = (rfc: string) => RFC_MORAL.test(rfc) || RFC_FISICA.test(rfc);
 
@@ -64,15 +69,17 @@ export function parseClientData(raw: Raw): { ok: true; data: ClientData } | { ok
   if (rfc && !isValidRfc(rfc)) return { ok: false, error: "El RFC no tiene un formato válido (12 caracteres para persona moral, 13 para persona física)" };
   if (postalCode && !/^\d{5}$/.test(postalCode)) return { ok: false, error: "El código postal debe tener 5 dígitos" };
 
-  type Contact = { error: string } | { name: string; phone: string; email: string };
+  type Contact = { error: string } | { name: string; lastName: string; phone: string; email: string };
   const contact = (prefix: "contact" | "billing", label: string): Contact => {
     const name = clean(raw.get(`${prefix}Name`));
+    const lastName = clean(raw.get(`${prefix}LastName`));
     const phone = normalizePhone(clean(raw.get(`${prefix}Phone`)));
     const email = clean(raw.get(`${prefix}Email`)).toLowerCase();
     if (name.length < 2) return { error: `${label}: escribe el nombre` };
+    if (lastName.length < 2) return { error: `${label}: escribe el apellido` };
     if (!phone) return { error: `${label}: el teléfono debe tener 10 dígitos` };
     if (!EMAIL.test(email) || email.length > 191) return { error: `${label}: el correo no es válido` };
-    return { name, phone, email };
+    return { name, lastName, phone, email };
   };
   const c = contact("contact", "Contacto principal");
   if ("error" in c) return { ok: false, error: c.error };
@@ -92,9 +99,11 @@ export function parseClientData(raw: Raw): { ok: true; data: ClientData } | { ok
       city: city || null,
       state: state || null,
       contactName: c.name,
+      contactLastName: c.lastName,
       contactPhone: c.phone,
       contactEmail: c.email,
       billingName: b.name,
+      billingLastName: b.lastName,
       billingPhone: b.phone,
       billingEmail: b.email,
     },

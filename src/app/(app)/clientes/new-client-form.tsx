@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/app/actions/admin";
+import { EmailPills } from "@/components/email-pills";
 import { ActionForm } from "@/components/action-form";
 import { suggestPrefix } from "@/lib/folio-prefix";
 
@@ -10,6 +11,7 @@ export function NewClientForm({ existing }: { existing: { prefix: string; name: 
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
   const [touched, setTouched] = useState(false);
+  const [formKey, setFormKey] = useState(0); // reinicia los correos al guardar
 
   const taken = prefix ? existing.find((e) => e.prefix === prefix.toUpperCase()) : undefined;
 
@@ -22,6 +24,7 @@ export function NewClientForm({ existing }: { existing: { prefix: string; name: 
         setName("");
         setPrefix("");
         setTouched(false);
+        setFormKey((k) => k + 1);
       }}
     >
       <div>
@@ -59,7 +62,7 @@ export function NewClientForm({ existing }: { existing: { prefix: string; name: 
       </div>
       <div>
         <label className="label">Correos principales</label>
-        <input name="mainEmails" required placeholder="a@x.com, b@x.com" className="input" />
+        <EmailPills key={formKey} name="mainEmails" required />
       </div>
       <div className="md:col-span-3">
         <label className="label">Logo del cliente (opcional, PNG o JPG hasta 2 MB)</label>

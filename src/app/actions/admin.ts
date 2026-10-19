@@ -4,16 +4,22 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { splitEmails, uniqueEmails } from "@/lib/emails";
 import { validateLogo, storeLogo, replaceClientLogo } from "@/lib/branding";
 
 type State = { error?: string; ok?: boolean } | undefined;
 
+const validEmails = (l: string[]) => l.every((e) => z.string().email().safeParse(e).success);
 const emailList = z
   .string()
-  .transform((s) => s.split(/[,;\s]+/).filter(Boolean))
-  .refine((l) => l.length > 0 && l.every((e) => z.string().email().safeParse(e).success), {
-    message: "Correos inválidos (sepáralos con coma)",
-  })
+  .transform((s) => uniqueEmails(splitEmails(s)))
+  .refine((l) => l.length > 0 && validEmails(l), { message: "Agrega al menos un correo válido" })
+  .transform((l) => l.join(","));
+/** Igual, pero se permite dejarlo vacío (correos del proyecto). */
+const optionalEmailList = z
+  .string()
+  .transform((s) => uniqueEmails(splitEmails(s)))
+  .refine(validEmails, { message: "Hay un correo inválido" })
   .transform((l) => l.join(","));
 
 function fail(e: z.ZodError): State {
@@ -77,7 +83,9 @@ export async function createProject(_p: State, fd: FormData): Promise<State> {
     .object({
       clientId: z.string().uuid(),
       projectName: z.string().trim().min(2, "Nombre del proyecto requerido"),
-      projectEmails: emailList,
+      projectEmails: optionalEmailList,
+      responsibleName: z.string().trim().min(2, "Escribe el nombre del responsable del proyecto").max(120),
+      responsibleLastName: z.string().trim().min(2, "Escribe el apellido del responsable del proyecto").max(120),
     })
     .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return fail(parsed.error);

@@ -7,7 +7,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { allowAction, overLimit } from "@/lib/rate-limit";
-import { parseClientData, validateConstancia } from "@/lib/client-data";
+import { isEmail, splitEmails, uniqueEmails } from "@/lib/emails";
+import { fullName, parseClientData, validateConstancia } from "@/lib/client-data";
 import { validateLogo, readLogo311 } from "@/lib/branding";
 import { putObject, getObject, deleteObject } from "@/lib/storage";
 import { registroActivo, setRegistroActivo, registroNotifyEmail } from "@/lib/registro";
@@ -90,14 +91,14 @@ export async function submitRegistration(_p: State, fd: FormData): Promise<State
     await sendMail({
       to: [registroNotifyEmail()],
       ...registroNuevoEmail({
-        companyName: d.companyName, contactName: d.contactName, contactEmail: d.contactEmail,
+        companyName: d.companyName, contactName: fullName(d.contactName, d.contactLastName), contactEmail: d.contactEmail,
         requiresInvoice: d.requiresInvoice, link: `${base}/registros/${id}`, withLogo: !!logo311,
       }),
       inline,
     });
     await sendMail({
       to: [d.contactEmail],
-      ...registroConfirmacionEmail({ contactName: d.contactName, companyName: d.companyName, withLogo: !!logo311 }),
+      ...registroConfirmacionEmail({ contactName: fullName(d.contactName, d.contactLastName), companyName: d.companyName, withLogo: !!logo311 }),
       inline,
     });
   } catch (e) {
@@ -208,7 +209,15 @@ export async function updateClientProfile(_p: State, fd: FormData): Promise<Stat
     await putObject(constanciaUrl, v.buf, "application/pdf");
   }
 
-  await prisma.client.update({ where: { id: clientId.data }, data: { ...d, ...(constanciaUrl ? { constanciaUrl } : {}) } });
+  // Los correos principales viajan solo cuando el formulario los incluye
+  let mainEmails: string | undefined;
+  if (fd.has("mainEmails")) {
+    const list = uniqueEmails(splitEmails(String(fd.get("mainEmails") ?? "")));
+    if (list.length === 0 || !list.every(isEmail)) return { error: "Agrega al menos un correo principal válido" };
+    mainEmails = list.join(",");
+  }
+
+  await prisma.client.update({ where: { id: clientId.data }, data: { ...d, ...(mainEmails ? { mainEmails } : {}), ...(constanciaUrl ? { constanciaUrl } : {}) } });
   if (constanciaUrl) await quiet(client.constanciaUrl); // reemplaza la anterior
   revalidatePath("/clientes");
   return { ok: true };

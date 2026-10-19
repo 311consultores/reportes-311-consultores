@@ -47,9 +47,11 @@ export default async function RegistroReviewPage({ params }: { params: Promise<{
             city: reg.city ?? "",
             state: reg.state ?? "",
             contactName: reg.contactName,
+            contactLastName: reg.contactLastName,
             contactPhone: reg.contactPhone,
             contactEmail: reg.contactEmail,
             billingName: reg.billingName,
+            billingLastName: reg.billingLastName,
             billingPhone: reg.billingPhone,
             billingEmail: reg.billingEmail,
           }}

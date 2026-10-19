@@ -42,7 +42,7 @@ export default async function RegistrosPage() {
                 <tr key={r.id} className="transition-colors duration-200 hover:bg-black/[0.02] dark:hover:bg-white/[0.04]">
                   <td className="td whitespace-nowrap">{when(r.createdAt)}</td>
                   <td className="td font-medium">{r.companyName}</td>
-                  <td className="td">{r.contactName}<br /><span className="meta">{r.contactEmail}</span></td>
+                  <td className="td">{r.contactName} {r.contactLastName}<br /><span className="meta">{r.contactEmail}</span></td>
                   <td className="td">{r.requiresInvoice ? "Sí" : "No"}</td>
                   <td className="td text-right"><Link href={`/registros/${r.id}`} className="btn">Revisar</Link></td>
                 </tr>

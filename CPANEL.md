@@ -221,6 +221,17 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   proyectos que puede trabajar. Los proyectos nuevos NO se asignan solos.
 - Las fotos se guardan en la carpeta de evidencias (`perfiles/`), así que entran en los respaldos de esa carpeta.
 
+### Evolutivo 6 · Etapa 1 (19 oct 2026) — correos en pills, nombre y apellido, responsable de proyecto
+- **Respaldo antes de actualizar (obligatorio):** cPanel › *Backup* (o phpMyAdmin › *Exportar* › *Rápido*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261019195715_evolutivo6a.sql`. Solo AGREGA columnas (apellidos de los contactos del cliente y del
+  registro, y responsable del proyecto) y **conserva todos los datos**: los nombres ya guardados se separan solos
+  (primera palabra = nombre, el resto = apellido). Se ejecuta una sola vez.
+- Sin variables de entorno nuevas.
+- Los correos del cliente y del proyecto se capturan como «pills»; el proyecto nuevo sugiere los correos principales del cliente.
+- Después de actualizar, revisa en *Clientes y proyectos › Datos fiscales y de contacto* que los apellidos separados
+  automáticamente estén bien (por ejemplo, un nombre como «Dra. Patricia Vega» queda «Dra.» + «Patricia Vega»): corrígelos con *Editar datos*.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

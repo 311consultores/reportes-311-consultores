@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EmailPills } from "@/components/email-pills";
 
 export type ClientFieldValues = {
   companyName: string;
@@ -13,16 +14,18 @@ export type ClientFieldValues = {
   city: string;
   state: string;
   contactName: string;
+  contactLastName: string;
   contactPhone: string;
   contactEmail: string;
   billingName: string;
+  billingLastName: string;
   billingPhone: string;
   billingEmail: string;
 };
 
 export const EMPTY_CLIENT_VALUES: ClientFieldValues = {
   companyName: "", requiresInvoice: false, legalName: "", rfc: "", street: "", colonia: "", postalCode: "", city: "", state: "",
-  contactName: "", contactPhone: "", contactEmail: "", billingName: "", billingPhone: "", billingEmail: "",
+  contactName: "", contactLastName: "", contactPhone: "", contactEmail: "", billingName: "", billingLastName: "", billingPhone: "", billingEmail: "",
 };
 
 type Props = {
@@ -34,6 +37,8 @@ type Props = {
   /** Enlace a la constancia ya guardada (perfil y revisión). */
   constanciaHref?: string | null;
   onCompanyName?: (name: string) => void;
+  /** Correos principales del cliente a los que se envían los reportes (solo en la edición del cliente). */
+  mainEmails?: string;
 };
 
 const Field = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
@@ -55,7 +60,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
  * Campos de datos del cliente: empresa, facturación, dirección y los dos contactos.
  * Los valores viajan en el formulario con sus nombres (companyName, rfc, contactEmail...).
  */
-export function ClientDataFields({ defaults, showLogo, showConstancia, constanciaHref, onCompanyName }: Props) {
+export function ClientDataFields({ defaults, showLogo, showConstancia, constanciaHref, onCompanyName, mainEmails }: Props) {
   const [v, setV] = useState<ClientFieldValues>({ ...EMPTY_CLIENT_VALUES, ...defaults });
   const [same, setSame] = useState(false);
   const set = <K extends keyof ClientFieldValues>(k: K, value: ClientFieldValues[K]) => setV((p) => ({ ...p, [k]: value }));
@@ -68,11 +73,12 @@ export function ClientDataFields({ defaults, showLogo, showConstancia, constanci
   // «Misma persona»: los datos de administración se muestran copiados del contacto principal (y se envían así)
   const billing = {
     billingName: same ? v.contactName : v.billingName,
+    billingLastName: same ? v.contactLastName : v.billingLastName,
     billingPhone: same ? v.contactPhone : v.billingPhone,
     billingEmail: same ? v.contactEmail : v.billingEmail,
   };
   function toggleSame(checked: boolean) {
-    if (!checked) setV((p) => ({ ...p, billingName: p.contactName, billingPhone: p.contactPhone, billingEmail: p.contactEmail }));
+    if (!checked) setV((p) => ({ ...p, billingName: p.contactName, billingLastName: p.contactLastName, billingPhone: p.contactPhone, billingEmail: p.contactEmail }));
     setSame(checked);
   }
 
@@ -93,6 +99,11 @@ export function ClientDataFields({ defaults, showLogo, showConstancia, constanci
             }}
           />
         </Field>
+        {mainEmails !== undefined && (
+          <Field label="Correos principales del cliente" hint="A estos correos se envían los reportes.">
+            <EmailPills name="mainEmails" defaultValue={mainEmails} required />
+          </Field>
+        )}
         {showLogo && (
           <Field label="Logo de la empresa (opcional)" hint="PNG o JPG, hasta 2 MB.">
             <input type="file" name="logo" accept="image/png,image/jpeg" className="input" />
@@ -181,9 +192,12 @@ export function ClientDataFields({ defaults, showLogo, showConstancia, constanci
       </Section>
 
       <Section title="Contacto principal">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Field label="Nombre">
             <input {...text("contactName")} required maxLength={150} className="input" />
+          </Field>
+          <Field label="Apellido">
+            <input {...text("contactLastName")} required maxLength={150} className="input" />
           </Field>
           <Field label="Teléfono" hint="10 dígitos.">
             <input {...text("contactPhone")} required inputMode="tel" maxLength={16} className="input" />
@@ -204,11 +218,17 @@ export function ClientDataFields({ defaults, showLogo, showConstancia, constanci
           />
           Es la misma persona que el contacto principal
         </label>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Field label="Nombre">
             <input
               name="billingName" value={billing.billingName} readOnly={same} required maxLength={150} className="input"
               onChange={(e) => set("billingName", e.target.value)}
+            />
+          </Field>
+          <Field label="Apellido">
+            <input
+              name="billingLastName" value={billing.billingLastName} readOnly={same} required maxLength={150} className="input"
+              onChange={(e) => set("billingLastName", e.target.value)}
             />
           </Field>
           <Field label="Teléfono" hint="10 dígitos.">

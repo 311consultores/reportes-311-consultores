@@ -83,10 +83,12 @@ model Client {
   city            String?             @db.VarChar(120)
   state           String?             @db.VarChar(120)
   constanciaUrl   String? // Clave del PDF de la Constancia de Situación Fiscal (almacenamiento privado)
-  contactName     String?             @db.VarChar(150) // Contacto principal
+  contactName     String?             @db.VarChar(150) // Contacto principal (nombre)
+  contactLastName String?             @db.VarChar(150)
   contactPhone    String?             @db.VarChar(10)
   contactEmail    String?             @db.VarChar(191)
-  billingName     String?             @db.VarChar(150) // Contacto de administración y facturación
+  billingName     String?             @db.VarChar(150) // Contacto de administración y facturación (nombre)
+  billingLastName String?             @db.VarChar(150)
   billingPhone    String?             @db.VarChar(10)
   billingEmail    String?             @db.VarChar(191)
   registration    ClientRegistration?
@@ -118,9 +120,11 @@ model ClientRegistration {
   state           String? @db.VarChar(120)
   constanciaUrl   String?
   contactName     String  @db.VarChar(150)
+  contactLastName String  @default("") @db.VarChar(150)
   contactPhone    String  @db.VarChar(10)
   contactEmail    String  @db.VarChar(191)
   billingName     String  @db.VarChar(150)
+  billingLastName String  @default("") @db.VarChar(150)
   billingPhone    String  @db.VarChar(10)
   billingEmail    String  @db.VarChar(191)
 
@@ -139,7 +143,9 @@ model Project {
   clientId      String
   client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   projectName   String
-  projectEmails String        @db.Text // Comma-separated emails
+  projectEmails String        @db.Text // Comma-separated emails (puede quedar vacío)
+  responsibleName     String? @db.VarChar(120) // Responsable del proyecto
+  responsibleLastName String? @db.VarChar(120)
   createdAt     DateTime      @default(now())
   reports       Report[]
   teamMembers   UserProject[]

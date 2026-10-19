@@ -5,8 +5,9 @@ import { updateClientProfile } from "@/app/actions/registros";
 import { ActionForm } from "@/components/action-form";
 import { ClientDataFields, type ClientFieldValues } from "@/components/client-data-fields";
 import { CopyButton } from "@/components/copy-button";
+import { fullName } from "@/lib/client-data";
 
-type Props = { clientId: string; values: ClientFieldValues; hasConstancia: boolean; editOpen?: boolean };
+type Props = { clientId: string; values: ClientFieldValues; mainEmails: string; hasConstancia: boolean; editOpen?: boolean };
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="space-y-0.5">
@@ -47,7 +48,7 @@ function Contact({ title, name, phone, email }: { title: string; name: string; p
 }
 
 /** Datos fiscales y de contacto de un cliente: consulta con botones de copiar, y edición (Admin y Editor). */
-export function ClientProfileBody({ clientId, values: v, hasConstancia, editOpen = false }: Props) {
+export function ClientProfileBody({ clientId, values: v, mainEmails, hasConstancia, editOpen = false }: Props) {
   const address = [v.street, v.colonia, v.postalCode && `C.P. ${v.postalCode}`, v.city, v.state].filter(Boolean).join(", ");
   const empty = !v.contactName && !v.billingName && !v.rfc && !address;
 
@@ -76,8 +77,8 @@ export function ClientProfileBody({ clientId, values: v, hasConstancia, editOpen
         )}
       </dl>
       <div className="grid gap-5 md:grid-cols-2">
-        <Contact title="Contacto principal" name={v.contactName} phone={v.contactPhone} email={v.contactEmail} />
-        <Contact title="Administración y facturación" name={v.billingName} phone={v.billingPhone} email={v.billingEmail} />
+        <Contact title="Contacto principal" name={fullName(v.contactName, v.contactLastName)} phone={v.contactPhone} email={v.contactEmail} />
+        <Contact title="Administración y facturación" name={fullName(v.billingName, v.billingLastName)} phone={v.billingPhone} email={v.billingEmail} />
       </div>
 
       <details open={editOpen}>
@@ -90,7 +91,8 @@ export function ClientProfileBody({ clientId, values: v, hasConstancia, editOpen
           successMessage="Datos guardados"
         >
           <input type="hidden" name="clientId" value={clientId} />
-          <ClientDataFields defaults={v} showConstancia constanciaHref={hasConstancia ? `/api/clients/${clientId}/constancia` : null} />
+          {/* La «key» recarga el formulario con los datos guardados cada vez que cambian en el servidor */}
+          <ClientDataFields key={JSON.stringify([v, mainEmails])} defaults={v} mainEmails={mainEmails} showConstancia constanciaHref={hasConstancia ? `/api/clients/${clientId}/constancia` : null} />
         </ActionForm>
       </details>
     </div>

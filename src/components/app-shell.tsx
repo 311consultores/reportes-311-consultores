@@ -7,6 +7,7 @@ import {
   Building2, ChevronDown, FileText, Menu, Receipt, ScrollText, Settings, Users, UserPlus, Wallet, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 const ICONS = { reportes: FileText, clientes: Building2, registros: UserPlus, facturas: Receipt, finanzas: Wallet, general: Settings, log: ScrollText, usuarios: Users };
 export type IconName = keyof typeof ICONS;
@@ -120,6 +121,7 @@ export function AppShell({
       </aside>
 
       <main className="min-w-0 flex-1 p-4 pt-20 lg:p-10">{children}</main>
+      <ScrollToTop />
     </div>
   );
 }
