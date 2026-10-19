@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Bold, Italic, List, ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ const btn = (active: boolean) =>
  * Editor de texto con formato (negritas, cursiva, viñetas y numeración), el mismo que usan las actividades de los reportes.
  * Envía el HTML en un campo oculto con el nombre indicado; con onChange también se puede leer desde el componente padre.
  */
-export function RichTextEditor({ name, initialHtml = "", onChange, minHeight = 120 }: { name?: string; initialHtml?: string; onChange?: (html: string) => void; minHeight?: number }) {
+export function RichTextEditor({ name, initialHtml = "", onChange, onEditor, minHeight = 120 }: { name?: string; initialHtml?: string; onChange?: (html: string) => void; onEditor?: (editor: Editor) => void; minHeight?: number }) {
   const [html, setHtml] = useState(initialHtml);
   const editor = useEditor({
     extensions: [StarterKit],
@@ -25,6 +25,10 @@ export function RichTextEditor({ name, initialHtml = "", onChange, minHeight = 1
       onChange?.(h);
     },
   });
+
+  useEffect(() => {
+    if (editor) onEditor?.(editor);
+  }, [editor, onEditor]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-black/10 bg-white/60 dark:border-white/10 dark:bg-white/5">

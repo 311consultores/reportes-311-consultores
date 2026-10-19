@@ -8,6 +8,7 @@ import { sendMail } from "@/lib/mailer";
 import { readLogo311 } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
+import { notifyUsers, opsUserIds } from "@/lib/notifications";
 import { canMove, formatMx, parseMxInput, STATUS_ORDER } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string };
@@ -86,6 +87,7 @@ export async function createTask(fd: FormData): Promise<Result> {
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
   });
 
+  await notifyUsers(d.assigneeIds, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
   const link = await taskLink(task.id);
   await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
     tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
@@ -118,6 +120,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
       prisma.user.findMany({ where: { id: { in: added } }, select: { email: true } }),
       prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } }),
     ]);
+    await notifyUsers(added, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
     const link = await taskLink(taskId);
     await notify(people.map((p) => p.email), (withLogo) =>
       tareaAsignadaEmail({ title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", due: formatMx(d.dueAt), byName: user.name, link, withLogo }),
@@ -163,6 +166,17 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   ]);
 
   const link = await taskLink(taskId);
+  const path = `/tareas?tarea=${taskId}`;
+  const assigneeIds = task.assignees.map((a) => a.userId);
+  if (to === "PARA_REVISAR" && !isOps(user)) {
+    await notifyUsers((await opsUserIds()).filter((id) => id !== user.id), { kind: "TASK_READY", title: `Tarea lista para revisar: ${task.title}`, body: `${user.name}${note ? ` — ${note}` : ""}`, link: path });
+  }
+  if (to === "TERMINADA") {
+    await notifyUsers(assigneeIds, { kind: "TASK_ACCEPTED", title: `🎉 ¡Tu tarea fue aceptada!: ${task.title}`, body: note, link: path });
+  }
+  if (returning) {
+    await notifyUsers(assigneeIds, { kind: "TASK_RETURNED", title: `Tu tarea volvió a «En proceso»: ${task.title}`, body: note, link: path });
+  }
   if (to === "PARA_REVISAR" && !isOps(user)) {
     await notify(reviewNotifyEmails(), (withLogo) =>
       tareaParaRevisarEmail({ title: task.title, teamName: user.name, clientName: task.client.companyName, projectName: task.project.projectName, note, link, withLogo }),

@@ -30,13 +30,23 @@ export async function GET(req: Request, ctx: { params: Promise<{ key: string[] }
 
   const key = params.key.join("/");
   const m = key.match(/^reports\/([0-9a-f-]{36})\/[\w.-]+$/);
-  if (!m) return new Response("No encontrado", { status: 404 });
+  const tm = key.match(/^tareas\/([0-9a-f-]{36})\/[\w.-]+$/);
+  if (!m && !tm) return new Response("No encontrado", { status: 404 });
 
-  const report = await prisma.report.findFirst({
-    where: { id: m[1], ...reportScope(user) },
-    select: { id: true },
-  });
-  if (!report) return new Response("No encontrado", { status: 404 });
+  if (m) {
+    const report = await prisma.report.findFirst({
+      where: { id: m[1], ...reportScope(user) },
+      select: { id: true },
+    });
+    if (!report) return new Response("No encontrado", { status: 404 });
+  } else if (tm) {
+    // Adjuntos del chat de una tarea: Admin y Editor, o el TEAM 311 asignado
+    const task = await prisma.task.findFirst({
+      where: { id: tm[1], ...(user.role === "ADMIN" || user.role === "EDITOR" ? {} : user.role === "TEAM_311" ? { assignees: { some: { userId: user.id } } } : { id: "-" }) },
+      select: { id: true },
+    });
+    if (!task) return new Response("No encontrado", { status: 404 });
+  }
 
   const url = await getDownloadUrl(key);
   if (url) return Response.redirect(url, 302);

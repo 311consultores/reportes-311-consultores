@@ -10,6 +10,7 @@ import { RichTextView } from "@/components/rich-text";
 import { randomTaskPhrase } from "@/lib/task-phrases";
 import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
+import { TaskChat } from "./task-chat";
 import type { TaskCard } from "./task-types";
 
 const eventNote = (kind: string, note: string | null) =>
@@ -57,6 +58,8 @@ export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
           <h3 className="mb-1 text-sm font-semibold">Descripción</h3>
           <RichTextView html={task.descriptionHtml} />
         </div>
+
+        <TaskChat taskId={task.id} meId={meId} />
 
         <div>
           <h3 className="mb-2 text-sm font-semibold">Historial</h3>

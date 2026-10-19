@@ -263,6 +263,19 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   Pendiente ↔ En proceso → Para revisar con arrastrar o con el botón «Lista». Solo Admin y Editor aceptan (Terminada).
 - Las terminadas se ocultan solas a los 15 días; «Limpiar terminadas» las oculta de inmediato y quedan en *Historial*.
 
+### Evolutivo 7 · Etapa 2 (20 oct 2026) — chat de la tarea y centro de avisos
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261020000000_evolutivo7b.sql`. Solo CREA tablas nuevas (`TaskMessage`, `TaskAttachment`, `Notification`)
+  y **no toca ningún dato existente**. La Etapa 1 (`..._evolutivo7a.sql`) debe estar aplicada antes.
+- **Variable opcional `GIPHY_API_KEY`** (Setup Node.js App › Environment variables): activa la búsqueda de GIF en el chat. Sin ella el chat
+  funciona igual y el botón GIF explica que no está activado. Se obtiene gratis en https://developers.giphy.com (crear app tipo *API*).
+- **Chat:** conversación entre Admin/Editor y el TEAM 311 asignado, con formato, emojis, GIF y adjuntos (imágenes, videos MP4/WEBM/MOV,
+  PDF, Word, Excel, PowerPoint, TXT y CSV; PDF y documentos hasta 15 MB, videos hasta 100 MB). Los mensajes no se editan ni se borran.
+  Los adjuntos se guardan en la carpeta de archivos del portal (`tareas/`), así que entran en los respaldos de esa carpeta.
+- **Avisos:** campanita con globo rojo junto al botón de modo oscuro. Avisa: tarea asignada, lista para revisar, devuelta, aceptada y mensajes
+  nuevos. Cada mensaje del chat también manda un correo (agrupado: como máximo uno cada 5 minutos por persona y tarea).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

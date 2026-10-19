@@ -290,3 +290,17 @@ export function tareaDevueltaEmail(p: { title: string; byName: string; note: str
   );
   return { subject, text, html };
 }
+
+
+/** Aviso de un mensaje nuevo en el chat de una tarea. */
+export function tareaMensajeEmail(p: { title: string; byName: string; snippet: string; link: string; withLogo: boolean }) {
+  const subject = `Mensaje nuevo en la tarea «${p.title}»`;
+  const text = [`${p.byName} escribió en la tarea «${p.title}»:`, "", p.snippet, "", p.link].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.byName)}</strong> escribió en la tarea <strong>${esc(p.title)}</strong>:</p>
+<p style="margin:0 0 20px;padding:10px 14px;background:#f5f5f7;border-radius:10px;font-size:14px;">${esc(p.snippet)}</p>
+<p style="margin:0 0 8px;">${button(p.link, "Abrir la conversación")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

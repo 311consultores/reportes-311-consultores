@@ -38,6 +38,13 @@ const CONTENT_TYPES: Record<string, string> = {
   mp4: "video/mp4",
   webm: "video/webm",
   mov: "video/quicktime",
+  gif: "image/gif",
+  webp: "image/webp",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain; charset=utf-8",
+  csv: "text/csv; charset=utf-8",
 };
 
 export const contentTypeFor = (key: string) =>

@@ -28,6 +28,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
   const [view, setView] = useState<View>(openId && tasks.some((t) => t.id === openId) ? { kind: "detail", id: openId } : null);
   const [override, setOverride] = useState<Record<string, TaskStatus>>({});
   const [prevTasks, setPrevTasks] = useState(tasks);
+  const [prevOpenId, setPrevOpenId] = useState(openId);
   const [dragId, setDragId] = useState<string>();
   const [hover, setHover] = useState<TaskStatus>();
   const [filters, setFilters] = useState({ person: "", client: "", project: "" });
@@ -35,6 +36,11 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
   const [, startRefresh] = useTransition();
   const [now, setNow] = useState(() => new Date());
 
+  // Si se llega desde un aviso o un enlace (?tarea=…) estando ya en el tablero, se abre esa tarea
+  if (openId !== prevOpenId) {
+    setPrevOpenId(openId);
+    if (openId && tasks.some((t) => t.id === openId)) setView({ kind: "detail", id: openId });
+  }
   // Cuando llegan datos nuevos del servidor se descartan los cambios provisionales
   if (tasks !== prevTasks) {
     setPrevTasks(tasks);
@@ -96,7 +102,10 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
   }
 
   const open = view && "id" in view ? byId(view.id) : undefined;
-  const closeView = () => setView(null);
+  const closeView = () => {
+    setView(null);
+    if (openId) router.replace(history ? "/tareas?historial=1" : "/tareas", { scroll: false }); // quita ?tarea=… para poder reabrirla
+  };
 
   return (
     <div className="space-y-4">

@@ -9,6 +9,7 @@ import { formatDecimal, OVERDUE_COOKIE, todayMx } from "@/lib/finance";
 import { overdueSummary } from "@/lib/invoices";
 import { AppShell, type NavGroup } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
+import { NotificationBell } from "@/components/notification-bell";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -20,13 +21,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isOps = isAdmin || user.role === "EDITOR"; // personal de operación
   const isTeam = user.role === "TEAM_311";
 
-  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview] = await Promise.all([
+  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview, unreadNotifications] = await Promise.all([
     isAdmin ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0), // las de edición se suman en el globo del Log
     isOps ? prisma.editRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     isOps ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     getLogo311Key().then((k) => !!k).catch(() => false),
     isOps ? overdueSummary() : Promise.resolve({ count: 0, total: null }),
     isOps ? prisma.task.count({ where: { status: "PARA_REVISAR" } }) : Promise.resolve(0), // tareas esperando revisión
+    user.role !== "CLIENTE" ? prisma.notification.count({ where: { userId: user.id, readAt: null } }) : Promise.resolve(0),
   ]);
   const today = todayMx();
   const bannerDismissed = (await cookies()).get(OVERDUE_COOKIE)?.value === today;
@@ -110,6 +112,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <LogOut size={18} /> Cerrar sesión
           </button>
         </form>
+        {user.role !== "CLIENTE" && <NotificationBell initialUnread={unreadNotifications} />}
         {user.role !== "CLIENTE" && <ThemeToggle />}
       </div>
     </div>

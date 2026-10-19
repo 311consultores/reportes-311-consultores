@@ -62,6 +62,9 @@ model User {
   workTasksCreated    Task[]               @relation("TaskCreator")
   workTaskAssignments TaskAssignee[]
   taskEvents          TaskEvent[]
+  taskMessages        TaskMessage[]
+  taskAttachments     TaskAttachment[]
+  notifications       Notification[]
 }
 
 model Client {
@@ -474,27 +477,29 @@ enum TaskStatus {
 
 // Panel de tareas (Evolutivo 7): tareas asignadas al equipo TEAM 311 por Admin o Editor
 model Task {
-  id               String         @id @default(uuid())
+  id               String           @id @default(uuid())
   clientId         String
-  client           Client         @relation(fields: [clientId], references: [id])
+  client           Client           @relation(fields: [clientId], references: [id])
   projectId        String
-  project          Project        @relation(fields: [projectId], references: [id])
-  title            String         @db.VarChar(191)
-  descriptionHtml  String         @db.Text
+  project          Project          @relation(fields: [projectId], references: [id])
+  title            String           @db.VarChar(191)
+  descriptionHtml  String           @db.Text
   dueAt            DateTime // Fecha y hora de entrega
-  status           TaskStatus     @default(PENDIENTE)
+  status           TaskStatus       @default(PENDIENTE)
   createdById      String
-  createdBy        User           @relation("TaskCreator", fields: [createdById], references: [id])
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdBy        User             @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   readyAt          DateTime? // Cuándo el TEAM 311 la marcó «Lista»
   acceptedAt       DateTime? // Cuándo pasó a TERMINADA
-  surprise         Boolean        @default(false) // Sorpresa de felicitación habilitada al aceptar
+  surprise         Boolean          @default(false) // Sorpresa de felicitación habilitada al aceptar
   surpriseOpenedAt DateTime?
   hiddenAt         DateTime? // «Limpiar terminadas»: se oculta del tablero pero queda en el historial
   assignees        TaskAssignee[]
   resources        TaskResource[]
   events           TaskEvent[]
+  messages         TaskMessage[]
+  attachments      TaskAttachment[]
 
   @@index([status])
   @@index([dueAt])
@@ -535,4 +540,53 @@ model TaskEvent {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+}
+
+// Chat de la tarea: mensajes con formato, GIF y adjuntos (no se editan ni se borran)
+model TaskMessage {
+  id          String           @id @default(uuid())
+  taskId      String
+  task        Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  bodyHtml    String           @db.Text
+  gifUrl      String?          @db.VarChar(1000)
+  createdAt   DateTime         @default(now())
+  attachments TaskAttachment[]
+
+  @@index([taskId])
+}
+
+// Archivo adjunto del chat. Se sube primero (messageId vacío) y se liga al mensaje al enviarlo
+model TaskAttachment {
+  id           String       @id @default(uuid())
+  taskId       String
+  task         Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  messageId    String?
+  message      TaskMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+  key          String       @db.VarChar(300)
+  type         String       @db.VarChar(10) // IMAGE | VIDEO | FILE
+  name         String       @db.VarChar(191)
+  size         Int
+  createdAt    DateTime     @default(now())
+
+  @@index([taskId])
+  @@index([messageId])
+}
+
+// Centro de avisos dentro del portal (campanita)
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String    @db.VarChar(30)
+  title     String    @db.VarChar(191)
+  body      String?   @db.Text
+  link      String    @db.VarChar(300)
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@index([userId, readAt])
 }
