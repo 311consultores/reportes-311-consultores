@@ -1,7 +1,8 @@
+import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { finishedCutoff } from "@/lib/tasks-shared";
+import { finishedCutoff, mxMonthStart } from "@/lib/tasks-shared";
 import { TaskBoard } from "./task-board";
 import type { TaskCard } from "./task-types";
 
@@ -19,6 +20,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const where: Prisma.TaskWhereInput = history
     ? { ...mine, status: "TERMINADA", OR: [{ hiddenAt: { not: null } }, { acceptedAt: { lt: cutoff } }] }
     : { ...mine, OR: [{ status: { not: "TERMINADA" } }, { hiddenAt: null, acceptedAt: { gte: cutoff } }] };
+
+  const view = (await cookies()).get("tareas_vista")?.value === "calendario" ? "calendario" : "tablero";
+  // Racha: tareas aceptadas este mes (solo el TEAM 311 la ve)
+  const streak = isOps ? 0 : await prisma.task.count({ where: { ...mine, status: "TERMINADA", acceptedAt: { gte: mxMonthStart() } } });
 
   const [rows, clients, team] = await Promise.all([
     prisma.task.findMany({
@@ -55,6 +60,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     events: t.events.map((e) => ({ id: e.id, kind: e.kind, note: e.note, userName: e.user.name, createdAt: e.createdAt.toISOString() })),
     acceptedAt: t.acceptedAt?.toISOString() ?? null,
     surprise: t.surprise,
+    surpriseOpened: !!t.surpriseOpenedAt,
+    acceptNote: t.events.find((e) => e.kind === "ACCEPTED")?.note ?? null, // los eventos vienen del más reciente al más antiguo
+    acceptedBy: t.events.find((e) => e.kind === "ACCEPTED")?.user.name ?? null,
   }));
 
   return (
@@ -64,6 +72,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       meId={user.id}
       openId={tarea}
       history={history}
+      initialView={view}
+      streak={streak}
       clients={clients.map((c) => ({ id: c.id, name: c.companyName, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })) }))}
       team={team}
     />

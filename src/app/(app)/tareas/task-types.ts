@@ -18,4 +18,7 @@ export type TaskCard = {
   events: { id: string; kind: string; note: string | null; userName: string; createdAt: string }[];
   acceptedAt: string | null;
   surprise: boolean;
+  surpriseOpened: boolean;
+  acceptNote: string | null;
+  acceptedBy: string | null;
 };

@@ -39,6 +39,20 @@ export function formatMx(d: Date | string, withTime = true): string {
 /** Fecha por defecto de entrega: 48 horas corridas a partir de ahora. */
 export const defaultDue = (now: Date = new Date()) => new Date(now.getTime() + 48 * 3600_000);
 
+/** Fecha (AAAA-MM-DD) de un instante, en hora de México. */
+export const dayKey = (d: Date | string) => toMxInput(new Date(d)).slice(0, 10);
+
+/** Primer instante del mes actual en hora de México (para la racha mensual). */
+export const mxMonthStart = (now: Date = new Date()) => new Date(`${dayKey(now).slice(0, 7)}-01T00:00:00${MX_OFFSET}`);
+
+export const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** Insignias de la racha mensual de tareas aceptadas. */
+export const STREAK_BADGES = [
+  { at: 5, emoji: "⭐", label: "5 tareas aceptadas" },
+  { at: 10, emoji: "🏆", label: "10 tareas aceptadas" },
+];
+
 /** «Te quedan 1 d 4 h» / «Vencida hace 3 h». */
 export function remainingText(due: Date | string, now: Date): { text: string; overdue: boolean } {
   const ms = new Date(due).getTime() - now.getTime();

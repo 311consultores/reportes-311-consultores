@@ -3,29 +3,36 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { History, Plus, Wand2 } from "lucide-react";
+import { CalendarDays, Gift, History, KanbanSquare, Plus, Wand2 } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
-import { clearFinished, moveTask } from "@/app/actions/tasks";
+import { clearFinished, moveTask, openSurprise, rescheduleTask } from "@/app/actions/tasks";
 import { Avatar } from "@/components/avatar";
 import type { TeamOption } from "@/components/consultant-picker";
 import { useDialogs } from "@/components/dialogs";
+import { Confetti } from "@/components/confetti";
 import { Modal } from "@/components/modal";
-import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
+import { randomCongrats } from "@/lib/congrats-phrases";
+import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
+import { TaskCalendar } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
 import { TaskForm, type ClientOption } from "./task-form";
 import type { TaskCard } from "./task-types";
 
-type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string };
+type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string };
 
 /** Tablero Kanban de tareas con tarjetas arrastrables, filtros (Admin y Editor) y ventana de detalle. */
-export function TaskBoard({ tasks, role, meId, clients, team, openId, history }: {
-  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; openId?: string; history?: boolean;
+export function TaskBoard({ tasks, role, meId, clients, team, openId, history, initialView = "tablero", streak = 0 }: {
+  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number;
 }) {
   const router = useRouter();
   const { askReason } = useDialogs();
   const isOps = role === "ADMIN" || role === "EDITOR";
-  const [view, setView] = useState<View>(openId && tasks.some((t) => t.id === openId) ? { kind: "detail", id: openId } : null);
+  // Una tarea aceptada con sorpresa sin abrir se muestra primero como sorpresa
+  const viewFor = (t: TaskCard): Exclude<View, null> =>
+    role === "TEAM_311" && t.status === "TERMINADA" && t.surprise && !t.surpriseOpened && t.assignees.some((a) => a.id === meId) ? { kind: "surprise", id: t.id } : { kind: "detail", id: t.id };
+  const [view, setView] = useState<View>(() => { const t = tasks.find((x) => x.id === openId); return t ? viewFor(t) : null; });
+  const [mode, setMode] = useState<"tablero" | "calendario">(initialView === "calendario" ? "calendario" : "tablero");
   const [override, setOverride] = useState<Record<string, TaskStatus>>({});
   const [prevTasks, setPrevTasks] = useState(tasks);
   const [prevOpenId, setPrevOpenId] = useState(openId);
@@ -39,7 +46,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
   // Si se llega desde un aviso o un enlace (?tarea=…) estando ya en el tablero, se abre esa tarea
   if (openId !== prevOpenId) {
     setPrevOpenId(openId);
-    if (openId && tasks.some((t) => t.id === openId)) setView({ kind: "detail", id: openId });
+    const t = tasks.find((x) => x.id === openId);
+    if (t) setView(viewFor(t));
   }
   // Cuando llegan datos nuevos del servidor se descartan los cambios provisionales
   if (tasks !== prevTasks) {
@@ -101,6 +109,18 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
     void from;
   }
 
+  function changeMode(m: "tablero" | "calendario") {
+    setMode(m);
+    document.cookie = `tareas_vista=${m}; path=/; max-age=31536000; samesite=lax`; // se recuerda la vista elegida
+  }
+
+  async function reschedule(id: string, day: string) {
+    setMessage(undefined);
+    const r = await rescheduleTask(id, day);
+    if (r.error) setMessage(r.error);
+    else startRefresh(() => router.refresh());
+  }
+
   const open = view && "id" in view ? byId(view.id) : undefined;
   const closeView = () => {
     setView(null);
@@ -118,6 +138,12 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
             </button>
             <button type="button" className="btn" onClick={() => setView({ kind: "new" })}><Plus size={16} /> Nueva tarea</button>
           </>
+        )}
+        {!history && (
+          <span className="inline-flex overflow-hidden rounded-xl border border-black/10 dark:border-white/10" role="group" aria-label="Vista">
+            <button type="button" aria-pressed={mode === "tablero"} onClick={() => changeMode("tablero")} className={cn("inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium", mode === "tablero" ? "bg-[#007AFF] text-white" : "hover:bg-black/5 dark:hover:bg-white/10")}><KanbanSquare size={15} /> Tablero</button>
+            <button type="button" aria-pressed={mode === "calendario"} onClick={() => changeMode("calendario")} className={cn("inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium", mode === "calendario" ? "bg-[#007AFF] text-white" : "hover:bg-black/5 dark:hover:bg-white/10")}><CalendarDays size={15} /> Calendario</button>
+          </span>
         )}
         <Link href={history ? "/tareas" : "/tareas?historial=1"} className="btn-outline"><History size={16} /> {history ? "Volver al tablero" : "Historial"}</Link>
       </div>
@@ -138,6 +164,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
           </select>
         </div>
       )}
+
+      {role === "TEAM_311" && !history && <StreakBanner count={streak} />}
 
       {message && <p className="rounded-xl bg-[#FF9500]/10 px-4 py-2 text-sm text-[#B25E00] dark:text-[#FFB340]" role="status">{message}</p>}
 
@@ -160,6 +188,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
             </tbody>
           </table>
         </div>
+      ) : mode === "calendario" ? (
+        <TaskCalendar tasks={list} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {STATUS_ORDER.map((s) => {
@@ -188,10 +218,13 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
                       draggable={draggable}
                       onDragStart={(e) => { e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; setDragId(t.id); }}
                       onDragEnd={() => { setDragId(undefined); setHover(undefined); }}
-                      onClick={() => setView({ kind: "detail", id: t.id })}
+                      onClick={() => setView(viewFor(t))}
                       className={cn("card cursor-pointer space-y-2 p-3 transition-all duration-200 ease-out hover:-translate-y-0.5", dragId === t.id && "opacity-40", st === "overdue" && "ring-2 ring-[#FF3B30]/50", st === "soon" && "ring-2 ring-[#FF9500]/50")}
                     >
                       <h3 className="text-sm font-semibold leading-snug">{t.title}</h3>
+                      {viewFor(t).kind === "surprise" && (
+                        <p className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-[#AF52DE]/15 px-2.5 py-1 text-xs font-semibold text-[#8944AB] dark:text-[#DA8FFF]"><Gift size={13} /> ¡Tienes una sorpresa! Haz clic</p>
+                      )}
                       <p className="meta truncate text-xs">{t.clientName} · {t.projectName}</p>
                       <div className="flex items-center justify-between gap-2">
                         <span className="flex -space-x-2">
@@ -234,6 +267,14 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history }:
         )}
       </Modal>
 
+      {view?.kind === "surprise" && open && (
+        <SurpriseModal
+          task={open}
+          onClose={closeView}
+          onReveal={async () => { await openSurprise(open.id); startRefresh(() => router.refresh()); }}
+        />
+      )}
+
       {view?.kind === "accept" && open && (
         <AcceptModal
           title={open.title}
@@ -265,6 +306,52 @@ function AcceptModal({ title, onCancel, onConfirm }: { title: string; onCancel: 
           <button type="button" className="btn" onClick={() => onConfirm(note.trim() || undefined, surprise)}>Aceptar tarea</button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/** Racha mensual del TEAM 311: tareas aceptadas este mes e insignias. */
+function StreakBanner({ count }: { count: number }) {
+  const next = STREAK_BADGES.find((b) => count < b.at);
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#FFCC00]/15 px-4 py-2.5 text-sm">
+      <span className="font-semibold">{count === 0 ? "Este mes aún no tienes tareas aceptadas. ¡Tú puedes!" : `¡Llevas ${count} tarea${count === 1 ? "" : "s"} aceptada${count === 1 ? "" : "s"} este mes!`}</span>
+      <span className="flex items-center gap-2">
+        {STREAK_BADGES.map((b) => (
+          <span key={b.at} title={b.label} className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", count >= b.at ? "bg-[#FFCC00] text-black" : "bg-black/5 text-zinc-400 grayscale dark:bg-white/10")}>{b.emoji} {b.at}</span>
+        ))}
+      </span>
+      {next && count > 0 && <span className="text-xs text-zinc-500">Te faltan {next.at - count} para el {next.emoji}</span>}
+    </div>
+  );
+}
+
+/** Sorpresa al aceptar una tarea: se revela con confeti, una frase alegre y el comentario de quien la aceptó. */
+function SurpriseModal({ task, onClose, onReveal }: { task: TaskCard; onClose: () => void; onReveal: () => Promise<void> }) {
+  const [revealed, setRevealed] = useState(false);
+  const [phrase] = useState(() => randomCongrats());
+  return (
+    <Modal open onClose={onClose} title={revealed ? "¡Felicidades!" : "¡Tienes una sorpresa!"} subtitle={task.title}>
+      {revealed ? (
+        <div className="space-y-4 text-center">
+          <Confetti />
+          <p className="text-5xl">🎉</p>
+          <p className="text-lg font-semibold leading-snug">{phrase}</p>
+          {task.acceptNote && (
+            <blockquote className="rounded-2xl bg-black/[0.04] px-4 py-3 text-left text-sm dark:bg-white/[0.06]">
+              <p className="mb-1 text-xs font-semibold text-zinc-500">Comentario de {task.acceptedBy ?? "Administración"}</p>
+              {task.acceptNote}
+            </blockquote>
+          )}
+          <button type="button" className="btn mx-auto" onClick={onClose}>¡Gracias!</button>
+        </div>
+      ) : (
+        <div className="space-y-4 text-center">
+          <p className="text-6xl">🎁</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">Tu tarea fue <strong>aceptada</strong> y el equipo te dejó una sorpresa. ¿La abres?</p>
+          <button type="button" className="btn mx-auto" onClick={async () => { setRevealed(true); await onReveal(); }}>🎉 Abrir la sorpresa</button>
+        </div>
+      )}
     </Modal>
   );
 }

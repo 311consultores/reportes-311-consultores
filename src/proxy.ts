@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 /** Rutas accesibles sin iniciar sesión. */
-const PUBLIC = new Set(["/login", "/recuperar", "/restablecer", "/registro", "/api/health", "/api/branding/logo", "/api/cron/facturas"]);
+const PUBLIC = new Set(["/login", "/recuperar", "/restablecer", "/registro", "/api/health", "/api/branding/logo", "/api/cron/facturas", "/api/cron/tareas"]);
 
 export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

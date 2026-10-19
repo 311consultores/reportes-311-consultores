@@ -276,6 +276,23 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Avisos:** campanita con globo rojo junto al botón de modo oscuro. Avisa: tarea asignada, lista para revisar, devuelta, aceptada y mensajes
   nuevos. Cada mensaje del chat también manda un correo (agrupado: como máximo uno cada 5 minutos por persona y tarea).
 
+### Evolutivo 7 · Etapa 3 (20 oct 2026) — sorpresa, racha, recordatorios y calendario
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261020120000_evolutivo7c.sql`. Solo agrega la columna `reminderSentAt` (opcional) a `Task` y **no toca ningún dato**.
+  Las migraciones 7a y 7b deben estar aplicadas antes.
+- **Tarea programada nueva (cPanel › Cron Jobs):** ejecútala **cada hora** (Minuto `0`, Hora `*`, Día `*`, Mes `*`, Día de la semana `*`), con este
+  comando (cambia `TU_CRON_TOKEN` por el mismo valor de la variable `CRON_TOKEN` que ya usas para facturas):
+  `curl -s "https://reportes.311consultores.com/api/cron/tareas?token=TU_CRON_TOKEN" > /dev/null 2>&1`
+  Cada hora manda el recordatorio de «vence en menos de 12 horas» (una sola vez por tarea) y, **una vez al día después de las 8:00 (hora de México)**,
+  el aviso de tareas vencidas: correo a cada persona con sus tareas y un resumen a Administración (`TEAM_NOTIFY_EMAILS`). Para probarlo,
+  abre esa misma dirección en el navegador agregando `&force=1`.
+- **Sorpresa de felicitación:** al aceptar una tarea, Admin/Editor dejan marcada la casilla «🎁 Habilitar la sorpresa». El TEAM 311 ve la tarjeta en
+  TERMINADA con un aviso para dar clic y descubrir la sorpresa (confeti, frase alegre y el comentario de quien la aceptó).
+- **Racha mensual** (solo el TEAM 311): «Llevas N tareas aceptadas este mes» con insignias ⭐ (5) y 🏆 (10).
+- **Calendario:** botón *Tablero / Calendario* (se recuerda la vista elegida). Mes completo; Admin y Editor pueden arrastrar una tarea a otro día para cambiar su fecha de entrega.
+- El mini-panel de cada tarea ahora tiene un catálogo de 500 frases de humor de oficina.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

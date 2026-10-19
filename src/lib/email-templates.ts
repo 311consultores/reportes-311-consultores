@@ -304,3 +304,41 @@ export function tareaMensajeEmail(p: { title: string; byName: string; snippet: s
   );
   return { subject, text, html };
 }
+
+
+/** Recordatorio al TEAM 311: la tarea vence en menos de 12 horas. */
+export function tareaPorVencerEmail(p: { title: string; clientName: string; projectName: string; due: string; link: string; withLogo: boolean }) {
+  const subject = `⏰ Tu tarea vence pronto: ${p.title}`;
+  const text = [`La tarea «${p.title}» vence en menos de 12 horas.`, "", `Cliente: ${p.clientName}`, `Proyecto: ${p.projectName}`, `Entrega: ${p.due}`, "", "Ábrela aquí:", p.link].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Recordatorio amistoso: la tarea <strong>${esc(p.title)}</strong> vence en <strong>menos de 12 horas</strong>.</p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Cliente</td><td>${esc(p.clientName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Proyecto</td><td>${esc(p.projectName)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Entrega</td><td>${esc(p.due)}</td></tr>
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Abrir la tarea")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
+export type TareaVencida = { title: string; clientName: string; projectName: string; due: string; people: string; daysLate: number };
+
+/** Aviso diario de tareas vencidas: para cada persona (sus tareas) y resumen para Administración (todas). */
+export function tareasVencidasEmail(p: { forName: string | null; items: TareaVencida[]; link: string; withLogo: boolean }) {
+  const n = p.items.length;
+  const subject = p.forName ? `Tienes ${n === 1 ? "1 tarea vencida" : `${n} tareas vencidas`}` : `${n === 1 ? "1 tarea vencida" : `${n} tareas vencidas`} en el equipo`;
+  const line = (i: TareaVencida) => `• ${i.title} (${i.clientName} · ${i.projectName})${p.forName ? "" : ` — ${i.people}`} — venció el ${i.due}`;
+  const text = [p.forName ? `Hola ${p.forName}, estas tareas ya pasaron su fecha de entrega:` : "Estas tareas ya pasaron su fecha de entrega:", "", ...p.items.map(line), "", p.link].join("\n");
+  const rows = p.items
+    .map((i) => `<tr><td style="padding:4px 10px 4px 0;"><strong>${esc(i.title)}</strong><br><span style="color:#86868b;font-size:12px;">${esc(i.clientName)} · ${esc(i.projectName)}${p.forName ? "" : ` · ${esc(i.people)}`}</span></td><td style="padding:4px 0;white-space:nowrap;color:#d70015;">${esc(i.due)}</td></tr>`)
+    .join("");
+  const html = shell(
+    `<p style="margin:0 0 16px;">${p.forName ? `Hola <strong>${esc(p.forName)}</strong>, estas tareas ya pasaron su fecha de entrega:` : "Estas tareas ya pasaron su fecha de entrega:"}</p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">${rows}</table>
+<p style="margin:0 0 8px;">${button(p.link, "Ver las tareas")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

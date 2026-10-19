@@ -7,7 +7,7 @@ import { getNotifications, markAllNotificationsRead, markNotificationRead, unrea
 import { formatMx } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 
-const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬" };
+const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬", TASK_SOON: "⏰", TASK_OVERDUE: "⚠️" };
 
 /** Campanita con globo rojo y lista de avisos del portal. */
 export function NotificationBell({ initialUnread }: { initialUnread: number }) {

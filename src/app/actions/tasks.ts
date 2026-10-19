@@ -9,7 +9,7 @@ import { readLogo311 } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
 import { notifyUsers, opsUserIds } from "@/lib/notifications";
-import { canMove, formatMx, parseMxInput, STATUS_ORDER } from "@/lib/tasks-shared";
+import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string };
 
@@ -195,4 +195,34 @@ export async function clearFinished(): Promise<{ count: number }> {
   const r = await prisma.task.updateMany({ where: { status: "TERMINADA", hiddenAt: null }, data: { hiddenAt: new Date() } });
   revalidatePath("/tareas");
   return { count: r.count };
+}
+
+/** El TEAM 311 abre la sorpresa de una tarea aceptada: se marca como revelada. */
+export async function openSurprise(taskId: string): Promise<Result> {
+  const user = await requireUser(["TEAM_311"]);
+  const r = await prisma.task.updateMany({
+    where: { id: taskId, status: "TERMINADA", surprise: true, surpriseOpenedAt: null, assignees: { some: { userId: user.id } } },
+    data: { surpriseOpenedAt: new Date() },
+  });
+  revalidatePath("/tareas");
+  return r.count ? { ok: true } : { error: "La sorpresa ya se abrió o no está disponible" };
+}
+
+/** Cambia la fecha de entrega arrastrando la tarea a otro día del calendario (solo Admin y Editor); conserva la hora. */
+export async function rescheduleTask(taskId: string, day: string): Promise<Result> {
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Fecha no válida" };
+  const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true } } } });
+  if (!task) return { error: "La tarea no existe" };
+  const time = toMxInput(task.dueAt).slice(11, 16);
+  const next = parseMxInput(`${day}T${time}`);
+  if (!next) return { error: "Fecha no válida" };
+  if (next.getTime() === task.dueAt.getTime()) return { ok: true };
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: taskId }, data: { dueAt: next, reminderSentAt: null } }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Fecha de entrega: ${formatMx(task.dueAt)} → ${formatMx(next)}` } }),
+  ]);
+  await notifyUsers(task.assignees.map((a) => a.userId), { kind: "TASK_ASSIGNED", title: `Cambió la fecha de entrega: ${task.title}`, body: `Nueva entrega: ${formatMx(next)}`, link: `/tareas?tarea=${taskId}` });
+  revalidatePath("/tareas");
+  return { ok: true, taskId };
 }
