@@ -72,7 +72,7 @@ export default async function UsersPage() {
                         <button className="btn-outline">{u.active ? "Desactivar" : "Activar"}</button>
                       </form>
                     )}
-                    {isAdmin && u.id !== me.id && <DeleteUserButton userId={u.id} name={u.name} />}
+                    {isAdmin && u.id !== me.id && <DeleteUserButton userId={u.id} name={u.name} active={u.active} />}
                   </div>
                 </td>
               </tr>

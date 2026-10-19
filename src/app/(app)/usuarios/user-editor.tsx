@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { deleteUser, updateUser } from "@/app/actions/users";
+import { deleteUser, toggleUserActive, updateUser } from "@/app/actions/users";
+import { useDialogs } from "@/components/dialogs";
 import { ActionForm } from "@/components/action-form";
 import { Modal } from "@/components/modal";
 
@@ -54,23 +55,45 @@ export function UserEditor({ user, companies, isSelf }: { user: PlainUser; compa
   );
 }
 
-/** Eliminar un usuario (con confirmación). Si tiene historial, el sistema lo impide y explica por qué. */
-export function DeleteUserButton({ userId, name }: { userId: string; name: string }) {
+/** Eliminar un usuario (solo Administrador): pide el motivo, que queda en el Log. Si tiene historial ofrece desactivarlo. */
+export function DeleteUserButton({ userId, name, active }: { userId: string; name: string; active: boolean }) {
   const [pending, start] = useTransition();
+  const { askReason, confirm } = useDialogs();
+  const [error, setError] = useState<string>();
   return (
+    <>
     <button
       type="button"
       className="btn-outline text-red-600"
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm(`¿Eliminar al usuario «${name}»? Esta acción no se puede deshacer.`)) return;
+      onClick={async () => {
+        setError(undefined);
+        const reason = await askReason({
+          title: "Eliminar usuario",
+          message: `Se eliminará a «${name}». Esta acción no se puede deshacer.`,
+          confirmLabel: "Eliminar",
+          danger: true,
+        });
+        if (reason === null) return;
         start(async () => {
-          const r = await deleteUser(userId);
-          if (r.error) window.alert(r.error);
+          const r = await deleteUser(userId, reason);
+          if (!r.error) return;
+          if (r.hasHistory && active) {
+            const ok = await confirm({
+              title: "No se puede eliminar",
+              message: `${r.error} ¿Quieres desactivarlo para quitarle el acceso? Su historial se conserva.`,
+              confirmLabel: "Desactivar usuario",
+            });
+            if (ok) await toggleUserActive(userId);
+          } else {
+            setError(r.error);
+          }
         });
       }}
     >
       <Trash2 size={15} /> Eliminar
     </button>
+    {error && <span className="text-xs text-destructive">{error}</span>}
+    </>
   );
 }

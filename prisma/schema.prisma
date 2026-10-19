@@ -217,6 +217,7 @@ model EditRequest {
 }
 
 model ReportTask {
+  executedAt     String?  @db.VarChar(16) // Fecha y hora en que se ejecutó la actividad: "AAAA-MM-DD HH:mm" (hora local, opcional)
   id              String         @id @default(uuid())
   reportId        String
   report          Report         @relation(fields: [reportId], references: [id], onDelete: Cascade)

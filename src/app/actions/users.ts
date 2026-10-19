@@ -164,8 +164,10 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
 }
 
 /** Elimina un usuario (solo Administrador). Si ya tiene historial, no se borra: hay que desactivarlo. */
-export async function deleteUser(userId: string): Promise<{ error?: string; ok?: boolean }> {
+export async function deleteUser(userId: string, reason: string): Promise<{ error?: string; ok?: boolean; hasHistory?: boolean }> {
   const me = await requireUser(["ADMIN"]);
+  const why = reason.trim().slice(0, 500);
+  if (why.length < 3) return { error: "Escribe el motivo de la eliminación (mínimo 3 caracteres)" };
   if (me.id === userId) return { error: "No puedes eliminar tu propio usuario" };
   const u = await prisma.user.findUnique({
     where: { id: userId },
@@ -184,10 +186,20 @@ export async function deleteUser(userId: string): Promise<{ error?: string; ok?:
     return { error: "No puedes eliminar al único Administrador activo" };
   }
   if (Object.values(u._count).some((n) => n > 0)) {
-    return { error: "Este usuario ya tiene historial (reportes, facturas o movimientos) y no puede eliminarse. Desactívalo para quitarle el acceso." };
+    return { error: "Este usuario ya tiene historial (reportes, facturas o movimientos) y no puede eliminarse.", hasHistory: true };
   }
   const photo = u.photoUrl;
-  await prisma.user.delete({ where: { id: userId } }); // asignaciones y accesos se borran en cascada
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.user.delete({ where: { id: userId } }), // asignaciones y accesos se borran en cascada
+    // Queda en el Log con su motivo
+    prisma.deletionRequest.create({
+      data: {
+        targetType: "USER", targetId: userId, targetLabel: `${u.name} (${u.email})`, reason: why,
+        requestedById: me.id, reviewedById: me.id, status: "APROBADO", resolvedAt: now,
+      },
+    }),
+  ]);
   await removePhoto(photo);
   revalidatePath("/usuarios");
   return { ok: true };

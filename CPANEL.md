@@ -232,6 +232,19 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - Después de actualizar, revisa en *Clientes y proyectos › Datos fiscales y de contacto* que los apellidos separados
   automáticamente estén bien (por ejemplo, un nombre como «Dra. Patricia Vega» queda «Dra.» + «Patricia Vega»): corrígelos con *Editar datos*.
 
+### Evolutivo 6 · Etapa 2 (19 oct 2026) — usuarios, foto y actividades
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta
+  `database/migraciones/20261019201502_evolutivo6b.sql`. Solo agrega la columna `executedAt` a `ReportTask` (fecha y hora de
+  ejecución de la actividad, opcional) y **conserva todos los datos**. Se ejecuta una sola vez. La Etapa 1 (`..._evolutivo6a.sql`)
+  debe estar aplicada antes.
+- Sin variables de entorno nuevas.
+- **Eliminar usuario (solo Admin):** pide un motivo obligatorio y queda en *Log › Historial de eliminaciones*. Si el usuario ya tiene
+  historial (reportes, facturas, movimientos) no se elimina: se ofrece desactivarlo.
+- **Foto de perfil:** al elegirla se abre un recortador (arrastrar, zoom y vista en círculo).
+- **Actividades:** el título se edita con el lápiz junto a «Actividad N»; la casilla «Indicar fecha y hora de ejecución» muestra
+  la fecha y hora debajo del título (en pantalla y en el PDF).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

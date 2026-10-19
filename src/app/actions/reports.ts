@@ -108,13 +108,14 @@ export async function addTask(reportId: string) {
     id: task.id,
     sequentialNum: task.sequentialNum,
     title: null as string | null,
+    executedAt: null as string | null,
     descriptionHtml: task.descriptionHtml,
     evidences: [] as { id: string; url: string; type: string }[],
   };
 }
 
 /** Autosave: guarda el título y la descripción de una actividad. */
-export async function saveTask(taskId: string, html: string, title: string) {
+export async function saveTask(taskId: string, html: string, title: string, executedAt: string | null = null) {
   const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
   // Una sola consulta: la actividad y el estado (y proyecto) de su reporte
   const task = await prisma.reportTask.findUnique({
@@ -125,9 +126,10 @@ export async function saveTask(taskId: string, html: string, title: string) {
   if (!EDITABLE.includes(task.report.status)) throw new Error("El reporte ya no es editable");
 
   const cleanTitle = title.trim().slice(0, 191) || null;
-  if (task.descriptionHtml === html && task.title === cleanTitle) return { savedAt: new Date().toISOString() }; // sin cambios
+  const cleanWhen = executedAt && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(executedAt) && !Number.isNaN(Date.parse(executedAt.replace(" ", "T"))) ? executedAt : null;
+  if (task.descriptionHtml === html && task.title === cleanTitle && task.executedAt === cleanWhen) return { savedAt: new Date().toISOString() }; // sin cambios
 
-  await prisma.reportTask.update({ where: { id: taskId }, data: { descriptionHtml: html, title: cleanTitle } });
+  await prisma.reportTask.update({ where: { id: taskId }, data: { descriptionHtml: html, title: cleanTitle, executedAt: cleanWhen } });
 
   // El autosave dispara muchas veces: una sola entrada de historial por cada 10 min de edición,
   // y su hora solo se refresca como máximo una vez por minuto (menos escrituras en la base de datos)

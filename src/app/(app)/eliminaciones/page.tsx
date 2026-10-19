@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { resolveDeletion } from "@/app/actions/deletions";
 import { EditRequestActions } from "./edit-request-actions";
 
-const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo" };
+const TYPE_LABEL: Record<string, string> = { TASK: "Actividad", REPORT: "Reporte", CLIENT: "Cliente", PROJECT: "Proyecto", INVOICE: "Factura / recibo", USER: "Usuario" };
 const when = (d: Date) => d.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 
 export default async function DeletionsPage() {
@@ -120,7 +120,7 @@ export default async function DeletionsPage() {
                   <td className="td whitespace-nowrap">{r.resolvedAt ? when(r.resolvedAt) : "—"}</td>
                   <td className="td">
                     {/* En actividades y reportes la etiqueta ya empieza con el tipo; en cliente/proyecto se antepone */}
-                    {(r.targetType === "CLIENT" || r.targetType === "PROJECT") && (
+                    {(r.targetType === "CLIENT" || r.targetType === "PROJECT" || r.targetType === "USER") && (
                       <>
                         <span className="meta">{TYPE_LABEL[r.targetType]}</span>
                         <br />

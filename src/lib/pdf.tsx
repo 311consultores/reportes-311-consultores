@@ -31,7 +31,9 @@ const s = StyleSheet.create({
   card: { marginBottom: 12, borderWidth: 1, borderColor: "#dbe3ee", borderRadius: 8, overflow: "hidden" },
   cardHead: { flexDirection: "row", alignItems: "center", backgroundColor: "#eaf2ff", paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "#cfe0fb" },
   badge: { width: 20, height: 20, borderRadius: 10, backgroundColor: ACCENT, color: "#ffffff", fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "center", paddingTop: 5, marginRight: 9 },
-  taskTitle: { flex: 1, fontFamily: "Helvetica-Bold", fontSize: 11.5, color: "#0b2a5b" },
+  taskHeadText: { flex: 1 },
+  taskTitle: { fontFamily: "Helvetica-Bold", fontSize: 11.5, color: "#0b2a5b" },
+  taskDate: { marginTop: 2, fontSize: 8.5, color: "#64748b" },
   cardBody: { paddingVertical: 10, paddingHorizontal: 14 },
   p: { marginBottom: 5, lineHeight: 1.15 },
   row: { flexDirection: "row", marginBottom: 5 },
@@ -45,6 +47,8 @@ const s = StyleSheet.create({
 
 const font = (b: boolean, i: boolean) =>
   b && i ? "Helvetica-BoldOblique" : b ? "Helvetica-Bold" : i ? "Helvetica-Oblique" : "Helvetica";
+
+import { formatExecuted } from "@/lib/task-date";
 
 const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -156,7 +160,10 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
             {/* minPresenceAhead (en la tarjeta) evita que una actividad empiece al filo de una página con solo el encabezado */}
             <View style={s.cardHead}>
               <Text style={s.badge}>{t.num}</Text>
-              <Text style={s.taskTitle}>{t.title ? t.title : `Actividad ${t.num}`}</Text>
+              <View style={s.taskHeadText}>
+                <Text style={s.taskTitle}>{t.title ? t.title : `Actividad ${t.num}`}</Text>
+                {formatExecuted(t.executedAt) && <Text style={s.taskDate}>{formatExecuted(t.executedAt)}</Text>}
+              </View>
             </View>
             <View style={s.cardBody}>
               {t.blocks.map((b, i) =>

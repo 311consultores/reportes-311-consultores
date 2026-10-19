@@ -182,6 +182,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           id: t.id,
           sequentialNum: t.sequentialNum,
           title: t.title,
+          executedAt: t.executedAt,
           descriptionHtml: t.descriptionHtml,
           evidences: t.evidences.map((e) => ({ id: e.id, url: e.url, type: e.type })),
         }))}
