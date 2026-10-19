@@ -83,20 +83,30 @@ async function main() {
       id: hrzId, companyName: "Constructora Horizonte", folioPrefix: "HRZ", mainEmails: "roberto.salinas@horizonte.example",
       logoUrl: kHrz, folioSeq: 3, requiresInvoice: true, legalName: "Constructora Horizonte S.A. de C.V.", rfc: "CHO120315AB7",
       street: "Av. Insurgentes Sur 1234", colonia: "Del Valle", postalCode: "03100", city: "Ciudad de México", state: "Ciudad de México",
-      constanciaUrl: kConst, contactName: "Roberto Salinas", contactPhone: "5512345678", contactEmail: "roberto.salinas@horizonte.example",
-      billingName: "Laura Méndez", billingPhone: "5587654321", billingEmail: "pagos@horizonte.example",
+      constanciaUrl: kConst, contactName: "Roberto", contactLastName: "Salinas", contactPhone: "5512345678", contactEmail: "roberto.salinas@horizonte.example",
+      billingName: "Laura", billingLastName: "Méndez", billingPhone: "5587654321", billingEmail: "pagos@horizonte.example",
     },
   });
   const csa = await prisma.client.create({
     data: {
       companyName: "Clínica Santa Aurora", folioPrefix: "CSA", mainEmails: "direccion@aurora.example", logoUrl: kCsa, folioSeq: 2,
-      requiresInvoice: false, contactName: "Dra. Patricia Vega", contactPhone: "3398765432", contactEmail: "direccion@aurora.example",
-      billingName: "Jorge Ibarra", billingPhone: "3311223344", billingEmail: "administracion@aurora.example",
+      requiresInvoice: false, contactName: "Patricia", contactLastName: "Vega", contactPhone: "3398765432", contactEmail: "direccion@aurora.example",
+      billingName: "Jorge", billingLastName: "Ibarra", billingPhone: "3311223344", billingEmail: "administracion@aurora.example",
     },
   });
-  const torre = await prisma.project.create({ data: { clientId: hrz.id, projectName: "Torre Norte", projectEmails: "coordinador@horizonte.example" } });
-  await prisma.project.create({ data: { clientId: hrz.id, projectName: "Plaza Comercial Sur", projectEmails: "plaza@horizonte.example" } });
-  const expedientes = await prisma.project.create({ data: { clientId: csa.id, projectName: "Modernización de expedientes", projectEmails: "sistemas@aurora.example" } });
+  const torre = await prisma.project.create({ data: { clientId: hrz.id, projectName: "Torre Norte", projectEmails: "roberto.salinas@horizonte.example,coordinador@horizonte.example", responsibleName: "Fernando", responsibleLastName: "Aguilar" } });
+  await prisma.project.create({ data: { clientId: hrz.id, projectName: "Plaza Comercial Sur", projectEmails: "plaza@horizonte.example", responsibleName: "Elena", responsibleLastName: "Cruz" } });
+  const expedientes = await prisma.project.create({ data: { clientId: csa.id, projectName: "Modernización de expedientes", projectEmails: "direccion@aurora.example,sistemas@aurora.example", responsibleName: "Rosa", responsibleLastName: "Vega" } });
+  // Cliente repetido (mismo RFC que Horizonte): sirve para mostrar la fusión de clientes
+  await prisma.client.create({
+    data: {
+      companyName: "Horizonte Construcciones", folioPrefix: "HZC", mainEmails: "contacto@horizonte.example", requiresInvoice: true,
+      legalName: "Horizonte Construcciones S.A. de C.V.", rfc: "CHO120315AB7", street: "Av. Insurgentes Sur 1234", colonia: "Del Valle",
+      postalCode: "03100", city: "Ciudad de México", state: "Ciudad de México", contactName: "Roberto", contactLastName: "Salinas",
+      contactPhone: "5512345678", contactEmail: "contacto@horizonte.example", billingName: "Laura", billingLastName: "Méndez",
+      billingPhone: "5587654321", billingEmail: "pagos@horizonte.example",
+    },
+  });
   const plaza = await prisma.project.findFirstOrThrow({ where: { clientId: hrz.id, projectName: "Plaza Comercial Sur" } });
   await prisma.userProject.createMany({
     data: [
@@ -107,7 +117,7 @@ async function main() {
   });
 
   // 5) Reportes
-  type T = { title: string; html: string; photos: string[] };
+  type T = { title: string; html: string; photos: string[]; executedAt?: string };
   async function report(folio: string, clientId: string, projectId: string, status: ReportStatus, start: string, end: string, created: string, tasks: T[], rejection?: string) {
     const r = await prisma.report.create({
       data: {
@@ -120,7 +130,7 @@ async function main() {
     for (const t of tasks) {
       n++;
       const task = await prisma.reportTask.create({
-        data: { reportId: r.id, sequentialNum: n, title: t.title, descriptionHtml: t.html, createdById: editor.id, createdAt: d(created) },
+        data: { reportId: r.id, sequentialNum: n, title: t.title, descriptionHtml: t.html, executedAt: t.executedAt ?? null, createdById: editor.id, createdAt: d(created) },
       });
       for (const p of t.photos) {
         const key = `reports/${r.id}/${task.id}-${randomUUID()}.jpg`;
@@ -155,8 +165,8 @@ async function main() {
     data: { reportId: csa2.id, requestedById: luis.id, reason: "Falta anexar el listado de asistencia de la revisión de expedientes.", createdAt: d("2026-10-14") },
   });
   await report("HRZ003091026", hrz.id, torre.id, "EN_PROCESO", "2026-10-05", "2026-10-09", "2026-10-09", [
-    { title: "Reunión de arranque", html: p1, photos: ["foto-1.jpg", "foto-2.jpg"] },
-    { title: "Recorrido en obra", html: p2, photos: ["foto-2.jpg"] },
+    { title: "Reunión de arranque", html: p1, photos: ["foto-1.jpg", "foto-2.jpg"], executedAt: "2026-10-05 10:00" },
+    { title: "Recorrido en obra", html: p2, photos: ["foto-2.jpg"], executedAt: "2026-10-06 16:30" },
     { title: "", html: "", photos: [] },
   ]);
 
@@ -198,14 +208,14 @@ async function main() {
     data: {
       id: regId, ip: "local", companyName: "Estudio Creativo Aurora", logoUrl: kRegLogo, requiresInvoice: true,
       legalName: "Estudio Creativo Aurora S.C.", rfc: "ECA190610QX3", street: "Calle Morelos 45", colonia: "Centro", postalCode: "44100",
-      city: "Guadalajara", state: "Jalisco", constanciaUrl: kRegConst, contactName: "Sofía Ramírez", contactPhone: "3312345678",
-      contactEmail: "sofia@estudioaurora.example", billingName: "Daniel Torres", billingPhone: "3387654321", billingEmail: "daniel@estudioaurora.example",
+      city: "Guadalajara", state: "Jalisco", constanciaUrl: kRegConst, contactName: "Sofía", contactLastName: "Ramírez", contactPhone: "3312345678",
+      contactEmail: "sofia@estudioaurora.example", billingName: "Daniel", billingLastName: "Torres", billingPhone: "3387654321", billingEmail: "administracion@aurora.example",
     },
   });
   await prisma.clientRegistration.create({
     data: {
-      ip: "local", companyName: "Panificadora La Espiga", requiresInvoice: false, contactName: "Marta Beltrán", contactPhone: "8112345678",
-      contactEmail: "marta@laespiga.example", billingName: "Marta Beltrán", billingPhone: "8112345678", billingEmail: "marta@laespiga.example",
+      ip: "local", companyName: "Panificadora La Espiga", requiresInvoice: false, contactName: "Marta", contactLastName: "Beltrán", contactPhone: "8112345678",
+      contactEmail: "marta@laespiga.example", billingName: "Marta", billingLastName: "Beltrán", billingPhone: "8112345678", billingEmail: "marta@laespiga.example",
     },
   });
   console.log("Datos de ejemplo listos");

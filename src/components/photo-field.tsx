@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Camera, ZoomIn, ZoomOut } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { Modal } from "@/components/modal";
@@ -99,7 +100,9 @@ export function PhotoField({ name, userId, photoKey, current }: { name: string; 
       </div>
       <input ref={input} type="file" name={name} accept="image/png,image/jpeg" hidden onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
 
-      <Modal open={!!src} onClose={cancel} title="Ajustar foto de perfil" subtitle="Arrastra para centrar y usa la barra para acercar">
+      {/* En un portal: dentro de otra ventana emergente (con desenfoque) la capa fija quedaría atrapada en ella */}
+      {src && createPortal(
+      <Modal open onClose={cancel} title="Ajustar foto de perfil" subtitle="Arrastra para centrar y usa la barra para acercar">
         {src && (
           <div className="space-y-4">
             <div
@@ -144,7 +147,9 @@ export function PhotoField({ name, userId, photoKey, current }: { name: string; 
             </div>
           </div>
         )}
-      </Modal>
+      </Modal>,
+      document.body,
+      )}
     </div>
   );
 }

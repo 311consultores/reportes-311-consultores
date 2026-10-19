@@ -236,7 +236,13 @@ await shot("10-reporte", {
   ],
 });
 
-await page.fill("input[id^='title-']:visible", "Seguimiento semanal");
+const act3 = L("section .card").nth(2);
+await act3.getByRole("button", { name: "Editar título de la actividad" }).click();
+await page.keyboard.type("Seguimiento semanal");
+await page.keyboard.press("Enter");
+await act3.getByLabel("Indicar fecha y hora de ejecución").check();
+await act3.locator("input[type=date]").fill("2026-10-08");
+await act3.locator("input[type=time]").fill("11:30");
 await page.locator(".ProseMirror:visible").click();
 await page.keyboard.type("Se revisó el avance de la semana con el equipo del cliente.");
 await page.waitForTimeout(400);
@@ -246,10 +252,12 @@ await shot("11-actividad-escribiendo", {
   marks: [
     { loc: L("button.btn", { hasText: "Agregar actividad" }), n: 1, at: "tl" },
     { loc: L("section .card").nth(2).locator("button[aria-expanded]"), n: 2, at: "l" },
-    { loc: L("input[id^='title-']:visible"), n: 3 },
-    { loc: L("section .card").nth(2).locator("div.border-y"), n: 4, at: "tl" },
-    { loc: L(".ProseMirror:visible"), n: 5 },
-    { loc: L("section .card").nth(2).getByText(/Guardando|Guardado/), n: 6, at: "b" },
+    { loc: act3.getByRole("button", { name: "Editar título de la actividad" }), n: 3, at: "r" },
+    { loc: act3.getByLabel("Indicar fecha y hora de ejecución"), n: 4, at: "l" },
+    { loc: act3.locator("input[type=date]"), n: 5, at: "b" },
+    { loc: act3.locator("div.border-y"), n: 6, at: "tl" },
+    { loc: L(".ProseMirror:visible"), n: 7 },
+    { loc: act3.getByText(/Guardando|Guardado/), n: 8, at: "b" },
   ],
 });
 await page.waitForTimeout(2600);
@@ -438,31 +446,39 @@ await page.waitForTimeout(350);
 await shot("28-clientes", {
   clip: { x: 256, y: 0, width: 1184, height: 560 },
   marks: [
-    { loc: L("summary .btn"), n: 1, at: "r" },
-    { loc: L("input[placeholder^='Buscar cliente']"), n: 2 },
+    { loc: L("button.btn", { hasText: "Nuevo cliente" }), n: 1, at: "t" },
+    { loc: L("input[placeholder^='Buscar cliente']"), n: 2, at: "t" },
     { loc: horizonte.locator("header"), n: 3, at: "tl" },
     { loc: horizonte.locator("ul").first(), n: 4, at: "tl" },
     { loc: horizonte.getByRole("button", { name: "Ver detalles del cliente" }), n: 5, at: "b" },
     { loc: horizonte.getByRole("button", { name: "Agregar proyecto" }), n: 6, at: "b" },
     { loc: horizonte.getByRole("button", { name: "Datos fiscales y de contacto" }), n: 7, at: "b" },
     { loc: horizonte.getByRole("button", { name: /logo/ }), n: 8, at: "b" },
+    { loc: horizonte.getByRole("button", { name: "Fusionar con otro cliente" }), n: 9, at: "b" },
   ],
 });
 await page.mouse.move(5, 5);
-await L("summary .btn").click();
+await L("button.btn", { hasText: "Nuevo cliente" }).click();
+await page.waitForTimeout(300);
+const newPanel = L("input[name=companyName]").locator("xpath=ancestor::div[contains(@class,'card')][1]");
+await page.fill("input[name=companyName]", "Grupo Ejemplo del Norte");
+await newPanel.locator("div.input input").fill("contacto@grupoejemplo.mx");
+await page.keyboard.press("Enter");
+await newPanel.locator("div.input input").fill("ventas@grupoejemplo.mx");
+await page.keyboard.press("Enter");
 await page.waitForTimeout(300);
 await shot("29-nuevo-cliente", {
-  clip: L("details.card"),
+  clip: newPanel,
   pad: 14,
   marks: [
     { loc: L("input[name=companyName]"), n: 1 },
     { loc: L("input[name=folioPrefix]"), n: 2 },
-    { loc: L("input[name=mainEmails]"), n: 3 },
-    { loc: L("details.card input[type=file]"), n: 4 },
-    { loc: L("details.card button[type=submit]"), n: 5 },
+    { loc: newPanel.locator("div.input"), n: 3 },
+    { loc: newPanel.locator("input[type=file]"), n: 4 },
+    { loc: newPanel.locator("button[type=submit]"), n: 5 },
   ],
 });
-await L("summary .btn").click(); // plegar
+await L("button.btn", { hasText: "Nuevo cliente" }).click(); // plegar
 await horizonte.getByRole("button", { name: "Ver detalles del cliente" }).click();
 await page.waitForSelector("[role=dialog]");
 await shot("30-cliente-detalle", {
@@ -478,22 +494,33 @@ await page.keyboard.press("Escape");
 await horizonte.getByRole("button", { name: "Agregar proyecto" }).click();
 await page.waitForSelector("[role=dialog] input[name=projectName]");
 await shot("31-agregar-proyecto", {
-  vp: true, clip: { x: 360, y: 150, width: 720, height: 420 },
-  marks: [{ loc: L("[role=dialog] input[name=projectName]"), n: 1 }, { loc: L("[role=dialog] input[name=projectEmails]"), n: 2 }, { loc: L("[role=dialog] button[type=submit]"), n: 3 }],
+  vp: true, clip: { x: 360, y: 110, width: 720, height: 600 },
+  marks: [
+    { loc: L("[role=dialog] input[name=projectName]"), n: 1 },
+    { loc: L("[role=dialog] input[name=responsibleName]"), n: 2, at: "bl" },
+    { loc: L("[role=dialog] input[name=responsibleLastName]"), n: 3, at: "br" },
+    { loc: L("[role=dialog] div.input"), n: 4 },
+    { loc: L("[role=dialog] button[type=submit]"), n: 5 },
+  ],
 });
 await page.keyboard.press("Escape");
 await horizonte.getByRole("button", { name: "Datos fiscales y de contacto" }).click();
 await page.waitForSelector("[role=dialog]");
 await page.waitForTimeout(300);
+await page.setViewportSize({ width: 1440, height: 1900 }); // el formulario es alto: se amplía la ventana para que quepa completo
+await page.waitForTimeout(400);
+const fiscalBox = await L("[role=dialog] > div").boundingBox();
 await shot("32-datos-fiscales", {
-  vp: true, clip: { x: 230, y: 0, width: 980, height: 900 },
+  vp: true, clip: { x: Math.max(0, fiscalBox.x - 30), y: Math.max(0, fiscalBox.y - 20), width: fiscalBox.width + 60, height: 1130 }, // solo la parte superior del formulario
   marks: [
     { loc: L("[role=dialog] details summary", { hasText: "Editar datos" }), n: 1, at: "l" },
     { loc: L("[role=dialog] input[name=requiresInvoice]"), n: 2, at: "l" },
     { loc: L("[role=dialog] input[name=rfc]"), n: 3 },
     { loc: L("[role=dialog] input[name=constancia]"), n: 4 },
+    { loc: L("[role=dialog] div.input").first(), n: 5, at: "r" },
   ],
 });
+await page.setViewportSize({ width: 1440, height: 900 });
 await page.keyboard.press("Escape");
 await L("article", { hasText: "Clínica Santa Aurora" }).getByRole("button", { name: /logo/ }).click();
 await page.waitForSelector("[role=dialog] input[type=file]");
@@ -537,6 +564,7 @@ await shot("36-revision-1", {
     { loc: L("img[alt='Logo enviado']"), n: 1, at: "l" },
     { loc: L("input[name=companyName]"), n: 2 },
     { loc: L("a", { hasText: /constancia|Ver PDF/i }).first(), n: 3, at: "r" },
+    { loc: L("p", { hasText: "Posibles duplicados" }), n: 4, at: "l" },
   ],
 });
 await page.mouse.wheel(0, 2400);
@@ -575,6 +603,8 @@ await page.fill("input[name=name]", "Daniela Fuentes");
 await page.fill("input[name=email]", "daniela.fuentes@ejemplo.test");
 await page.fill("input[name=password]", "ClaveDeEjemplo1");
 await page.setInputFiles("input[type=file][name=photo]", path.join(ASSETS, "persona-ana.jpg"));
+await page.getByRole("button", { name: "Aplicar" }).click(); // el recortador de foto
+await page.waitForTimeout(300);
 await page.selectOption("select[name=birthMonth]", "6");
 await page.selectOption("select[name=birthDay]", "21");
 await page.getByLabel("Torre Norte", { exact: true }).check();
@@ -606,6 +636,64 @@ await shot("41-editar-usuario", {
     { loc: L("[role=dialog] select[name=birthMonth]"), n: 3 },
     { loc: L("[role=dialog] fieldset", { hasText: "Clínica Santa Aurora" }), n: 4, at: "tl" },
     { loc: L("[role=dialog] button[type=submit]"), n: 5 },
+  ],
+});
+await page.keyboard.press("Escape");
+
+// ---------- 10. Recortador de foto, fusión de clientes y cambio de cliente ----------
+console.log("Recortador, fusión y cambio de cliente");
+await L("tbody tr", { hasText: "Luis Gómez" }).getByRole("button", { name: "Editar" }).click();
+await page.waitForSelector("[role=dialog]");
+await page.locator("[role=dialog] input[type=file][name=photo]").setInputFiles(path.join(ASSETS, "persona-luis.jpg"));
+await page.waitForSelector("[role=dialog] input[type=range]");
+await page.locator("[role=dialog] input[type=range]").fill("1.6");
+await page.waitForTimeout(400);
+const crop = L("[role=dialog]").last();
+await shot("42-recortar-foto", {
+  vp: true, clip: { x: 320, y: 80, width: 800, height: 700 },
+  marks: [
+    { loc: crop.locator("div.touch-none"), n: 1, at: "l" },
+    { loc: crop.locator("input[type=range]"), n: 2, at: "b" },
+    { loc: crop.getByRole("button", { name: "Aplicar" }), n: 3, at: "t" },
+  ],
+});
+await crop.getByRole("button", { name: "Cancelar" }).click();
+await page.keyboard.press("Escape");
+
+await go("/clientes");
+await L("article", { hasText: "Constructora Horizonte" }).getByRole("button", { name: "Fusionar con otro cliente" }).click();
+await page.waitForSelector("[role=dialog] select");
+await page.selectOption("[role=dialog] select", { label: "Horizonte Construcciones (HZC)" });
+await page.waitForTimeout(400);
+await page.setViewportSize({ width: 1440, height: 1500 }); // la ventana es alta: se amplía para que quepa completa
+await page.waitForTimeout(400);
+const mergeBox = await L("[role=dialog] > div").boundingBox();
+await shot("43-fusionar-clientes", {
+  vp: true, clip: { x: Math.max(0, mergeBox.x - 30), y: Math.max(0, mergeBox.y - 20), width: mergeBox.width + 60, height: mergeBox.height + 40 },
+  marks: [
+    { loc: L("[role=dialog] select"), n: 1, at: "r" },
+    { loc: L("[role=dialog] table tbody tr").nth(1).locator("td").nth(1), n: 2, at: "l" },
+    { loc: L("[role=dialog] table tbody tr").nth(4).locator("td").nth(2), n: 3, at: "r" },
+    { loc: L("[role=dialog] table tbody tr").last(), n: 4, at: "l" },
+    { loc: L("[role=dialog] button", { hasText: "Fusionar clientes" }), n: 5, at: "t" },
+  ],
+});
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.keyboard.press("Escape");
+
+await go(hProceso);
+await page.getByRole("button", { name: "Cambiar cliente" }).click();
+await page.waitForSelector("[role=dialog] select");
+await page.selectOption("[role=dialog] select >> nth=0", { label: "Clínica Santa Aurora (CSA)" });
+await page.selectOption("[role=dialog] select >> nth=1", { label: "+ Crear proyecto nuevo…" });
+await page.waitForTimeout(300);
+await shot("44-cambiar-cliente", {
+  vp: true, clip: { x: 230, y: 10, width: 980, height: 880 },
+  marks: [
+    { loc: L("[role=dialog] select").nth(0), n: 1, at: "r" },
+    { loc: L("[role=dialog] select").nth(1), n: 2, at: "r" },
+    { loc: L("[role=dialog] div.rounded-2xl").first(), n: 3, at: "tl" },
+    { loc: L("[role=dialog] button.btn"), n: 4, at: "t" },
   ],
 });
 await page.keyboard.press("Escape");
