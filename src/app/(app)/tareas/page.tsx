@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES } from "@/lib/roles";
 import { requireUser } from "@/lib/auth";
 import { finishedCutoff, mxMonthStart } from "@/lib/tasks-shared";
 import { TaskBoard } from "./task-board";
@@ -10,12 +11,12 @@ import type { TaskCard, TaskPrefill } from "./task-types";
 export const metadata = { title: "Tareas | Portal de Operaciones" };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ tarea?: string; historial?: string; nota?: string }> }) {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   const { tarea, historial, nota } = await searchParams;
-  const isOps = user.role !== "TEAM_311";
+  const isOps = isTaskManager(user.role);
   const history = historial === "1";
 
-  // El TEAM 311 solo ve las tareas que le asignaron; Admin y Editor ven todas
+  // El TEAM 311 solo ve las tareas que le asignaron; Admin, Editor y PROJECT 311 ven todas
   const mine: Prisma.TaskWhereInput = isOps ? {} : { assignees: { some: { userId: user.id } } };
   const cutoff = finishedCutoff();
   const where: Prisma.TaskWhereInput = history
@@ -34,7 +35,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       include: taskInclude,
     }),
     isOps ? prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true, projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true } } } }) : Promise.resolve([]),
-    isOps ? prisma.user.findMany({ where: { role: "TEAM_311", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true } }) : Promise.resolve([]),
+    isOps ? prisma.user.findMany({ where: { role: { in: ASSIGNABLE_ROLES }, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true, role: true } }) : Promise.resolve([]),
   ]);
 
   const tasks: TaskCard[] = rows.map(toCard);

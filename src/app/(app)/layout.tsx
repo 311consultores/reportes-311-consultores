@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { ROLE_LABEL } from "@/lib/roles";
 import { logout } from "@/app/actions/auth";
 import { getLogo311Key } from "@/lib/branding";
 import { formatDecimal, OVERDUE_COOKIE, todayMx } from "@/lib/finance";
@@ -14,13 +15,13 @@ import { NotificationBell } from "@/components/notification-bell";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", CLIENTE: "Cliente", TEAM_311: "TEAM 311" } as const;
-
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
   const isOps = isAdmin || user.role === "EDITOR"; // personal de operación
   const isTeam = user.role === "TEAM_311";
+  const isProject = user.role === "PROJECT_311"; // gestiona tareas; sin reportes ni administración
+  const reviewsTasks = isOps || isProject;
 
   const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview, unreadNotifications] = await Promise.all([
     isAdmin ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0), // las de edición se suman en el globo del Log
@@ -28,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     isOps ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     getLogo311Key().then((k) => !!k).catch(() => false),
     isOps ? overdueSummary() : Promise.resolve({ count: 0, total: null }),
-    isOps ? prisma.task.count({ where: { status: "PARA_REVISAR" } }) : Promise.resolve(0), // tareas esperando revisión
+    reviewsTasks ? prisma.task.count({ where: { status: "PARA_REVISAR" } }) : Promise.resolve(0), // tareas esperando revisión
     user.role !== "CLIENTE" ? prisma.notification.count({ where: { userId: user.id, readAt: null } }) : Promise.resolve(0),
   ]);
   const today = todayMx();
@@ -41,17 +42,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       title: "Operación",
       items: [
         ...(user.role !== "CLIENTE" ? [{ href: "/tareas", label: "Tareas", icon: "tareas" as const, badge: tasksToReview }] : []),
-        { href: "/", label: "Reportes", icon: "reportes", badge: pendingEdits },
+        ...(!isProject ? [{ href: "/", label: "Reportes", icon: "reportes" as const, badge: pendingEdits }] : []),
         ...(user.role !== "CLIENTE" ? [{ href: "/baul", label: "Baúl", icon: "baul" as const }] : []),
-        ...(isOps
-          ? [
-              { href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const },
-              { href: "/registros", label: "Registro de clientes", icon: "registros" as const, badge: pendingRegistrations },
-            ]
-          : []),
+        ...(isOps || isProject ? [{ href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const }] : []),
+        ...(isOps ? [{ href: "/registros", label: "Registro de clientes", icon: "registros" as const, badge: pendingRegistrations }] : []),
       ],
     },
-    ...(!isTeam
+    ...(!isTeam && !isProject
       ? [
           {
             id: "administracion",
@@ -79,7 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ]
     : user.role === "EDITOR"
       ? [{ id: "configuracion", title: "Configuración", items: [{ href: "/usuarios", label: "Usuarios", icon: "usuarios" }, { href: "/aplicacion", label: "App y avisos", icon: "app" }] }]
-      : user.role === "TEAM_311"
+      : isTeam || isProject
         ? [{ id: "configuracion", title: "Configuración", items: [{ href: "/aplicacion", label: "App y avisos", icon: "app" }] }]
         : [];
 

@@ -62,8 +62,8 @@ export function TaskForm({ clients, team, task, prefill, onDone, onCancel }: {
       </div>
 
       <div>
-        <label className="label">Asignar a (TEAM 311)</label>
-        <ConsultantPicker options={team} initial={task?.assignees.map((a) => a.id) ?? []} onChange={setAssigneeIds} />
+        <label className="label">Asignar a</label>
+        <ConsultantPicker options={team} initial={task?.assignees.map((a) => a.id) ?? []} onChange={setAssigneeIds} hint="Puedes asignar a cualquier persona del equipo interno: ADMINISTRADOR, EDITOR, PROJECT 311 o TEAM 311." emptyText="Aún no hay personas disponibles" searchText="Escribe para buscar y agregar personas…" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-[1fr_16rem]">

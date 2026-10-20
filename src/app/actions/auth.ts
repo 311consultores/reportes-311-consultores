@@ -62,7 +62,7 @@ export async function login(_prev: State, formData: FormData) {
   }
   // El TEAM 311 aterriza en su tablero de tareas (si venía de un enlace concreto, se respeta)
   const next = formData.get("next");
-  redirect(typeof next === "string" && next && next !== "/" ? await safeNext(next) : role === "TEAM_311" ? "/tareas" : "/");
+  redirect(typeof next === "string" && next && next !== "/" ? await safeNext(next) : role === "TEAM_311" || role === "PROJECT_311" ? "/tareas" : "/");
 }
 
 export async function logout() {

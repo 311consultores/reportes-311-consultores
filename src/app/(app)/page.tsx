@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus } from "lucide-react";
 import type { Prisma, ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,7 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
+  if (user.role === "PROJECT_311") redirect("/tareas"); // sin reportes: su inicio es el panel de tareas
   const sp = await searchParams;
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const status = (Object.keys(STATUS_LABEL) as ReportStatus[]).find((s) => s === one(sp.status));

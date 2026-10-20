@@ -1,3 +1,4 @@
+import { isTaskManager, STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { noteInclude, toNoteCard } from "@/lib/notes";
@@ -9,9 +10,9 @@ export const metadata = { title: "Baúl | Portal de Operaciones" };
 const trashCutoff = () => new Date(Date.now() - TRASH_DAYS * 86_400_000);
 
 export default async function BaulPage({ searchParams }: { searchParams: Promise<{ nota?: string }> }) {
-  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const me = await requireUser(STAFF_ROLES);
   const { nota } = await searchParams;
-  const isOps = me.role !== "TEAM_311";
+  const isOps = isTaskManager(me.role);
 
   // La papelera conserva 30 días: lo más viejo se borra al entrar
   await prisma.note.deleteMany({ where: { ownerId: me.id, trashedAt: { lt: trashCutoff() } } });
@@ -23,7 +24,7 @@ export default async function BaulPage({ searchParams }: { searchParams: Promise
     prisma.noteLabel.findMany({ where: { ownerId: me.id }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true, projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true } } } }),
     prisma.task.findMany({ where: taskScope, orderBy: { updatedAt: "desc" }, take: 300, select: { id: true, title: true, client: { select: { companyName: true } } } }),
-    prisma.user.findMany({ where: { active: true, role: { in: ["ADMIN", "EDITOR", "TEAM_311"] }, id: { not: me.id } }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true } }),
+    prisma.user.findMany({ where: { active: true, role: { in: STAFF_ROLES }, id: { not: me.id } }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true } }),
   ]);
 
   return (

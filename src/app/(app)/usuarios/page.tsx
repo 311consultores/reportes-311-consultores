@@ -1,14 +1,13 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { ROLE_LABEL } from "@/lib/roles";
 import { toggleUserActive } from "@/app/actions/users";
 import { Avatar } from "@/components/avatar";
 import { formatBirthday } from "./birthday-field";
 import { TeamEditor } from "./team-editor";
 import { UserTabs, type UserRow } from "./user-tabs";
 import { DeleteUserButton, UserEditor } from "./user-editor";
-
-const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", CLIENTE: "Cliente", TEAM_311: "TEAM 311" } as const;
 
 export default async function UsersPage() {
   const me = await requireUser(["ADMIN", "EDITOR"]);
@@ -24,9 +23,10 @@ export default async function UsersPage() {
   const companies = clients.map((c) => ({ id: c.id, name: c.companyName }));
   const initialTab = (await cookies()).get("usuarios_tab")?.value ?? "TODOS";
 
-  // El Editor ve a todos, pero solo gestiona a los TEAM 311; el Administrador gestiona a todos
+  // El Editor ve a todos, pero solo gestiona a TEAM 311 y PROJECT 311; el Administrador gestiona a todos
   const rows: UserRow[] = users.map((u) => {
-    const manage = isAdmin || u.role === "TEAM_311";
+    const isTeamType = u.role === "TEAM_311" || u.role === "PROJECT_311";
+    const manage = isAdmin || isTeamType;
     return {
       id: u.id,
       role: u.role,
@@ -49,12 +49,12 @@ export default async function UsersPage() {
           </td>
           <td className="td">
             <div className="flex items-center justify-end gap-2">
-              {u.role === "TEAM_311" && (
-                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, projectIds: u.projectAccess.map((p) => p.projectId) }} assign={assign} email={isAdmin ? u.email : undefined} />
+              {isTeamType && (
+                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, projectIds: u.projectAccess.map((p) => p.projectId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} showProjects={u.role === "TEAM_311"} />
               )}
-              {isAdmin && u.role !== "TEAM_311" && (
+              {isAdmin && !isTeamType && (
                 <UserEditor
-                  user={{ id: u.id, name: u.name, email: u.email, role: u.role, clientId: u.clientAccess[0]?.clientId ?? null, photoUrl: u.photoUrl, birthday: u.birthday }}
+                  user={{ id: u.id, name: u.name, email: u.email, role: u.role as "ADMIN" | "EDITOR" | "CLIENTE", clientId: u.clientAccess[0]?.clientId ?? null, photoUrl: u.photoUrl, birthday: u.birthday }}
                   companies={companies}
                   isSelf={u.id === me.id}
                 />

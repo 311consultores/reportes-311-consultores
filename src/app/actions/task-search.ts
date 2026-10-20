@@ -1,6 +1,7 @@
 "use server";
 
 import type { Prisma } from "@prisma/client";
+import { STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type CurrentUser } from "@/lib/auth";
 import { htmlToText } from "@/lib/sanitize";
@@ -28,7 +29,7 @@ function around(text: string, q: string): string | null {
  * Incluye las terminadas ocultas y el historial. Devuelve hasta 10 sugerencias.
  */
 export async function searchTasks(query: string): Promise<TaskHit[]> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   const q = query.trim().slice(0, 80);
   if (q.length < 2) return [];
   const rows = await prisma.task.findMany({
@@ -88,7 +89,7 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
 
 /** Una tarea completa (para abrir su detalle desde la búsqueda, aunque esté en el historial). */
 export async function getTaskCard(id: string): Promise<TaskCard | null> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   const t = await prisma.task.findFirst({ where: { id, ...scopeFor(user) }, include: taskInclude });
   return t ? toCard(t) : null;
 }

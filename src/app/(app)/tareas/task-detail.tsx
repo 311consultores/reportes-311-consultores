@@ -8,6 +8,7 @@ import type { Role, TaskStatus } from "@prisma/client";
 import { AvatarChip } from "@/components/avatar";
 import { DeleteButton } from "@/components/delete-button";
 import { RichTextView } from "@/components/rich-text";
+import { isTaskManager } from "@/lib/roles";
 import { randomTaskPhrase } from "@/lib/task-phrases";
 import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
@@ -30,7 +31,7 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
     return () => clearInterval(t);
   }, []);
 
-  const isOps = role === "ADMIN" || role === "EDITOR";
+  const isOps = isTaskManager(role);
   const mine = task.assignees.some((a) => a.id === meId);
   const info = STATUS_INFO[task.status];
   const rem = remainingText(task.dueAt, now);

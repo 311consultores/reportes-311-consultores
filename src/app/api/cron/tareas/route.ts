@@ -5,7 +5,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
 import { notaRecordatorioEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
 import { htmlToText } from "@/lib/sanitize";
-import { notifyUsers, opsUserIds } from "@/lib/notifications";
+import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { formatMx } from "@/lib/tasks-shared";
 import { todayMx } from "@/lib/finance";
 
@@ -108,7 +108,7 @@ export async function GET(req: Request) {
           await notifyUsers([id], { kind: "TASK_OVERDUE", title: `Tienes ${u.items.length === 1 ? "1 tarea vencida" : `${u.items.length} tareas vencidas`}`, body: u.items.map((i) => i.title).slice(0, 3).join(" · "), link: "/tareas" });
         }
         await sendMail({ to: opsEmails(), ...tareasVencidasEmail({ forName: null, items: overdue.map(item), link: `${base}/tareas`, withLogo: !!logo }), inline });
-        await notifyUsers(await opsUserIds(), { kind: "TASK_OVERDUE", title: `${overdue.length === 1 ? "1 tarea vencida" : `${overdue.length} tareas vencidas`} en el equipo`, body: overdue.map((t) => t.title).slice(0, 3).join(" · "), link: "/tareas" });
+        await notifyUsers(await taskManagerIds(), { kind: "TASK_OVERDUE", title: `${overdue.length === 1 ? "1 tarea vencida" : `${overdue.length} tareas vencidas`} en el equipo`, body: overdue.map((t) => t.title).slice(0, 3).join(" · "), link: "/tareas" });
         if (!force) await setSetting(LAST_KEY, today);
         result.vencidasPersonas = perUser.size;
         result.vencidasTotal = overdue.length;

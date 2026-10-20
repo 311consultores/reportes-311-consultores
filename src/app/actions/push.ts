@@ -1,5 +1,6 @@
 "use server";
 
+import { STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { hashEndpoint, publicVapidKey, pushConfigured, sendPush } from "@/lib/push";
@@ -7,7 +8,7 @@ import { hashEndpoint, publicVapidKey, pushConfigured, sendPush } from "@/lib/pu
 type Result = { ok?: boolean; error?: string };
 
 async function staff() {
-  return requireUser(["ADMIN", "EDITOR", "TEAM_311"]); // el Cliente no recibe notificaciones del navegador
+  return requireUser(STAFF_ROLES); // el Cliente no recibe notificaciones del navegador
 }
 
 /** ¿El servidor tiene claves para enviar notificaciones? y la clave pública que usa el navegador. */

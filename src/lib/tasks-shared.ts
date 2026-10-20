@@ -74,7 +74,7 @@ export function dueState(status: TaskStatus, due: Date | string, now: Date): "ov
 /** ¿Puede este usuario mover una tarea entre estas fases? (el servidor vuelve a comprobarlo) */
 export function canMove(role: Role, isAssignee: boolean, from: TaskStatus, to: TaskStatus): boolean {
   if (from === to) return false;
-  if (role === "ADMIN" || role === "EDITOR") return true;
+  if (role === "ADMIN" || role === "EDITOR" || role === "PROJECT_311") return true;
   if (role !== "TEAM_311" || !isAssignee) return false;
   if (from === "PENDIENTE") return to === "EN_PROCESO" || to === "PARA_REVISAR";
   if (from === "EN_PROCESO") return to === "PENDIENTE" || to === "PARA_REVISAR";

@@ -7,11 +7,11 @@ import { PhotoField } from "@/components/photo-field";
 import { AssignmentsField, type AssignClient } from "./assignments-field";
 import { BirthdayField } from "./birthday-field";
 
-type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311";
+type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
 
-/** Alta de usuario. El Editor solo puede crear TEAM 311; el Administrador, cualquier rol. */
+/** Alta de usuario. El Editor solo puede crear TEAM 311 y PROJECT 311; el Administrador, cualquier rol. */
 export function UserForm({ isAdmin, companies, assign, defaultRole }: { isAdmin: boolean; companies: { id: string; name: string }[]; assign: AssignClient[]; defaultRole?: Role }) {
-  const [role, setRole] = useState<Role>(isAdmin ? (defaultRole ?? "EDITOR") : "TEAM_311");
+  const [role, setRole] = useState<Role>(isAdmin ? (defaultRole ?? "EDITOR") : defaultRole === "PROJECT_311" ? "PROJECT_311" : "TEAM_311");
   const [resetKey, setResetKey] = useState(0);
 
   return (
@@ -24,21 +24,22 @@ export function UserForm({ isAdmin, companies, assign, defaultRole }: { isAdmin:
           <label className="label">Rol</label>
           {isAdmin ? (
             <select name="role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              <option value="EDITOR">Editor</option>
-              <option value="ADMIN">Administrador</option>
-              <option value="CLIENTE">Cliente</option>
+              <option value="EDITOR">EDITOR</option>
+              <option value="ADMIN">ADMINISTRADOR</option>
+              <option value="CLIENTE">CLIENTE</option>
               <option value="TEAM_311">TEAM 311</option>
+              <option value="PROJECT_311">PROJECT 311</option>
             </select>
           ) : (
-            <>
-              <input type="hidden" name="role" value="TEAM_311" />
-              <input className="input" value="TEAM 311" readOnly tabIndex={-1} />
-            </>
+            <select name="role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              <option value="TEAM_311">TEAM 311</option>
+              <option value="PROJECT_311">PROJECT 311</option>
+            </select>
           )}
         </div>
         {role === "CLIENTE" && (
           <div>
-            <label className="label">Empresa (rol Cliente)</label>
+            <label className="label">Empresa (rol CLIENTE)</label>
             <select name="clientId" className="input" defaultValue="">
               <option value="">—</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

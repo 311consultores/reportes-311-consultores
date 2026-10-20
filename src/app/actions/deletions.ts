@@ -112,10 +112,12 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
   return true;
 }
 
-/** Elimina directamente (Admin) o crea una solicitud pendiente (Editor). El motivo es obligatorio. */
+/** Elimina directamente (Admin) o crea una solicitud pendiente (Editor y PROJECT 311, este último solo para tareas). El motivo es obligatorio. */
 export async function requestDeletion(targetType: TargetType, targetId: string, reason: string) {
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(["ADMIN", "EDITOR", "PROJECT_311"]);
   const isAdmin = user.role === "ADMIN";
+  // El PROJECT 311 solo puede solicitar la eliminación de tareas del panel
+  if (user.role === "PROJECT_311" && targetType !== "WORKTASK") return { error: "No tienes permiso para eliminar este elemento" };
 
   const cleanReason = reason?.trim() ?? "";
   if (cleanReason.length < 3) return { error: "Escribe el motivo de la eliminación" };

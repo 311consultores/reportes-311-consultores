@@ -7,15 +7,16 @@ import { setPreference } from "@/lib/client-cookie";
 import { UserForm } from "./user-form";
 import type { AssignClient } from "./assignments-field";
 
-export type UserRole = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311";
+export type UserRole = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
 export type UserRow = { id: string; role: UserRole; active: boolean; text: string; node: React.ReactNode };
 
 const TABS: { id: "TODOS" | UserRole; label: string }[] = [
-  { id: "TODOS", label: "Todos" },
-  { id: "ADMIN", label: "Administradores" },
-  { id: "EDITOR", label: "Editores" },
+  { id: "TODOS", label: "TODOS" },
+  { id: "ADMIN", label: "ADMINISTRADORES" },
+  { id: "EDITOR", label: "EDITORES" },
+  { id: "PROJECT_311", label: "PROJECT 311" },
   { id: "TEAM_311", label: "TEAM 311" },
-  { id: "CLIENTE", label: "Clientes" },
+  { id: "CLIENTE", label: "CLIENTES" },
 ];
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { ROLE_LABEL, STAFF_ROLES } from "@/lib/roles";
 import { requireUser } from "@/lib/auth";
 import { Avatar } from "@/components/avatar";
 import { BirthdayField } from "../usuarios/birthday-field";
 import { ProfileForm } from "./profile-form";
 
-const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", TEAM_311: "TEAM 311" } as const;
-
 export default async function ProfilePage() {
-  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const me = await requireUser(STAFF_ROLES);
   const isTeam = me.role === "TEAM_311";
   const [row, projects] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: me.id }, select: { email: true, birthday: true, photoUrl: true } }),
@@ -27,7 +26,7 @@ export default async function ProfilePage() {
           <Avatar name={me.name} userId={me.id} photoKey={row.photoUrl} size={64} />
           <div>
             <p className="text-lg font-semibold tracking-tight">{me.name}</p>
-            <p className="meta">{row.email} · {ROLE_LABEL[me.role as keyof typeof ROLE_LABEL]}</p>
+            <p className="meta">{row.email} · {ROLE_LABEL[me.role]}</p>
           </div>
         </div>
         <ProfileForm name={me.name} userId={me.id} photoKey={row.photoUrl}>

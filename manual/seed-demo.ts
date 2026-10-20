@@ -73,17 +73,18 @@ async function main() {
 
   // 2b) Usuarios TEAM 311 de ejemplo (con y sin foto)
   const teamPass = await bcrypt.hash("TeamDemo2026", 10);
-  const person = async (name: string, email: string, photo: string | null, birthday: string) => {
+  const person = async (name: string, email: string, photo: string | null, birthday: string, role: "TEAM_311" | "PROJECT_311" = "TEAM_311") => {
     let photoUrl: string | null = null;
     if (photo) {
       photoUrl = `perfiles/${randomUUID()}.jpg`;
       await putObject(photoUrl, A(photo), "image/jpeg");
     }
-    return prisma.user.create({ data: { name, email, passwordHash: teamPass, role: "TEAM_311", theme: "light", photoUrl, birthday } });
+    return prisma.user.create({ data: { name, email, passwordHash: teamPass, role, theme: "light", photoUrl, birthday } });
   };
   const ana = await person("Ana Pérez", "ana.perez@ejemplo.test", "persona-ana.jpg", "03-15");
   const luis = await person("Luis Gómez", "luis.gomez@ejemplo.test", "persona-luis.jpg", "09-02");
   const sofia = await person("Sofía Ríos", "sofia.rios@ejemplo.test", null, "11-27");
+  await person("Paula Proyectos", "paula.proyectos@ejemplo.test", null, "05-20", "PROJECT_311"); // usuario PROJECT 311 de ejemplo (manual del PROJECT 311)
 
   // 3) Logos
   const k311 = `branding/311-${randomUUID()}.png`;

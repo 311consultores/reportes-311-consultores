@@ -6,8 +6,9 @@ import type { CardClient } from "./client-card";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(["ADMIN", "EDITOR", "PROJECT_311"]);
   const isAdmin = user.role === "ADMIN"; // solo el Admin elimina clientes y proyectos
+  const readOnly = user.role === "PROJECT_311"; // el PROJECT 311 solo consulta clientes y proyectos (sin datos fiscales ni reportes)
   const clients = await prisma.client.findMany({
     include: { projects: { orderBy: { createdAt: "asc" } }, _count: { select: { reports: true } } },
     orderBy: { companyName: "asc" },
@@ -23,7 +24,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     createdAt: c.createdAt.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }),
     projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails, responsible: fullName(p.responsibleName, p.responsibleLastName) })),
     hasConstancia: !!c.constanciaUrl,
-    values: {
+    // El PROJECT 311 no recibe datos fiscales ni de contacto: ni siquiera viajan al navegador
+    values: readOnly
+      ? { companyName: c.companyName, requiresInvoice: false, legalName: "", rfc: "", street: "", colonia: "", postalCode: "", city: "", state: "", contactName: "", contactLastName: "", contactPhone: "", contactEmail: "", billingName: "", billingLastName: "", billingPhone: "", billingEmail: "" }
+      : {
       companyName: c.companyName,
       requiresInvoice: c.requiresInvoice,
       legalName: c.legalName ?? "",
@@ -48,7 +52,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     <div className="space-y-6">
       <h1 className="page-title">Clientes y proyectos</h1>
 
-      <ClientsGrid clients={cards} isAdmin={isAdmin} initialQuery={q ?? ""} />
+      <ClientsGrid clients={cards} isAdmin={isAdmin} readOnly={readOnly} initialQuery={q ?? ""} />
     </div>
   );
 }

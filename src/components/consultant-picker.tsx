@@ -9,7 +9,9 @@ export type TeamOption = { id: string; name: string; photoUrl: string | null };
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Selector múltiple con buscador de usuarios TEAM 311: los elegidos aparecen como fotos con su nombre. */
-export function ConsultantPicker({ options, initial = [], onChange }: { options: TeamOption[]; initial?: string[]; onChange?: (ids: string[]) => void }) {
+export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo aparecen usuarios con rol TEAM 311.", emptyText = "Aún no hay usuarios TEAM 311", searchText = "Escribe para buscar y agregar consultores…" }: {
+  options: TeamOption[]; initial?: string[]; onChange?: (ids: string[]) => void; hint?: string; emptyText?: string; searchText?: string;
+}) {
   const [selected, setSelectedRaw] = useState<string[]>(initial);
   const setSelected = (u: string[] | ((s: string[]) => string[])) =>
     setSelectedRaw((s) => {
@@ -47,7 +49,7 @@ export function ConsultantPicker({ options, initial = [], onChange }: { options:
       )}
       <input
         className="input"
-        placeholder={options.length === 0 ? "Aún no hay usuarios TEAM 311" : "Escribe para buscar y agregar consultores…"}
+        placeholder={options.length === 0 ? emptyText : searchText}
         value={q}
         disabled={options.length === 0}
         onFocus={() => setOpen(true)}
@@ -71,7 +73,7 @@ export function ConsultantPicker({ options, initial = [], onChange }: { options:
           ))}
         </ul>
       )}
-      <p className="text-xs text-zinc-500">Solo aparecen usuarios con rol TEAM 311.</p>
+      <p className="text-xs text-zinc-500">{hint}</p>
     </div>
   );
 }

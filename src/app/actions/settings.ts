@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { validateLogo, replaceLogo311 } from "@/lib/branding";
 
@@ -21,7 +22,7 @@ export async function uploadLogo311(_p: State, fd: FormData): Promise<State> {
 
 /** Modo claro/oscuro del usuario (Admin, Editor y TEAM 311). El rol Cliente siempre usa claro. */
 export async function setTheme(theme: "light" | "dark") {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   if (theme !== "light" && theme !== "dark") return;
   await prisma.user.update({ where: { id: user.id }, data: { theme } });
 }

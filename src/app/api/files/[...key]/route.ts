@@ -1,3 +1,4 @@
+import { isTaskManager } from "@/lib/roles";
 import { Readable } from "node:stream";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, reportScope } from "@/lib/auth";
@@ -40,9 +41,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ key: string[] }
     });
     if (!report) return new Response("No encontrado", { status: 404 });
   } else if (tm) {
-    // Adjuntos del chat de una tarea: Admin y Editor, o el TEAM 311 asignado
+    // Adjuntos del chat de una tarea: quien gestiona tareas, o la persona asignada
     const task = await prisma.task.findFirst({
-      where: { id: tm[1], ...(user.role === "ADMIN" || user.role === "EDITOR" ? {} : user.role === "TEAM_311" ? { assignees: { some: { userId: user.id } } } : { id: "-" }) },
+      where: { id: tm[1], ...(isTaskManager(user.role) ? {} : user.role === "TEAM_311" ? { assignees: { some: { userId: user.id } } } : { id: "-" }) },
       select: { id: true },
     });
     if (!task) return new Response("No encontrado", { status: 404 });

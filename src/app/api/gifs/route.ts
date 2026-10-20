@@ -1,3 +1,4 @@
+import { STAFF_ROLES } from "@/lib/roles";
 import { getCurrentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -8,7 +9,7 @@ type GiphyItem = { id: string; title?: string; images: { fixed_height_small: { u
 /** Búsqueda de GIF con Giphy. Requiere la variable GIPHY_API_KEY; sin ella el chat funciona sin GIF. */
 export async function GET(req: Request) {
   const user = await getCurrentUser();
-  if (!user || !["ADMIN", "EDITOR", "TEAM_311"].includes(user.role)) return Response.json({ error: "No autorizado" }, { status: 403 });
+  if (!user || !STAFF_ROLES.includes(user.role)) return Response.json({ error: "No autorizado" }, { status: 403 });
   const key = process.env.GIPHY_API_KEY?.trim();
   if (!key) return Response.json({ configured: false, results: [] });
 

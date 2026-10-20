@@ -1,3 +1,4 @@
+import { isTaskManager, STAFF_ROLES } from "@/lib/roles";
 import { randomUUID } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -41,9 +42,9 @@ function matchesSignature(mime: string, b: Buffer) {
 
 async function load(taskId: string) {
   const user = await getCurrentUser();
-  if (!user || !["ADMIN", "EDITOR", "TEAM_311"].includes(user.role)) return { error: json({ error: "No autorizado" }, 403) };
+  if (!user || !STAFF_ROLES.includes(user.role)) return { error: json({ error: "No autorizado" }, 403) };
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, assignees: { select: { userId: true } } } });
-  const allowed = task && (user.role !== "TEAM_311" || task.assignees.some((a) => a.userId === user.id));
+  const allowed = task && (isTaskManager(user.role) || task.assignees.some((a) => a.userId === user.id));
   if (!task || !allowed) return { error: json({ error: "Tarea no encontrada" }, 404) };
   return { user, task };
 }

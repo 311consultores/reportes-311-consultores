@@ -12,7 +12,12 @@ export async function notifyUsers(userIds: string[], n: { kind: string; title: s
   await sendPush(ids, { kind: n.kind, title: n.title, body: n.body, url: n.link });
 }
 
-/** Administradores y editores activos (quienes revisan las tareas). */
+/** Administradores, editores y PROJECT 311 activos (quienes gestionan y revisan las tareas). */
+export async function taskManagerIds(): Promise<string[]> {
+  return (await prisma.user.findMany({ where: { role: { in: ["ADMIN", "EDITOR", "PROJECT_311"] }, active: true }, select: { id: true } })).map((u) => u.id);
+}
+
+/** Administradores y editores activos (avisos de administración que no son de tareas). */
 export async function opsUserIds(): Promise<string[]> {
   return (await prisma.user.findMany({ where: { role: { in: ["ADMIN", "EDITOR"] }, active: true }, select: { id: true } })).map((u) => u.id);
 }

@@ -14,6 +14,7 @@ enum Role {
   EDITOR
   CLIENTE
   TEAM_311 // consultores de 311: solo trabajan reportes de los proyectos que se les asignan
+  PROJECT_311 // gestiona las tareas (ve, crea, edita, asigna y acepta todas); sin reportes ni administración
 }
 
 enum ReportStatus {

@@ -13,6 +13,7 @@ import { useDialogs } from "@/components/dialogs";
 import { Confetti } from "@/components/confetti";
 import { Modal } from "@/components/modal";
 import { randomCongrats } from "@/lib/congrats-phrases";
+import { isTaskManager } from "@/lib/roles";
 import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 import { TaskCalendar } from "./task-calendar";
@@ -30,7 +31,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
 }) {
   const router = useRouter();
   const { askReason } = useDialogs();
-  const isOps = role === "ADMIN" || role === "EDITOR";
+  const isOps = isTaskManager(role);
   // Una tarea aceptada con sorpresa sin abrir se muestra primero como sorpresa
   const viewFor = (t: TaskCard): Exclude<View, null> =>
     role === "TEAM_311" && t.status === "TERMINADA" && t.surprise && !t.surpriseOpened && t.assignees.some((a) => a.id === meId) ? { kind: "surprise", id: t.id } : { kind: "detail", id: t.id };
@@ -270,7 +271,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
         </div>
       )}
 
-      <Modal open={view?.kind === "new"} onClose={closeView} wide title="Nueva tarea" subtitle="Se asigna al equipo TEAM 311 y nace en PENDIENTE">
+      <Modal open={view?.kind === "new"} onClose={closeView} wide title="Nueva tarea" subtitle="Se asigna a quien elijas del equipo y nace en PENDIENTE">
         <TaskForm clients={clients} team={team} prefill={prefill} onCancel={closeView} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />
       </Modal>
 

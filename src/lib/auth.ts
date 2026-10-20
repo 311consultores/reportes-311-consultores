@@ -71,14 +71,15 @@ export async function requireUser(roles?: Role[]): Promise<CurrentUser> {
 export const canEdit = (role: Role) => role === "ADMIN" || role === "EDITOR";
 
 /** Quién puede trabajar reportes (crear, editar, terminar): Admin, Editor y TEAM 311 (este último solo en sus proyectos). */
-export const canWorkReports = (role: Role) => role === "ADMIN" || role === "EDITOR" || role === "TEAM_311";
+export const canWorkReports = (role: Role) => role === "ADMIN" || role === "EDITOR" || role === "TEAM_311"; // el PROJECT 311 no trabaja reportes
 
 /** ¿Puede este usuario trabajar sobre el proyecto de un reporte? Admin y Editor sí; TEAM 311 solo si se lo asignaron. */
 export const hasProjectAccess = (user: CurrentUser, projectId: string) =>
-  user.role !== "TEAM_311" || user.projectAccess.some((p) => p.projectId === projectId);
+  user.role === "PROJECT_311" ? false : user.role !== "TEAM_311" || user.projectAccess.some((p) => p.projectId === projectId);
 
 /** Reportes visibles: los clientes ven los enviados de su empresa; el TEAM 311, los de sus proyectos asignados. */
 export function reportScope(user: CurrentUser): Prisma.ReportWhereInput {
+  if (user.role === "PROJECT_311") return { id: "sin-acceso" }; // el PROJECT 311 no ve reportes
   if (user.role === "TEAM_311") return { projectId: { in: user.projectAccess.map((p) => p.projectId) } };
   if (user.role !== "CLIENTE") return {};
   return {

@@ -6,7 +6,8 @@ import { sendMail } from "@/lib/mailer";
 import { readLogo311 } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { tareaMensajeEmail } from "@/lib/email-templates";
-import { notifyUsers, opsUserIds } from "@/lib/notifications";
+import { isTaskManager, STAFF_ROLES } from "@/lib/roles";
+import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { htmlToText, sanitizeRichHtml } from "@/lib/sanitize";
 
 export type ChatMessage = {
@@ -20,9 +21,9 @@ export type ChatMessage = {
   attachments: { id: string; key: string; type: string; name: string; size: number }[];
 };
 
-const isOps = (u: CurrentUser) => u.role === "ADMIN" || u.role === "EDITOR";
+const isOps = (u: CurrentUser) => isTaskManager(u.role);
 
-/** La tarea, si esta persona puede participar: Admin y Editor, o el TEAM 311 asignado. */
+/** La tarea, si esta persona puede participar: quien gestiona tareas, o la persona asignada. */
 async function taskFor(user: CurrentUser, taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true, user: { select: { email: true } } } } } });
   if (!task) return null;
@@ -34,7 +35,7 @@ const reviewNotifyEmails = () =>
   (process.env.TEAM_NOTIFY_EMAILS ?? "admon@311consultores.com,necesito@311consultores.com").split(/[,;\s]+/).filter(Boolean);
 
 export async function getTaskMessages(taskId: string): Promise<ChatMessage[]> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   if (!(await taskFor(user, taskId))) return [];
   const rows = await prisma.taskMessage.findMany({
     where: { taskId },
@@ -52,7 +53,7 @@ export async function getTaskMessages(taskId: string): Promise<ChatMessage[]> {
  * Avisa a la otra parte dentro del portal y por correo (el correo se agrupa: máximo uno cada 5 minutos por persona y tarea).
  */
 export async function sendTaskMessage(input: { taskId: string; bodyHtml: string; gifUrl?: string | null; attachmentIds?: string[] }): Promise<{ error?: string; ok?: boolean }> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   const task = await taskFor(user, input.taskId);
   if (!task) return { error: "La tarea no existe" };
 
@@ -70,7 +71,7 @@ export async function sendTaskMessage(input: { taskId: string; bodyHtml: string;
   // Avisos a la otra parte
   const link = `/tareas?tarea=${task.id}`;
   const snippet = text ? text.slice(0, 280) : gifUrl ? "Envió un GIF" : `Envió ${atts.length} archivo(s)`;
-  const toUsers = isOps(user) ? task.assignees.map((a) => a.userId) : await opsUserIds();
+  const toUsers = isOps(user) ? task.assignees.map((a) => a.userId) : await taskManagerIds();
   await notifyUsers(toUsers.filter((id) => id !== user.id), { actorId: user.id, kind: "TASK_MESSAGE", title: `${user.name} escribió en «${task.title}»`, body: snippet, link });
   if (!recent) {
     try {

@@ -9,7 +9,10 @@ import { parseBirthday, removePhoto, storePhoto } from "@/lib/avatar";
 
 type State = { error?: string; ok?: boolean } | undefined;
 
-const ROLES = ["ADMIN", "EDITOR", "CLIENTE", "TEAM_311"] as const;
+const ROLES = ["ADMIN", "EDITOR", "CLIENTE", "TEAM_311", "PROJECT_311"] as const;
+
+/** Roles de equipo que también puede gestionar el Editor. */
+const isTeamRole = (r: string) => r === "TEAM_311" || r === "PROJECT_311";
 
 const nameField = z.string().trim().min(2, "Nombre requerido").max(120, "El nombre es demasiado largo");
 
@@ -25,7 +28,7 @@ const photoFile = (fd: FormData) => {
   return f instanceof File && f.size > 0 ? f : null;
 };
 
-/** Alta de usuario. El Administrador crea cualquier rol; el Editor solo TEAM 311. */
+/** Alta de usuario. El Administrador crea cualquier rol; el Editor solo TEAM 311 y PROJECT 311. */
 export async function createUser(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
@@ -42,7 +45,7 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { clientId, password, birthMonth, birthDay, ...rest } = parsed.data;
 
-  if (me.role === "EDITOR" && rest.role !== "TEAM_311") return { error: "El Editor solo puede crear usuarios TEAM 311" };
+  if (me.role === "EDITOR" && !isTeamRole(rest.role)) return { error: "El Editor solo puede crear usuarios TEAM 311 y PROJECT 311" };
   if (rest.role === "CLIENTE" && !clientId) return { error: "Selecciona la empresa del usuario cliente" };
   if (await prisma.user.findUnique({ where: { email: rest.email } })) return { error: "Ya existe un usuario con ese correo" };
 
@@ -50,7 +53,7 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   let photoUrl: string | null = null;
   let projectIds: string[] = [];
   if (rest.role !== "CLIENTE") {
-    // Foto y cumpleaños: todo el personal (Admin, Editor y TEAM 311); los proyectos asignados, solo el TEAM 311
+    // Foto y cumpleaños: todo el personal (todo el personal); los proyectos asignados, solo el TEAM 311
     const b = parseBirthday(birthMonth ?? "", birthDay ?? "");
     if (!b.ok) return { error: b.error };
     birthday = b.value;
@@ -77,7 +80,7 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
-/** Edición de un usuario TEAM 311: nombre, foto, cumpleaños, proyectos asignados y (opcional) nueva contraseña. */
+/** Edición de un usuario TEAM 311 o PROJECT 311: nombre, foto, cumpleaños, proyectos asignados y (opcional) nueva contraseña. */
 export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
@@ -94,7 +97,7 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   const d = parsed.data;
 
   const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, photoUrl: true } });
-  if (!target || target.role !== "TEAM_311") return { error: "Solo se pueden editar usuarios TEAM 311 desde aquí" };
+  if (!target || !isTeamRole(target.role)) return { error: "Solo se pueden editar usuarios TEAM 311 o PROJECT 311 desde aquí" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   const b = parseBirthday(d.birthMonth ?? "", d.birthDay ?? "");
   if (!b.ok) return { error: b.error };
@@ -120,8 +123,10 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
       where: { id: d.id },
       data: { name: d.name, ...(email ? { email } : {}), birthday: b.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
     }),
-    prisma.userProject.deleteMany({ where: { userId: d.id } }),
-    prisma.userProject.createMany({ data: projectIds.map((projectId) => ({ userId: d.id, projectId })) }),
+    // Los proyectos asignados (para reportes) solo aplican al TEAM 311
+    ...(target.role === "TEAM_311"
+      ? [prisma.userProject.deleteMany({ where: { userId: d.id } }), prisma.userProject.createMany({ data: projectIds.map((projectId) => ({ userId: d.id, projectId })) })]
+      : []),
   ]);
   if (photoUrl) await removePhoto(target.photoUrl);
   revalidatePath("/usuarios");
@@ -147,7 +152,7 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
   const d = parsed.data;
 
   const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true, photoUrl: true } });
-  if (!target || target.role === "TEAM_311") return { error: "Usuario no encontrado" };
+  if (!target || isTeamRole(target.role)) return { error: "Usuario no encontrado" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   if (d.id === me.id && d.role !== "ADMIN") return { error: "No puedes quitarte a ti mismo el rol de Administrador" };
   if (d.role === "CLIENTE" && !d.clientId) return { error: "Selecciona la empresa del usuario cliente" };
@@ -229,9 +234,9 @@ export async function deleteUser(userId: string, reason: string): Promise<{ erro
   return { ok: true };
 }
 
-/** «Mi perfil»: el personal (Admin, Editor y TEAM 311) cambia su propia foto y cumpleaños. */
+/** «Mi perfil»: el personal interno cambia su propia foto y cumpleaños. */
 export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
-  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311", "PROJECT_311"]);
   const b = parseBirthday(String(fd.get("birthMonth") ?? ""), String(fd.get("birthDay") ?? ""));
   if (!b.ok) return { error: b.error };
 
@@ -250,13 +255,13 @@ export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
-/** Activar o desactivar un usuario (el Editor solo a los TEAM 311). */
+/** Activar o desactivar un usuario (el Editor solo a TEAM 311 y PROJECT 311). */
 export async function toggleUserActive(userId: string) {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   if (me.id === userId) return;
   const u = await prisma.user.findUnique({ where: { id: userId } });
   if (!u) return;
-  if (me.role === "EDITOR" && u.role !== "TEAM_311") return;
+  if (me.role === "EDITOR" && !isTeamRole(u.role)) return;
   if (u.role === "ADMIN" && u.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) return;
   await prisma.user.update({ where: { id: userId }, data: { active: !u.active } });
   revalidatePath("/usuarios");

@@ -31,13 +31,13 @@ export function UserEditor({ user, companies, isSelf }: { user: PlainUser; compa
               {isSelf ? (
                 <>
                   <input type="hidden" name="role" value="ADMIN" />
-                  <input className="input" value="Administrador" readOnly tabIndex={-1} />
+                  <input className="input" value="ADMINISTRADOR" readOnly tabIndex={-1} />
                 </>
               ) : (
                 <select name="role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                  <option value="EDITOR">Editor</option>
-                  <option value="ADMIN">Administrador</option>
-                  <option value="CLIENTE">Cliente</option>
+                  <option value="EDITOR">EDITOR</option>
+                  <option value="ADMIN">ADMINISTRADOR</option>
+                  <option value="CLIENTE">CLIENTE</option>
                 </select>
               )}
             </div>

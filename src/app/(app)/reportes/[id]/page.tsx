@@ -50,7 +50,7 @@ function detailReason(details: string | null): string | null {
 }
 
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
+  const user = await requireUser(["ADMIN", "EDITOR", "CLIENTE", "TEAM_311"]);
   const { id } = await params;
   const report = await prisma.report.findFirst({
     where: { id, ...reportScope(user) },

@@ -30,7 +30,7 @@ export type CardClient = {
 
 type ModalKind = null | "detalle" | "proyecto" | "fiscal" | "logo" | "fusion";
 
-export function ClientCard({ client: c, isAdmin, others }: { client: CardClient; isAdmin: boolean; others: CardClient[] }) {
+export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { client: CardClient; isAdmin: boolean; readOnly?: boolean; others: CardClient[] }) {
   const router = useRouter();
   const { askReason } = useDialogs();
   const [modal, setModal] = useState<ModalKind>(null);
@@ -80,10 +80,14 @@ export function ClientCard({ client: c, isAdmin, others }: { client: CardClient;
 
       <footer className="mt-auto flex items-center gap-1 border-t border-black/5 pt-2 dark:border-white/10">
         <IconAction label="Ver detalles del cliente" onClick={() => setModal("detalle")}><Maximize2 size={17} /></IconAction>
-        <IconAction label="Agregar proyecto" onClick={() => setModal("proyecto")}><FolderPlus size={17} /></IconAction>
-        <IconAction label="Datos fiscales y de contacto" onClick={() => setModal("fiscal")}><FileText size={17} /></IconAction>
-        <IconAction label={c.logoUrl ? "Cambiar logo" : "Agregar logo"} onClick={() => setModal("logo")}><ImagePlus size={17} /></IconAction>
-        <IconAction label="Fusionar con otro cliente" onClick={() => setModal("fusion")}><GitMerge size={17} /></IconAction>
+        {!readOnly && (
+          <>
+            <IconAction label="Agregar proyecto" onClick={() => setModal("proyecto")}><FolderPlus size={17} /></IconAction>
+            <IconAction label="Datos fiscales y de contacto" onClick={() => setModal("fiscal")}><FileText size={17} /></IconAction>
+            <IconAction label={c.logoUrl ? "Cambiar logo" : "Agregar logo"} onClick={() => setModal("logo")}><ImagePlus size={17} /></IconAction>
+            <IconAction label="Fusionar con otro cliente" onClick={() => setModal("fusion")}><GitMerge size={17} /></IconAction>
+          </>
+        )}
         {isAdmin && (
           <span className="ml-auto"><IconAction label="Eliminar cliente" danger onClick={remove}><Trash2 size={17} /></IconAction></span>
         )}
@@ -100,7 +104,7 @@ export function ClientCard({ client: c, isAdmin, others }: { client: CardClient;
             <div className="text-sm">
               <p className="text-xs text-zinc-500">Correos principales</p>
               <p>{c.mainEmails.replaceAll(",", ", ")}</p>
-              <p className="mt-1 text-xs text-zinc-500">Reportes registrados: <strong className="text-foreground">{c.reportCount}</strong></p>
+              {!readOnly && <p className="mt-1 text-xs text-zinc-500">Reportes registrados: <strong className="text-foreground">{c.reportCount}</strong></p>}
             </div>
           </div>
           <div>
@@ -116,10 +120,12 @@ export function ClientCard({ client: c, isAdmin, others }: { client: CardClient;
               {c.projects.length === 0 && <li className="px-4 py-2.5 text-zinc-500">Sin proyectos</li>}
             </ul>
           </div>
-          <div>
-            <h3 className="mb-2 text-sm font-semibold">Datos fiscales y de contacto</h3>
-            <ClientProfileBody clientId={c.id} values={c.values} mainEmails={c.mainEmails} hasConstancia={c.hasConstancia} />
-          </div>
+          {!readOnly && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold">Datos fiscales y de contacto</h3>
+              <ClientProfileBody clientId={c.id} values={c.values} mainEmails={c.mainEmails} hasConstancia={c.hasConstancia} />
+            </div>
+          )}
         </div>
       </Modal>
 

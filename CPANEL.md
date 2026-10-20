@@ -335,6 +335,16 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   vínculo a cliente, proyecto o tarea, y «Convertir en tarea» (Admin y Editor; los elementos de una lista pasan a ser subtareas). Sin archivos adjuntos. Última guardada gana.
 - Una nota vinculada a una tarea aparece en el detalle de esa tarea, solo para quien puede verla.
 
+### Evolutivo 9 (21 oct 2026) — rol PROJECT 311 y roles en MAYÚSCULAS
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261021120000_evolutivo9a.sql`.
+  Solo AGREGA el valor `PROJECT_311` a la lista de roles de `User.role`: **no cambia ni borra ningún usuario ni dato**. Las migraciones 8a–8d deben estar aplicadas antes.
+- Sin variables nuevas ni tareas programadas nuevas.
+- **PROJECT 311** (creado por Admin o Editor en *Usuarios*, pestaña PROJECT 311): ve y gestiona TODAS las tareas (crear, editar, asignar a cualquier persona interna, mover a cualquier fase, aceptar), usa Baúl,
+  Mi perfil y App y avisos, y consulta Clientes y proyectos en solo lectura (sin datos fiscales). Para eliminar una tarea solo la *solicita* (la aprueba el Admin). No ve Reportes, Facturas, Finanzas, Usuarios ni Registros.
+  Recibe solo avisos de tareas (no solicitudes de edición, registros de clientes ni facturas vencidas).
+- Los nombres de los roles se muestran en mayúsculas: ADMINISTRADOR, EDITOR, PROJECT 311, TEAM 311, CLIENTE (solo cambia lo que se ve; los datos guardados no cambian).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type CurrentUser } from "@/lib/auth";
 import { notifyUsers } from "@/lib/notifications";
@@ -10,7 +11,7 @@ import { NOTE_COLORS } from "@/lib/note-types";
 
 type Result = { ok?: boolean; error?: string; id?: string };
 
-const staff = () => requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+const staff = () => requireUser(STAFF_ROLES);
 const colorOk = (c: string) => NOTE_COLORS.some((x) => x.id === c);
 
 /**
@@ -209,7 +210,7 @@ export async function shareNote(id: string, shares: { userId: string; canEdit: b
   const o = await ownerOnly(id);
   if (!o) return { error: "Solo el dueño puede compartir la nota" };
   const targets = await prisma.user.findMany({
-    where: { id: { in: shares.map((s) => s.userId).filter((u) => u !== o.user.id) }, active: true, role: { in: ["ADMIN", "EDITOR", "TEAM_311"] } },
+    where: { id: { in: shares.map((s) => s.userId).filter((u) => u !== o.user.id) }, active: true, role: { in: STAFF_ROLES } },
     select: { id: true },
   });
   const valid = new Map(shares.map((s) => [s.userId, s.canEdit]));

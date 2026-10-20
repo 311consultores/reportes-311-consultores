@@ -4,14 +4,29 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { launch, ROOT, SHOTS, ASSETS } from "./lib.mjs";
-import { secciones } from "./contenido.mjs";
+// Un manual por tipo de usuario: node manual/build.mjs [editor|project]
+const PERFILES = {
+  editor: {
+    contenido: "./contenido.mjs", pdf: "Manual-de-uso-311-Consultores.pdf", pill: "Guía para la asistente (rol Editor)", footer: "Manual de uso · Sistema de Reportes · 311 Consultores",
+    titulo: "Manual de uso<br>Sistema de Reportes", sub: "Cómo capturar reportes, administrar clientes y enviar el trabajo terminado, paso a paso y con imágenes.",
+    leer: "las secciones 1 a 5", version: "Versión 2.0 · 20 de octubre de 2026", figH: "205mm",
+  },
+  project: {
+    contenido: "./contenido-project.mjs", pdf: "Manual-PROJECT-311.pdf", pill: "Guía para el perfil PROJECT 311", footer: "Manual PROJECT 311 · Portal de Operaciones · 311 Consultores",
+    titulo: "Manual del perfil<br>PROJECT 311", sub: "Cómo crear, asignar, dar seguimiento y aceptar tareas del equipo, paso a paso y con imágenes.",
+    leer: "las secciones 1 a 5", version: "Versión 1.0 · 21 de octubre de 2026", figH: "135mm",
+  },
+};
+const PERFIL = PERFILES[process.argv[2] ?? "editor"];
+if (!PERFIL) throw new Error("Perfil desconocido: usa editor o project");
+const { secciones } = await import(PERFIL.contenido);
 
 const require = createRequire(import.meta.url);
-const OUT_HTML = path.join(ROOT, "salida", "manual.html");
-const OUT_PDF = path.join(ROOT, "Manual-de-uso-311-Consultores.pdf");
+const OUT_HTML = path.join(ROOT, "salida", `manual-${process.argv[2] ?? "editor"}.html`);
+const OUT_PDF = path.join(ROOT, PERFIL.pdf);
 fs.mkdirSync(path.dirname(OUT_HTML), { recursive: true });
 
-const VERSION = "Versión 2.0 · 20 de octubre de 2026";
+const VERSION = PERFIL.version;
 const esc = (s) => s; // el contenido ya es HTML controlado por nosotros
 const num = (x) => x.replace(/<n>(\d+)<\/n>/g, '<span class="n">$1</span>');
 const img = (f) => pathToFileURL(f).href;
@@ -63,7 +78,7 @@ function html(pages) {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Manual de uso — Sistema de Reportes 311 Consultores</title>
 <style>
 @page { size: A4; margin: 20mm 18mm 20mm 18mm;
-  @bottom-left { content: "Manual de uso · Sistema de Reportes · 311 Consultores"; font: 8pt Arial, sans-serif; color: #8a8f98; }
+  @bottom-left { content: "${PERFIL.footer}"; font: 8pt Arial, sans-serif; color: #8a8f98; }
   @bottom-right { content: counter(page); font: 8pt Arial, sans-serif; color: #8a8f98; } }
 @page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
 * { box-sizing: border-box; }
@@ -103,7 +118,7 @@ ul.bul { padding-left: 6mm; margin: 1mm 0 4mm; }
 ul.bul li { margin-bottom: 1.5mm; }
 .n { display: inline-flex; align-items: center; justify-content: center; width: 4.6mm; height: 4.6mm; border-radius: 50%; background: #e5252a; color: #fff; font: 700 8pt Arial, sans-serif; vertical-align: 1px; }
 figure { margin: 4mm auto 6mm; width: var(--w); page-break-inside: avoid; }
-figure img { width: 100%; display: block; border: 1px solid #d7dbe2; border-radius: 3mm; box-shadow: 0 1px 6px rgba(0,0,0,.08); max-height: 205mm; object-fit: contain; background: #fff; }
+figure img { width: 100%; display: block; border: 1px solid #d7dbe2; border-radius: 3mm; box-shadow: 0 1px 6px rgba(0,0,0,.08); max-height: ${PERFIL.figH}; object-fit: contain; background: #fff; }
 figcaption { font-size: 9pt; color: #6b7280; margin: 1.5mm 0 2mm; text-align: center; font-style: italic; }
 ol.legend { list-style: none; margin: 0; padding: 2.5mm 4mm; background: #f7f8fa; border-radius: 3mm; columns: 1; font-size: 9.5pt; }
 ol.legend li { display: flex; gap: 2.5mm; align-items: flex-start; margin: 0 0 1.2mm; }
@@ -131,13 +146,13 @@ a { color: inherit; }
 </style></head><body>
 <div class="cover"><div class="band"></div><div class="band2"></div>
   ${logo}
-  <div><div class="pill">Guía para la asistente (rol Editor)</div>
-  <h1>Manual de uso<br>Sistema de Reportes</h1>
-  <div class="sub">Cómo capturar reportes, administrar clientes y enviar el trabajo terminado, paso a paso y con imágenes.</div></div>
+  <div><div class="pill">${PERFIL.pill}</div>
+  <h1>${PERFIL.titulo}</h1>
+  <div class="sub">${PERFIL.sub}</div></div>
   <div class="meta">311 CONSULTORES · reportes.311consultores.com<br>${VERSION}</div>
 </div>
 <div class="tocpage"><h2>Contenido</h2><ol class="toc">${toc}</ol>
-<div class="how"><b>Cómo usar este manual.</b> Las imágenes muestran las pantallas reales del sistema con datos de ejemplo inventados. Los <span class="n">1</span> rojos de cada imagen se explican en la lista que aparece debajo de ella, y en los pasos se mencionan con el mismo número. Si estás empezando, lee las secciones 1 a 5 en orden; después úsalo como consulta.</div></div>
+<div class="how"><b>Cómo usar este manual.</b> Las imágenes muestran las pantallas reales del sistema con datos de ejemplo inventados. Los <span class="n">1</span> rojos de cada imagen se explican en la lista que aparece debajo de ella, y en los pasos se mencionan con el mismo número. Si estás empezando, lee ${PERFIL.leer} en orden; después úsalo como consulta.</div></div>
 ${body}
 </body></html>`;
 }

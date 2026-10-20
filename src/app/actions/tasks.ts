@@ -8,12 +8,14 @@ import { sendMail } from "@/lib/mailer";
 import { readLogo311 } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
-import { notifyUsers, opsUserIds } from "@/lib/notifications";
+import { notifyUsers, taskManagerIds } from "@/lib/notifications";
+import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES, TASK_MANAGER_ROLES } from "@/lib/roles";
 import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string };
 
-const isOps = (u: CurrentUser) => u.role === "ADMIN" || u.role === "EDITOR";
+/** Quien gestiona tareas: Admin, Editor y PROJECT 311. */
+const isOps = (u: CurrentUser) => isTaskManager(u.role);
 
 /** Direcciones que se avisan cuando una tarea queda lista para revisión (misma configuración que los reportes terminados). */
 const reviewNotifyEmails = () =>
@@ -55,8 +57,8 @@ async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
   if (!(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
 
   const wanted = [...new Set(fd.getAll("consultantIds").map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
-  const team = await prisma.user.findMany({ where: { id: { in: wanted }, role: "TEAM_311", active: true }, select: { id: true } });
-  if (team.length === 0) return { error: "Asigna la tarea al menos a una persona del TEAM 311" };
+  const team = await prisma.user.findMany({ where: { id: { in: wanted }, role: { in: ASSIGNABLE_ROLES }, active: true }, select: { id: true } });
+  if (team.length === 0) return { error: "Asigna la tarea al menos a una persona" };
 
   // Recursos: pares título + link (los renglones vacíos se ignoran)
   const titles = fd.getAll("resourceTitle").map(String);
@@ -87,9 +89,9 @@ async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
   return { clientId, projectId, title, descriptionHtml, dueAt, assigneeIds, resources, subtasks };
 }
 
-/** Crea una tarea (solo Admin y Editor). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
+/** Crea una tarea (Admin, Editor y PROJECT 311). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
 export async function createTask(fd: FormData): Promise<Result> {
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(TASK_MANAGER_ROLES);
   const d = await parseTaskForm(fd);
   if ("error" in d) return { error: d.error };
 
@@ -115,7 +117,7 @@ export async function createTask(fd: FormData): Promise<Result> {
 
 /** Edita una tarea (solo Admin y Editor): nombre, fecha, descripción, personas y recursos. */
 export async function updateTask(taskId: string, fd: FormData): Promise<Result> {
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(TASK_MANAGER_ROLES);
   const current = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: true } });
   if (!current) return { error: "La tarea no existe" };
   const d = await parseTaskForm(fd);
@@ -155,7 +157,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
  * al devolver de «Para revisar» a «En proceso» el comentario es obligatorio.
  */
 export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: string; surprise?: boolean } = {}): Promise<Result> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   if (!STATUS_ORDER.includes(to)) return { error: "Fase no válida" };
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -188,7 +190,7 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   const path = `/tareas?tarea=${taskId}`;
   const assigneeIds = task.assignees.map((a) => a.userId);
   if (to === "PARA_REVISAR" && !isOps(user)) {
-    await notifyUsers((await opsUserIds()).filter((id) => id !== user.id), { actorId: user.id, kind: "TASK_READY", title: `Tarea lista para revisar: ${task.title}`, body: `${user.name}${note ? ` — ${note}` : ""}`, link: path });
+    await notifyUsers((await taskManagerIds()).filter((id) => id !== user.id), { actorId: user.id, kind: "TASK_READY", title: `Tarea lista para revisar: ${task.title}`, body: `${user.name}${note ? ` — ${note}` : ""}`, link: path });
   }
   if (to === "TERMINADA") {
     await notifyUsers(assigneeIds, { actorId: user.id, kind: "TASK_ACCEPTED", title: `🎉 ¡Tu tarea fue aceptada!: ${task.title}`, body: note, link: path });
@@ -210,7 +212,7 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
 
 /** «Limpiar terminadas» (Admin y Editor): oculta del tablero las tareas terminadas; siguen en el historial. */
 export async function clearFinished(): Promise<{ count: number }> {
-  await requireUser(["ADMIN", "EDITOR"]);
+  await requireUser(TASK_MANAGER_ROLES);
   const r = await prisma.task.updateMany({ where: { status: "TERMINADA", hiddenAt: null }, data: { hiddenAt: new Date() } });
   revalidatePath("/tareas");
   return { count: r.count };
@@ -229,7 +231,7 @@ export async function openSurprise(taskId: string): Promise<Result> {
 
 /** Cambia la fecha de entrega arrastrando la tarea a otro día del calendario (solo Admin y Editor); conserva la hora. */
 export async function rescheduleTask(taskId: string, day: string): Promise<Result> {
-  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const user = await requireUser(TASK_MANAGER_ROLES);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Fecha no válida" };
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true } } } });
   if (!task) return { error: "La tarea no existe" };
@@ -262,10 +264,10 @@ function subtaskOps(taskId: string, incoming: { id: string | null; title: string
 
 /** Marca o desmarca una subtarea. Admin y Editor siempre; el TEAM 311 asignado, mientras la tarea no esté terminada. Queda en el historial. */
 export async function toggleSubtask(subtaskId: string, done: boolean): Promise<Result> {
-  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const user = await requireUser(STAFF_ROLES);
   const sub = await prisma.subtask.findUnique({ where: { id: subtaskId }, include: { task: { include: { assignees: { select: { userId: true } } } } } });
   if (!sub) return { error: "La subtarea no existe" };
-  const ops = user.role === "ADMIN" || user.role === "EDITOR";
+  const ops = isOps(user);
   if (!ops) {
     if (!sub.task.assignees.some((a) => a.userId === user.id)) return { error: "Esa tarea no es tuya" };
     if (sub.task.status === "TERMINADA") return { error: "La tarea ya fue aceptada: solo puedes consultarla" };
