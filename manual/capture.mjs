@@ -132,15 +132,17 @@ await shot("03-menu", {
     { loc: group("Operación"), n: 1, at: "r", pad: 2 },
     { loc: nav("Tareas"), n: 2, at: "r" },
     { loc: nav("Reportes"), n: 3, at: "r" },
-    { loc: nav("Clientes y proyectos"), n: 4, at: "r" },
-    { loc: nav("Registro de clientes"), n: 5, at: "r" },
-    { loc: group("Administración"), n: 6, at: "r", pad: 2 },
-    { loc: nav("Facturas"), n: 7, at: "r" },
-    { loc: group("Configuración"), n: 8, at: "r", pad: 2 },
-    { loc: nav("Usuarios"), n: 9, at: "r" },
-    { loc: L("aside form button"), n: 10, at: "bl" },
-    { loc: L("aside button[aria-label^='Avisos']"), n: 11, at: "t", pad: 0 },
-    { loc: L("aside button[aria-label*='modo']"), n: 12, at: "t", pad: 0 },
+    { loc: nav("Baúl"), n: 4, at: "r" },
+    { loc: nav("Clientes y proyectos"), n: 5, at: "r" },
+    { loc: nav("Registro de clientes"), n: 6, at: "r" },
+    { loc: group("Administración"), n: 7, at: "r", pad: 2 },
+    { loc: nav("Facturas"), n: 8, at: "r" },
+    { loc: group("Configuración"), n: 9, at: "r", pad: 2 },
+    { loc: nav("Usuarios"), n: 10, at: "r" },
+    { loc: nav("App y avisos"), n: 11, at: "r" },
+    { loc: L("aside form button"), n: 12, at: "bl" },
+    { loc: L("aside button[aria-label^='Avisos']"), n: 13, at: "t", pad: 0 },
+    { loc: L("aside button[aria-label*='modo']"), n: 14, at: "t", pad: 0 },
   ],
 });
 await page.setViewportSize({ width: 1440, height: 900 });
@@ -592,12 +594,15 @@ await page.locator("[role=dialog] button", { hasText: "Cancelar" }).click();
 console.log("Usuarios");
 await go("/usuarios");
 await shot("39-usuarios", {
-  clip: { x: 256, y: 0, width: 1184, height: 520 },
+  clip: { x: 256, y: 0, width: 1184, height: 700 },
   marks: [
     { loc: L("summary .btn"), n: 1, at: "r" },
-    { loc: L("tbody tr", { hasText: "Ana Pérez" }).locator("td").first(), n: 2, at: "l" },
-    { loc: L("tbody tr", { hasText: "Ana Pérez" }).getByRole("button", { name: "Editar" }), n: 3, at: "t" },
-    { loc: L("tbody tr", { hasText: "Ana Pérez" }).getByRole("button", { name: "Desactivar" }), n: 4, at: "t" },
+    { loc: L("input[aria-label='Buscar usuarios']"), n: 2, at: "t" },
+    { loc: L("label", { hasText: "Mostrar inactivos" }), n: 3, at: "t" },
+    { loc: L("[role=tablist]"), n: 4, at: "b" },
+    { loc: L("tbody tr", { hasText: "Ana Pérez" }).locator("td").first(), n: 5, at: "l" },
+    { loc: L("tbody tr", { hasText: "Ana Pérez" }).getByRole("button", { name: "Editar" }), n: 6, at: "t" },
+    { loc: L("tbody tr", { hasText: "Ana Pérez" }).getByRole("button", { name: "Desactivar" }), n: 7, at: "t" },
   ],
 });
 await L("summary .btn").click();
@@ -705,9 +710,11 @@ console.log("Tareas");
 await go("/tareas");
 await page.waitForSelector("section[aria-label='PENDIENTE'] article");
 await shot("45-tareas-tablero", {
-  clip: { x: 256, y: 0, width: 1184, height: 640 },
+  clip: { x: 256, y: 0, width: 1184, height: 760 },
   marks: [
     { loc: L("main button.btn", { hasText: "Nueva tarea" }), n: 1, at: "t" },
+    { loc: L("input[aria-label='Buscar tareas']"), n: 10, at: "t" },
+    { loc: L("article", { hasText: "Preparar presentación" }), n: 11, at: "r" },
     { loc: L("button", { hasText: "Limpiar terminadas" }), n: 2, at: "t" },
     { loc: L("[aria-label=Vista]"), n: 3, at: "t" },
     { loc: L("select[aria-label='Filtrar por persona']"), n: 4, at: "t" },
@@ -732,6 +739,9 @@ await page.keyboard.type("Revisar los planos actualizados y anotar las diferenci
 await page.getByRole("button", { name: "Agregar recurso" }).click();
 await page.fill("input[name=resourceTitle]", "Planos en Drive");
 await page.fill("input[name=resourceUrl]", "https://drive.google.com/drive/folders/ejemplo-planos");
+await page.getByRole("button", { name: "Agregar subtarea" }).click();
+await page.locator("input[name=subTitle]").last().fill("Comparar con la versión anterior");
+await page.locator("select[name=subAssignee]").last().selectOption({ label: "Luis Gómez" });
 await page.locator("[role=dialog] h1, [role=dialog] h2").first().click();
 await page.waitForTimeout(400);
 const newBox = await L("[role=dialog] > div").boundingBox();
@@ -746,7 +756,8 @@ await shot("46-nueva-tarea", {
     { loc: L("[role=dialog] .tiptap"), n: 6, at: "r" },
     { loc: L("[role=dialog] input[name=resourceTitle]"), n: 7, at: "t" },
     { loc: L("[role=dialog] button", { hasText: "Agregar recurso" }), n: 8, at: "b" },
-    { loc: L("[role=dialog] button[type=submit]"), n: 9, at: "t" },
+    { loc: L("[role=dialog] input[name=subTitle]"), n: 9, at: "t" },
+    { loc: L("[role=dialog] button[type=submit]"), n: 10, at: "t" },
   ],
 });
 await page.setViewportSize({ width: 1440, height: 900 });
@@ -761,6 +772,7 @@ const detBox = await L("[role=dialog] > div").boundingBox();
 await shot("47-detalle-tarea", {
   vp: true, clip: { x: Math.max(0, detBox.x - 30), y: Math.max(0, detBox.y - 20), width: detBox.width + 60, height: detBox.height + 40 },
   marks: [
+    { loc: L("[role=dialog] h3", { hasText: "Subtareas" }), n: 8, at: "l" },
     { loc: L("[role=dialog] h3", { hasText: "Comentarios" }), n: 1, at: "l" },
     { loc: L("[role=dialog] [aria-live=polite]"), n: 2, at: "bl" },
     { loc: L("[role=dialog] button", { hasText: "Emoji" }), n: 3, at: "b" },
@@ -812,6 +824,112 @@ await shot("50-avisos", {
     { loc: L("[aria-label=Avisos] button", { hasText: "Marcar todo" }), n: 3, at: "t" },
   ],
 });
+await page.keyboard.press("Escape");
+
+// ---------- 12. Evolutivo 8: perfil, búsqueda, app y Baúl ----------
+console.log("Evolutivo 8");
+await go("/perfil");
+await shot("51-mi-perfil", {
+  clip: { x: 256, y: 0, width: 900, height: 520 },
+  marks: [
+    { loc: L("main section").first().locator("img").first(), n: 1, at: "l" },
+    { loc: L("main button", { hasText: /Cambiar foto|Subir foto/ }), n: 2, at: "t" },
+    { loc: L("select[name=birthMonth]"), n: 3, at: "t" },
+    { loc: L("main button[type=submit]"), n: 4, at: "t" },
+  ],
+});
+
+await go("/tareas");
+await page.fill("input[aria-label='Buscar tareas']", "inventario");
+await page.waitForSelector("ul.glass li button");
+await page.waitForTimeout(400);
+await shot("52-buscar-tareas", {
+  clip: { x: 256, y: 0, width: 1184, height: 520 },
+  marks: [
+    { loc: L("input[aria-label='Buscar tareas']"), n: 1, at: "t" },
+    { loc: L("ul.glass li button").first(), n: 2, at: "r" },
+  ],
+});
+await page.fill("input[aria-label='Buscar tareas']", "");
+
+await go("/aplicacion");
+await page.waitForTimeout(500);
+await shot("53-app-avisos", {
+  clip: { x: 256, y: 0, width: 1000, height: 760 },
+  marks: [
+    { loc: L("main section").nth(0), n: 1, at: "tl" },
+    { loc: L("main section").nth(1), n: 2, at: "tl" },
+  ],
+});
+
+// Mensaje fijo de instalación (celular)
+const mctx = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "es-MX", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1", timezoneId: "America/Mexico_City" });
+const mp = await mctx.newPage();
+await mp.goto(BASE + "/login");
+await mp.fill("#email", "editor@311consultores.com");
+await mp.fill("#password", env.SEED_EDITOR_PASSWORD);
+await mp.click("form button.btn");
+await mp.waitForURL(BASE + "/");
+await mp.waitForSelector("[aria-label='Instalar la app']");
+await mp.addStyleTag({ content: HIDE });
+await mp.context().addCookies([{ name: "venc_cierre", value: TODAY, url: BASE }]);
+await mp.reload();
+await mp.waitForSelector("[aria-label='Instalar la app']");
+await mp.addStyleTag({ content: HIDE });
+await mp.waitForTimeout(500);
+await mp.evaluate(() => {
+  const b = document.querySelector("[aria-label='Instalar la app']").getBoundingClientRect();
+  const box = document.createElement("div");
+  box.style.cssText = `position:fixed;left:${b.left + 3}px;top:${b.top - 5}px;width:${b.width - 6}px;height:${b.height + 2}px;border:3px solid #E5252A;border-radius:10px;z-index:2147483647;pointer-events:none;background:rgba(229,37,42,.06)`;
+  const dot = document.createElement("div");
+  dot.textContent = "1";
+  dot.style.cssText = `position:fixed;left:6px;top:${b.top - 22}px;width:26px;height:26px;border-radius:50%;background:#E5252A;color:#fff;font:700 15px Arial;display:flex;align-items:center;justify-content:center;z-index:2147483647`;
+  const x = document.querySelector("[aria-label='Cerrar este mensaje']").getBoundingClientRect();
+  const dot2 = document.createElement("div");
+  dot2.textContent = "2";
+  dot2.style.cssText = `position:fixed;left:${x.left - 8}px;top:${b.top - 22}px;width:26px;height:26px;border-radius:50%;background:#E5252A;color:#fff;font:700 15px Arial;display:flex;align-items:center;justify-content:center;z-index:2147483647`;
+  document.body.append(box, dot, dot2);
+});
+await mp.screenshot({ path: path.join(SHOTS, "54-instalar-movil.png"), clip: { x: 0, y: 380, width: 390, height: 420 } });
+console.log("  captura 54-instalar-movil");
+await mctx.close();
+
+await go("/baul");
+await page.waitForSelector("article");
+await shot("55-baul", {
+  clip: { x: 256, y: 0, width: 1184, height: 760 },
+  marks: [
+    { loc: L("input[aria-label='Buscar en el Baúl']"), n: 1, at: "t" },
+    { loc: L("main button", { hasText: "Escribe una nota" }), n: 2, at: "r" },
+    { loc: L("nav[aria-label='Secciones del Baúl'] button", { hasText: "Compartidas conmigo" }), n: 3, at: "r" },
+    { loc: L("nav[aria-label='Secciones del Baúl'] button", { hasText: "Clientes" }), n: 4, at: "r" },
+    { loc: L("article", { hasText: "Ideas para el cliente" }), n: 5, at: "tr" },
+    { loc: L("article", { hasText: "Pendientes de la semana" }), n: 6, at: "tr" },
+    { loc: L("nav[aria-label='Secciones del Baúl'] button", { hasText: "Papelera" }), n: 7, at: "r" },
+  ],
+});
+
+await L("article", { hasText: "Ideas para el cliente" }).click();
+await page.waitForSelector("[role=dialog] .tiptap");
+await page.setViewportSize({ width: 1440, height: 1500 });
+await page.getByRole("button", { name: "Compartir", exact: true }).click();
+await page.waitForTimeout(500);
+const noteBox = await L("[role=dialog] > div").boundingBox();
+await shot("56-nota-compartir", {
+  vp: true, clip: { x: Math.max(0, noteBox.x - 30), y: Math.max(0, noteBox.y - 20), width: noteBox.width + 60, height: noteBox.height + 40 },
+  marks: [
+    { loc: L("[role=dialog] input[aria-label='Título de la nota']"), n: 1, at: "t" },
+    { loc: L("[role=dialog] button[aria-label='Color']"), n: 2, at: "t" },
+    { loc: L("[role=dialog] button[aria-label='Etiquetas']"), n: 3, at: "t" },
+    { loc: L("[role=dialog] button[aria-label='Recordatorio']"), n: 4, at: "t" },
+    { loc: L("[role=dialog] button[aria-label='Vincular']"), n: 5, at: "t" },
+    { loc: L("[role=dialog] button[aria-label='Compartir']"), n: 6, at: "t" },
+    { loc: L("[role=dialog] button", { hasText: "Convertir en tarea" }), n: 7, at: "t" },
+    { loc: L("[role=dialog] input[aria-label='Compartir con Ana Pérez']"), n: 8, at: "l" },
+    { loc: L("[role=dialog] select[aria-label='Permiso de Ana Pérez']"), n: 9, at: "r" },
+  ],
+});
+await page.setViewportSize({ width: 1440, height: 900 });
 await page.keyboard.press("Escape");
 
 await browser.close();

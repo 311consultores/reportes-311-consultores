@@ -83,7 +83,7 @@ body { margin: 0; }
 .tocpage h2 { font-size: 22pt; margin: 0 0 8mm; letter-spacing: -.3pt; }
 .toc { list-style: none; padding: 0; margin: 0; }
 .toc li { margin: 0; }
-.toc a { display: flex; align-items: baseline; gap: 3mm; text-decoration: none; color: #1d1d1f; padding: 2.4mm 0; border-bottom: 1px solid #eceef2; font-size: 11pt; }
+.toc a { display: flex; align-items: baseline; gap: 3mm; text-decoration: none; color: #1d1d1f; padding: 1.2mm 0; border-bottom: 1px solid #eceef2; font-size: 10.5pt; }
 .toc .tn { width: 8mm; color: #007aff; font-weight: 700; }
 .toc .tt { font-weight: 500; }
 .toc .td { flex: 1; border-bottom: 1px dotted #c3c8d0; transform: translateY(-2px); }
@@ -164,8 +164,13 @@ async function pageMap() {
   }
   secciones.forEach((s, i) => {
     const head = `${i + 1}. ${s.titulo}`.replace(/\s+/g, " ");
-    for (let p = 2; p < texts.length; p++) { // se omiten portada e índice (páginas 1 y 2)
-      if (texts[p].includes(head)) { map[s.id] = p + 1; break; }
+    const first = texts.findIndex((t, k) => k > 0 && t.includes("Cómo usar este manual")); // el contenido empieza después de la portada y el índice (que puede ocupar varias páginas)
+    for (let p = Math.max(first, 2); p < texts.length; p++) {
+      const t = texts[p];
+      const note = t.indexOf("Cómo usar este manual");
+      const at = t.indexOf(head);
+      // En la página donde termina el índice (y empieza la nota «Cómo usar»), lo anterior a la nota todavía es el índice
+      if (at >= 0 && (note < 0 || at > note)) { map[s.id] = p + 1; break; }
     }
   });
   return { map, total: doc.numPages };

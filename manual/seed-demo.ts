@@ -23,6 +23,13 @@ async function main() {
 
   // 1) Limpieza
   // panel de tareas (Evolutivo 7)
+  await prisma.noteShare.deleteMany(); // baúl y suscripciones (Evolutivo 8)
+  await prisma.noteLabelLink.deleteMany();
+  await prisma.noteItem.deleteMany();
+  await prisma.noteLabel.deleteMany();
+  await prisma.note.deleteMany();
+  await prisma.pushSubscription.deleteMany();
+  await prisma.subtask.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.taskAttachment.deleteMany();
   await prisma.taskMessage.deleteMany();
@@ -58,6 +65,11 @@ async function main() {
     update: { name: "Mariana Asistente", passwordHash: await bcrypt.hash(editorPass, 10), theme: "light", active: true },
     create: { name: "Mariana Asistente", email: "editor@311consultores.com", passwordHash: await bcrypt.hash(editorPass, 10), role: "EDITOR", theme: "light" },
   });
+
+  // Foto y cumpleaños de la asistente (el Editor ahora tiene «Mi perfil»)
+  const kEditorPhoto = `perfiles/${randomUUID()}.jpg`;
+  await putObject(kEditorPhoto, A("persona-mariana.jpg"), "image/jpeg");
+  await prisma.user.update({ where: { id: editor.id }, data: { photoUrl: kEditorPhoto, birthday: "08-12" } });
 
   // 2b) Usuarios TEAM 311 de ejemplo (con y sin foto)
   const teamPass = await bcrypt.hash("TeamDemo2026", 10);
@@ -193,7 +205,7 @@ async function main() {
         ...extra,
       },
     });
-  await mkTask("Preparar presentación de avances", hrz.id, torre.id, [ana.id], "PENDIENTE", 30,
+  const prep = await mkTask("Preparar presentación de avances", hrz.id, torre.id, [ana.id], "PENDIENTE", 30,
     "<p>Armar la presentación del avance de septiembre.</p><ul><li>Resumen de actividades</li><li>Fotos del recorrido</li></ul>",
     [{ title: "Carpeta del cliente", url: "https://drive.google.com/drive/folders/ejemplo-horizonte" }, { title: "Plantilla de presentación", url: "https://drive.google.com/file/d/ejemplo-plantilla" }]);
   await mkTask("Levantar requerimientos de expedientes", csa.id, expedientes.id, [luis.id, sofia.id], "EN_PROCESO", 8, "<p>Entrevistar a las áreas y documentar los requerimientos.</p>");
@@ -213,6 +225,17 @@ async function main() {
       { taskId: ready.id, userId: ana.id, bodyHtml: "<p>Perfecto 🙌</p>", createdAt: new Date(Date.now() - 35 * 60e3) },
     ],
   });
+  // Subtareas de ejemplo
+  await prisma.subtask.createMany({
+    data: [
+      { taskId: ready.id, title: "Tomar las fotos del recorrido", assigneeId: ana.id, done: true, doneAt: new Date(Date.now() - 5 * H), doneById: ana.id, position: 0 },
+      { taskId: ready.id, title: "Redactar el reporte", assigneeId: ana.id, done: true, doneAt: new Date(Date.now() - 2 * H), doneById: ana.id, position: 1 },
+      { taskId: ready.id, title: "Subir los archivos a la carpeta", assigneeId: ana.id, done: false, dueAt: new Date(Date.now() + 18 * H), position: 2 },
+      { taskId: prep.id, title: "Reunir las cifras de septiembre", assigneeId: ana.id, done: true, doneAt: new Date(Date.now() - 3 * H), doneById: ana.id, position: 0 },
+      { taskId: prep.id, title: "Armar las láminas", position: 1 },
+      { taskId: prep.id, title: "Revisar con Luis", position: 2 },
+    ],
+  });
   const done = await mkTask("Capacitación al personal", csa.id, expedientes.id, [luis.id], "TERMINADA", -4, "<p>Impartir la capacitación del nuevo sistema.</p>",
     [], { acceptedAt: new Date(Date.now() - 3 * H), surprise: true });
   await prisma.taskEvent.create({ data: { taskId: done.id, userId: editor.id, kind: "ACCEPTED", note: "¡Excelente trabajo, quedó muy clara la capacitación!", createdAt: new Date(Date.now() - 3 * H) } });
@@ -221,6 +244,41 @@ async function main() {
       { userId: editor.id, kind: "TASK_READY", title: "Tarea lista para revisar: Entregar reporte de recorrido", body: "Ana Pérez — Entregué en la carpeta compartida", link: `/tareas?tarea=${ready.id}`, createdAt: new Date(Date.now() - 1 * H) },
       { userId: editor.id, kind: "TASK_MESSAGE", title: "Ana Pérez escribió en «Entregar reporte de recorrido»", body: "Perfecto 🙌", link: `/tareas?tarea=${ready.id}`, createdAt: new Date(Date.now() - 35 * 60e3) },
     ],
+  });
+
+  // 5c) Baúl de ejemplo (notas privadas de la asistente y una compartida por Luis)
+  const lblClientes = await prisma.noteLabel.create({ data: { ownerId: editor.id, name: "Clientes" } });
+  const lblIdeas = await prisma.noteLabel.create({ data: { ownerId: editor.id, name: "Ideas" } });
+  await prisma.note.create({
+    data: {
+      ownerId: editor.id, title: "Ideas para el cliente", color: "yellow", pinned: true, position: 0,
+      bodyHtml: "<p>Proponer un <strong>taller de capacitación</strong> el viernes y revisar el presupuesto anual.</p>",
+      labels: { create: [{ labelId: lblClientes.id }, { labelId: lblIdeas.id }] },
+      shares: { create: [{ userId: ana.id, canEdit: true }, { userId: luis.id, canEdit: false }] },
+    },
+  });
+  await prisma.note.create({
+    data: {
+      ownerId: editor.id, title: "Pendientes de la semana", kind: "CHECKLIST", color: "green", position: 1,
+      items: { create: [{ text: "Llamar al proveedor de papelería", position: 0 }, { text: "Enviar la propuesta a Horizonte", position: 1, done: true }, { text: "Revisar las facturas por vencer", position: 2 }] },
+      labels: { create: [{ labelId: lblClientes.id }] },
+      clientId: hrz.id,
+    },
+  });
+  await prisma.note.create({
+    data: {
+      ownerId: editor.id, title: "Datos de contacto", color: "blue", position: 2, reminderAt: new Date(Date.now() + 30 * H),
+      bodyHtml: "<ul><li>Roberto Salinas — 55 1234 5678</li><li>Laura Méndez (pagos) — 55 8765 4321</li></ul>",
+      clientId: hrz.id,
+    },
+  });
+  await prisma.note.create({ data: { ownerId: editor.id, color: "white", position: 3, bodyHtml: "<p>Recordar pedir la constancia fiscal actualizada.</p>" } });
+  await prisma.note.create({
+    data: {
+      ownerId: luis.id, title: "Minuta de la reunión del lunes", color: "purple", position: 0,
+      bodyHtml: "<p>Se acordó entregar el plan de trabajo el jueves.</p>",
+      shares: { create: [{ userId: editor.id, canEdit: true }] },
+    },
   });
 
   // 5b) Facturas y recibos de ejemplo (importes inventados)

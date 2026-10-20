@@ -44,6 +44,7 @@ await shot(logo("CSA", "#B91C1C", "Clínica Santa Aurora"), "logo-aurora.png", {
 await shot(logo("ECA", "#7C3AED", "Estudio Creativo Aurora"), "logo-estudio.png", { omit: true });
 await shot(persona("#60A5FA", "#2563EB", "#E8B994"), "persona-ana.jpg", { type: "jpeg" });
 await shot(persona("#34D399", "#047857", "#C68642"), "persona-luis.jpg", { type: "jpeg" });
+await shot(persona("#F472B6", "#BE185D", "#F1C7A6"), "persona-mariana.jpg", { type: "jpeg" });
 await shot(photo("Reunión de arranque", "#2563EB", "#7C3AED"), "foto-1.jpg", { type: "jpeg" });
 await shot(photo("Recorrido en obra", "#059669", "#0EA5E9"), "foto-2.jpg", { type: "jpeg" });
 await shot(photo("Entrega de avances", "#EA580C", "#DB2777"), "foto-3.jpg", { type: "jpeg" });
