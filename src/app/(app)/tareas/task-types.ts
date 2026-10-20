@@ -1,5 +1,8 @@
 import type { TaskStatus } from "@prisma/client";
 
+/** Datos para precargar «Nueva tarea» (por ejemplo, al convertir una nota del Baúl en tarea). */
+export type TaskPrefill = { title: string; descriptionHtml: string; clientId: string; projectId: string; subtasks: string[] };
+
 /** Tarea tal como la recibe el navegador (fechas en ISO). */
 export type TaskCard = {
   id: string;

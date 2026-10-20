@@ -342,3 +342,17 @@ export function tareasVencidasEmail(p: { forName: string | null; items: TareaVen
   );
   return { subject, text, html };
 }
+
+
+/** Recordatorio de una nota del Baúl. */
+export function notaRecordatorioEmail(p: { title: string; snippet: string; link: string; withLogo: boolean }) {
+  const subject = `⏰ Recordatorio: ${p.title || "Nota del Baúl"}`;
+  const text = [`Recordatorio de tu nota «${p.title || "sin título"}»:`, "", p.snippet, "", p.link].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">⏰ Recordatorio de tu nota <strong>${esc(p.title || "sin título")}</strong>:</p>
+<p style="margin:0 0 20px;padding:10px 14px;background:#f5f5f7;border-radius:10px;font-size:14px;">${esc(p.snippet || "Abre la nota para ver su contenido.")}</p>
+<p style="margin:0 0 8px;">${button(p.link, "Abrir la nota")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

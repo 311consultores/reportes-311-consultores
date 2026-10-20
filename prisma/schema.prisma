@@ -68,6 +68,9 @@ model User {
   subtasksAssigned    Subtask[]            @relation("SubtaskAssignee")
   subtasksDone        Subtask[]            @relation("SubtaskDoneBy")
   pushSubscriptions   PushSubscription[]
+  notes               Note[]               @relation("NoteOwner")
+  noteLabels          NoteLabel[]
+  noteShares          NoteShare[]
 }
 
 model Client {
@@ -103,6 +106,7 @@ model Client {
   registration    ClientRegistration?
   invoices        Invoice[]
   tasks           Task[]
+  notes           Note[]
 }
 
 enum RegistrationStatus {
@@ -160,6 +164,7 @@ model Project {
   reports             Report[]
   teamMembers         UserProject[]
   tasks               Task[]
+  notes               Note[]
 
   @@index([clientId])
 }
@@ -504,6 +509,7 @@ model Task {
   events           TaskEvent[]
   messages         TaskMessage[]
   subtasks         Subtask[]
+  notes            Note[]
   attachments      TaskAttachment[]
 
   @@index([status])
@@ -628,5 +634,78 @@ model PushSubscription {
   mutedKinds   String?  @db.Text // JSON con los tipos de aviso desactivados en este dispositivo
   createdAt    DateTime @default(now())
 
+  @@index([userId])
+}
+
+// BAÚL (Evolutivo 8): notas privadas estilo Google Keep, compartibles con otras personas del personal
+model Note {
+  id             String          @id @default(uuid())
+  ownerId        String
+  owner          User            @relation("NoteOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  kind           String          @default("TEXT") @db.VarChar(10) // TEXT | CHECKLIST
+  title          String          @default("") @db.VarChar(191)
+  bodyHtml       String          @default("") @db.Text
+  color          String          @default("white") @db.VarChar(20)
+  pinned         Boolean         @default(false)
+  position       Int             @default(0)
+  archivedAt     DateTime?
+  trashedAt      DateTime? // En la papelera: se borra definitivamente a los 30 días
+  reminderAt     DateTime?
+  reminderSentAt DateTime?
+  clientId       String?
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projectId      String?
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  taskId         String?
+  task           Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  items          NoteItem[]
+  labels         NoteLabelLink[]
+  shares         NoteShare[]
+
+  @@index([ownerId])
+  @@index([reminderAt])
+}
+
+model NoteItem {
+  id       String  @id @default(uuid())
+  noteId   String
+  note     Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  text     String  @db.VarChar(500)
+  done     Boolean @default(false)
+  position Int     @default(0)
+
+  @@index([noteId])
+}
+
+model NoteLabel {
+  id      String          @id @default(uuid())
+  ownerId String
+  owner   User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name    String          @db.VarChar(60)
+  notes   NoteLabelLink[]
+
+  @@unique([ownerId, name])
+}
+
+model NoteLabelLink {
+  noteId  String
+  note    Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  labelId String
+  label   NoteLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, labelId])
+}
+
+model NoteShare {
+  noteId   String
+  note     Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canEdit  Boolean  @default(false)
+  sharedAt DateTime @default(now())
+
+  @@id([noteId, userId])
   @@index([userId])
 }

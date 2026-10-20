@@ -325,6 +325,16 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   las solicitudes de edición de reportes, los registros de clientes nuevos y las facturas vencidas. No se muestran si el portal está abierto a la vista. En iPhone/iPad solo funcionan con la app instalada (iOS 16.4 o superior).
 - Al reemplazar la app, conserva `public/` (incluye `sw.js`, que debe estar en la raíz del sitio) — viene dentro del paquete.
 
+### Evolutivo 8 · Etapa 4 (21 oct 2026) — Baúl (notas estilo Google Keep)
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261021000000_evolutivo8d.sql`.
+  Solo CREA tablas nuevas (`Note`, `NoteItem`, `NoteLabel`, `NoteLabelLink`, `NoteShare`) y **no toca ningún dato**. Las migraciones 8a, 8b y 8c deben estar aplicadas antes.
+- Sin variables nuevas. Los recordatorios de notas los procesa la misma tarea programada que ya corre cada hora (`/api/cron/tareas`); no hay cron nuevo.
+- **Baúl** (menú Operación; Admin, Editor y TEAM 311): notas **privadas** (ni el Administrador puede ver las ajenas). Texto con formato o lista de verificación, color pastel, fijar, reordenar arrastrando,
+  etiquetas propias, archivar y papelera (30 días), búsqueda, compartir con personas concretas (solo ver / puede editar; solo el dueño cambia con quién se comparte y elimina), recordatorio con aviso (campanita, navegador y correo),
+  vínculo a cliente, proyecto o tarea, y «Convertir en tarea» (Admin y Editor; los elementos de una lista pasan a ser subtareas). Sin archivos adjuntos. Última guardada gana.
+- Una nota vinculada a una tarea aparece en el detalle de esa tarea, solo para quien puede verla.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

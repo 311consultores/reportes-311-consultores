@@ -18,15 +18,15 @@ import { cn } from "@/lib/utils";
 import { TaskCalendar } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
 import { TaskForm, type ClientOption } from "./task-form";
-import type { TaskCard } from "./task-types";
+import type { TaskCard, TaskPrefill } from "./task-types";
 
 const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string };
 
 /** Tablero Kanban de tareas con tarjetas arrastrables, filtros (Admin y Editor) y ventana de detalle. */
-export function TaskBoard({ tasks, role, meId, clients, team, openId, history, initialView = "tablero", streak = 0 }: {
-  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number;
+export function TaskBoard({ tasks, role, meId, clients, team, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {} }: {
+  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number; prefill?: TaskPrefill; notesByTask?: Record<string, { id: string; title: string }[]>;
 }) {
   const router = useRouter();
   const { askReason } = useDialogs();
@@ -34,7 +34,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
   // Una tarea aceptada con sorpresa sin abrir se muestra primero como sorpresa
   const viewFor = (t: TaskCard): Exclude<View, null> =>
     role === "TEAM_311" && t.status === "TERMINADA" && t.surprise && !t.surpriseOpened && t.assignees.some((a) => a.id === meId) ? { kind: "surprise", id: t.id } : { kind: "detail", id: t.id };
-  const [view, setView] = useState<View>(() => { const t = tasks.find((x) => x.id === openId); return t ? viewFor(t) : null; });
+  const [view, setView] = useState<View>(() => { if (prefill) return { kind: "new" }; const t = tasks.find((x) => x.id === openId); return t ? viewFor(t) : null; });
   const [mode, setMode] = useState<"tablero" | "calendario">(initialView === "calendario" ? "calendario" : "tablero");
   const [override, setOverride] = useState<Record<string, TaskStatus>>({});
   const [prevTasks, setPrevTasks] = useState(tasks);
@@ -139,7 +139,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
   const open = view && "id" in view ? byId(view.id) : undefined;
   const closeView = () => {
     setView(null);
-    if (openId) router.replace(history ? "/tareas?historial=1" : "/tareas", { scroll: false }); // quita ?tarea=… para poder reabrirla
+    if (openId || prefill) router.replace(history ? "/tareas?historial=1" : "/tareas", { scroll: false }); // quita ?tarea=… o ?nota=… de la dirección
   };
 
   return (
@@ -271,7 +271,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
       )}
 
       <Modal open={view?.kind === "new"} onClose={closeView} wide title="Nueva tarea" subtitle="Se asigna al equipo TEAM 311 y nace en PENDIENTE">
-        <TaskForm clients={clients} team={team} onCancel={closeView} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />
+        <TaskForm clients={clients} team={team} prefill={prefill} onCancel={closeView} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />
       </Modal>
 
       <Modal open={view?.kind === "edit" && !!open} onClose={closeView} wide title="Editar tarea" subtitle={open?.title}>
@@ -283,6 +283,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
           <TaskDetail
             key={open.id}
             task={open}
+            notes={notesByTask[open.id] ?? []}
             role={role}
             meId={meId}
             onClose={closeView}

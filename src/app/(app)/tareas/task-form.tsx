@@ -6,16 +6,16 @@ import { createTask, updateTask } from "@/app/actions/tasks";
 import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { RichTextEditor } from "@/components/rich-text";
 import { defaultDue, toMxInput } from "@/lib/tasks-shared";
-import type { TaskCard } from "./task-types";
+import type { TaskCard, TaskPrefill } from "./task-types";
 
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
 
 /** Formulario para crear o editar una tarea (Admin y Editor). */
-export function TaskForm({ clients, team, task, onDone, onCancel }: {
-  clients: ClientOption[]; team: TeamOption[]; task?: TaskCard; onDone: (taskId: string) => void; onCancel: () => void;
+export function TaskForm({ clients, team, task, prefill, onDone, onCancel }: {
+  clients: ClientOption[]; team: TeamOption[]; task?: TaskCard; prefill?: TaskPrefill; onDone: (taskId: string) => void; onCancel: () => void;
 }) {
-  const [clientId, setClientId] = useState(task?.clientId ?? "");
-  const [projectId, setProjectId] = useState(task?.projectId ?? "");
+  const [clientId, setClientId] = useState(task?.clientId ?? prefill?.clientId ?? "");
+  const [projectId, setProjectId] = useState(task?.projectId ?? prefill?.projectId ?? "");
   const [dueAt, setDueAt] = useState(() => toMxInput(task ? new Date(task.dueAt) : defaultDue()));
   const [resources, setResources] = useState<{ key: number; title: string; url: string }[]>(() =>
     task?.resources.length ? task.resources.map((r, i) => ({ key: i, title: r.title, url: r.url })) : [],
@@ -23,7 +23,9 @@ export function TaskForm({ clients, team, task, onDone, onCancel }: {
   const [nextKey, setNextKey] = useState(100);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(task?.assignees.map((a) => a.id) ?? []);
   const [subs, setSubs] = useState<{ key: number; id: string; title: string; who: string; due: string }[]>(() =>
-    (task?.subtasks ?? []).map((s, i) => ({ key: 1000 + i, id: s.id, title: s.title, who: s.assigneeId ?? "", due: s.dueAt ? toMxInput(new Date(s.dueAt)) : "" })),
+    task
+      ? task.subtasks.map((s, i) => ({ key: 1000 + i, id: s.id, title: s.title, who: s.assigneeId ?? "", due: s.dueAt ? toMxInput(new Date(s.dueAt)) : "" }))
+      : (prefill?.subtasks ?? []).map((t, i) => ({ key: 2000 + i, id: "", title: t, who: "", due: "" })), // los elementos de una lista del Baúl pasan a ser subtareas
   );
   const [error, setError] = useState<string>();
   const [busy, start] = useTransition();
@@ -67,7 +69,7 @@ export function TaskForm({ clients, team, task, onDone, onCancel }: {
       <div className="grid gap-4 md:grid-cols-[1fr_16rem]">
         <div>
           <label className="label" htmlFor="t-title">Tarea</label>
-          <input id="t-title" name="title" className="input" maxLength={191} defaultValue={task?.title ?? ""} placeholder="Nombre de la tarea" required />
+          <input id="t-title" name="title" className="input" maxLength={191} defaultValue={task?.title ?? prefill?.title ?? ""} placeholder="Nombre de la tarea" required />
         </div>
         <div>
           <label className="label" htmlFor="t-due">Fecha y hora de entrega</label>
@@ -78,7 +80,7 @@ export function TaskForm({ clients, team, task, onDone, onCancel }: {
 
       <div>
         <label className="label">Descripción (opcional)</label>
-        <RichTextEditor name="descriptionHtml" initialHtml={task?.descriptionHtml ?? ""} />
+        <RichTextEditor name="descriptionHtml" initialHtml={task?.descriptionHtml ?? prefill?.descriptionHtml ?? ""} />
       </div>
 
       <div className="space-y-2">

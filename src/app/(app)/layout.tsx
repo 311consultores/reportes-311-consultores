@@ -42,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       items: [
         ...(user.role !== "CLIENTE" ? [{ href: "/tareas", label: "Tareas", icon: "tareas" as const, badge: tasksToReview }] : []),
         { href: "/", label: "Reportes", icon: "reportes", badge: pendingEdits },
+        ...(user.role !== "CLIENTE" ? [{ href: "/baul", label: "Baúl", icon: "baul" as const }] : []),
         ...(isOps
           ? [
               { href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const },

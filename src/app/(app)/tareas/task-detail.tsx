@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, ExternalLink, Pencil, Wand2 } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
@@ -18,8 +19,8 @@ const eventNote = (kind: string, note: string | null) =>
   kind === "MOVED" && note ? note.replace(/[A-Z_]+/g, (k) => (STATUS_INFO[k as TaskStatus]?.label.toLowerCase() ?? k)).replace(" → ", " → ") : note;
 
 /** Cuerpo de la ventana de detalle de una tarea (estilo Trello): contenido a la izquierda y mini-panel a la derecha. */
-export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
-  task: TaskCard; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void;
+export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClose }: {
+  task: TaskCard; notes?: { id: string; title: string }[]; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => new Date());
@@ -105,6 +106,17 @@ export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
                 <button type="button" className="btn px-3 py-1 text-xs" onClick={() => onMove("PARA_REVISAR")}><Wand2 size={13} /> Lista</button>
               </div>
             )}
+          </div>
+        )}
+
+        {notes.length > 0 && (
+          <div>
+            <h3 className="mb-1 text-sm font-semibold">Notas del Baúl vinculadas</h3>
+            <ul className="flex flex-wrap gap-2">
+              {notes.map((n) => (
+                <li key={n.id}><Link href={`/baul?nota=${n.id}`} className="link inline-flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1 text-sm dark:bg-white/10">📒 {n.title}</Link></li>
+              ))}
+            </ul>
           </div>
         )}
 

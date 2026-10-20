@@ -5,13 +5,13 @@ import { requireUser } from "@/lib/auth";
 import { finishedCutoff, mxMonthStart } from "@/lib/tasks-shared";
 import { TaskBoard } from "./task-board";
 import { taskInclude, toCard } from "@/lib/task-cards";
-import type { TaskCard } from "./task-types";
+import type { TaskCard, TaskPrefill } from "./task-types";
 
 export const metadata = { title: "Tareas | Portal de Operaciones" };
 
-export default async function TasksPage({ searchParams }: { searchParams: Promise<{ tarea?: string; historial?: string }> }) {
+export default async function TasksPage({ searchParams }: { searchParams: Promise<{ tarea?: string; historial?: string; nota?: string }> }) {
   const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
-  const { tarea, historial } = await searchParams;
+  const { tarea, historial, nota } = await searchParams;
   const isOps = user.role !== "TEAM_311";
   const history = historial === "1";
 
@@ -39,6 +39,29 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   const tasks: TaskCard[] = rows.map(toCard);
 
+  // «Convertir en tarea» desde el Baúl: se precarga el formulario con la nota (solo Admin y Editor; la nota debe ser suya o compartida con la persona)
+  let prefill: TaskPrefill | undefined;
+  if (nota && isOps && /^[0-9a-f-]{36}$/i.test(nota)) {
+    const n = await prisma.note.findFirst({ where: { id: nota, trashedAt: null, OR: [{ ownerId: user.id }, { shares: { some: { userId: user.id } } }] }, include: { items: { orderBy: { position: "asc" } } } });
+    if (n) {
+      prefill = {
+        title: n.title,
+        descriptionHtml: n.kind === "CHECKLIST" ? "" : n.bodyHtml,
+        clientId: n.clientId ?? "",
+        projectId: n.projectId ?? "",
+        subtasks: n.kind === "CHECKLIST" ? n.items.map((i) => i.text) : [],
+      };
+    }
+  }
+
+  // Notas del Baúl vinculadas a estas tareas (solo las que esta persona puede ver: suyas o compartidas con ella)
+  const linked = await prisma.note.findMany({
+    where: { taskId: { in: rows.map((r) => r.id) }, trashedAt: null, OR: [{ ownerId: user.id }, { shares: { some: { userId: user.id } } }] },
+    select: { id: true, title: true, taskId: true },
+  });
+  const notesByTask: Record<string, { id: string; title: string }[]> = {};
+  for (const n of linked) (notesByTask[n.taskId as string] ??= []).push({ id: n.id, title: n.title || "Nota sin título" });
+
   return (
     <TaskBoard
       tasks={tasks}
@@ -47,6 +70,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       openId={tarea}
       history={history}
       initialView={view}
+      prefill={prefill}
+      notesByTask={notesByTask}
       streak={streak}
       clients={clients.map((c) => ({ id: c.id, name: c.companyName, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })) }))}
       team={team}

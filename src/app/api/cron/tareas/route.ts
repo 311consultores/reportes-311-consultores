@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getSetting, readLogo311, setSetting } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
-import { tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
+import { notaRecordatorioEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
+import { htmlToText } from "@/lib/sanitize";
 import { notifyUsers, opsUserIds } from "@/lib/notifications";
 import { formatMx } from "@/lib/tasks-shared";
 import { todayMx } from "@/lib/finance";
@@ -56,6 +57,26 @@ export async function GET(req: Request) {
       console.error("[cron tareas] recordatorio:", e);
     }
   }
+
+  // 1b) Baúl: recordatorios de notas que ya llegaron a su hora (aviso en la campanita y el navegador, y correo al dueño)
+  const dueNotes = await prisma.note.findMany({
+    where: { reminderAt: { lte: now }, reminderSentAt: null, trashedAt: null },
+    include: { owner: { select: { id: true, email: true, active: true } }, items: { take: 5, orderBy: { position: "asc" } } },
+  });
+  for (const n of dueNotes) {
+    try {
+      const snippet = (n.kind === "CHECKLIST" ? n.items.map((i) => i.text).join(" · ") : htmlToText(n.bodyHtml)).slice(0, 200);
+      if (n.owner.active) {
+        await notifyUsers([n.owner.id], { kind: "NOTE_REMINDER", title: `⏰ Recordatorio: ${n.title || "Nota del Baúl"}`, body: snippet, link: `/baul?nota=${n.id}` });
+        await sendMail({ to: [n.owner.email], ...notaRecordatorioEmail({ title: n.title, snippet, link: `${base}/baul?nota=${n.id}`, withLogo: !!logo }), inline });
+      }
+      await prisma.note.update({ where: { id: n.id }, data: { reminderSentAt: now } });
+    } catch (e) {
+      console.error("[cron tareas] recordatorio de nota:", e);
+    }
+  }
+  // Papelera del Baúl: lo que lleva más de 30 días se borra
+  await prisma.note.deleteMany({ where: { trashedAt: { lt: new Date(now.getTime() - 30 * 86_400_000) } } });
 
   // 2) Vencidas: una vez al día, a partir de las 8:00 (México)
   const hourMx = Number(new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", hourCycle: "h23" }).format(now));
