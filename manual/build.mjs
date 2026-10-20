@@ -11,7 +11,7 @@ const OUT_HTML = path.join(ROOT, "salida", "manual.html");
 const OUT_PDF = path.join(ROOT, "Manual-de-uso-311-Consultores.pdf");
 fs.mkdirSync(path.dirname(OUT_HTML), { recursive: true });
 
-const VERSION = "Versión 1.0 · 12 de octubre de 2026";
+const VERSION = "Versión 2.0 · 20 de octubre de 2026";
 const esc = (s) => s; // el contenido ya es HTML controlado por nosotros
 const num = (x) => x.replace(/<n>(\d+)<\/n>/g, '<span class="n">$1</span>');
 const img = (f) => pathToFileURL(f).href;
@@ -177,3 +177,4 @@ await renderPdf(map);
 const second = await pageMap();
 console.log("Páginas:", total, "→", second.total, JSON.stringify(second.map));
 console.log("PDF:", OUT_PDF, (fs.statSync(OUT_PDF).size / 1048576).toFixed(1) + " MB");
+
