@@ -317,7 +317,7 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
 - **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261020220000_evolutivo8c.sql`.
   Solo CREA la tabla nueva `PushSubscription` (dispositivos con notificaciones activadas) y **no toca ningún dato**. Las migraciones 8a y 8b deben estar aplicadas antes.
-- **Variables nuevas en Setup Node.js App › Environment variables** (las claves están en el archivo `dist-cpanel/CLAVES-VAPID-produccion.txt` de tu computadora; no las compartas ni las subas a GitHub):
+- **Variables nuevas en Setup Node.js App › Environment variables** (las claves están en el archivo `CLAVES-VAPID-produccion.txt` de tu computadora; no las compartas ni las subas a GitHub):
   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT` (`mailto:admon@311consultores.com`). Sin ellas el portal funciona igual, pero no se pueden activar las notificaciones del navegador.
 - **App instalable (PWA):** ícono con el cubo del logo 311, pantalla completa. En celulares y tabletas (Admin, Editor y TEAM 311) aparece un mensaje fijo abajo para instalarla; la X lo oculta para siempre en ese dispositivo.
   Las instrucciones y el botón de instalar siguen disponibles en *Configuración › App y avisos*. El rol Cliente no ve el mensaje ni las notificaciones.

@@ -9,3 +9,6 @@ next-env.d.ts
 .pgdata
 .uploads
 dist-cpanel
+
+# Claves privadas de producción (notificaciones del navegador)
+CLAVES-VAPID-produccion.txt
