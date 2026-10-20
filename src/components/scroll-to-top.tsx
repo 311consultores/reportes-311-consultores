@@ -19,7 +19,7 @@ export function ScrollToTop() {
       aria-label="Subir al inicio"
       title="Subir"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      className="fixed bottom-6 left-6 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-[#007AFF] text-white shadow-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:bottom-24 lg:left-auto lg:right-6"
+      className="fixed bottom-24 left-6 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-[#007AFF] text-white shadow-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95 lg:bottom-24 lg:left-auto lg:right-6"
     >
       <ArrowUp size={20} />
     </button>

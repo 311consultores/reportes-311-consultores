@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hasProjectAccess, requireUser } from "@/lib/auth";
 import { nextFolio } from "@/lib/folio";
+import { notifyUsers, opsUserIds } from "@/lib/notifications";
 import { getReportPdf } from "@/lib/pdf-queue";
 import { sendMail } from "@/lib/mailer";
 import { serializeConsultants, auditDetails } from "@/lib/consultants";
@@ -288,6 +289,9 @@ export async function requestEdit(reportId: string, reason: string): Promise<{ e
 
   await prisma.editRequest.create({ data: { reportId, requestedById: user.id, reason: text.slice(0, 1000) } });
   await prisma.auditLog.create({ data: { reportId, userId: user.id, action: "EDIT_REQUESTED", details: auditDetails({ reason: text }) } });
+  // Aviso (campanita y navegador) a Admin y Editor
+  const rep = await prisma.report.findUnique({ where: { id: reportId }, select: { folio: true } });
+  await notifyUsers(await opsUserIds(), { actorId: user.id, kind: "EDIT_REQUEST", title: `Solicitud de edición: ${rep?.folio ?? "reporte"}`, body: `${user.name}: ${text.slice(0, 200)}`, link: `/reportes/${reportId}` });
   revalidatePath(`/reportes/${reportId}`);
   revalidatePath("/");
   revalidatePath("/eliminaciones");

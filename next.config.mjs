@@ -16,6 +16,7 @@ const nextConfig = {
       // Se incluye para todas las rutas porque la acción de enviar por correo también genera el PDF.
       "./node_modules/pdfkit/**/*",
       "./node_modules/@react-pdf/**/*",
+      "./node_modules/web-push/**/*",
     ],
   },
   async headers() {

@@ -11,6 +11,7 @@ import { isEmail, splitEmails, uniqueEmails } from "@/lib/emails";
 import { fullName, parseClientData, validateConstancia } from "@/lib/client-data";
 import { validateLogo, readLogo311 } from "@/lib/branding";
 import { putObject, getObject, deleteObject } from "@/lib/storage";
+import { notifyUsers, opsUserIds } from "@/lib/notifications";
 import { registroActivo, setRegistroActivo, registroNotifyEmail } from "@/lib/registro";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
@@ -80,6 +81,8 @@ export async function submitRegistration(_p: State, fd: FormData): Promise<State
   }
 
   allowAction(`registro-ok:${ip}`, 10, HOUR); // cuenta solo los registros guardados
+  // Aviso (campanita y navegador) a Admin y Editor
+  await notifyUsers(await opsUserIds(), { kind: "REGISTRATION", title: `Registro de cliente nuevo: ${d.companyName}`, body: fullName(d.contactName, d.contactLastName), link: `/registros/${id}` }).catch(() => {});
 
   // Avisos por correo: si fallan, el registro ya quedó guardado
   try {

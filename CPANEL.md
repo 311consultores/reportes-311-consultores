@@ -313,6 +313,18 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   El TEAM 311 solo las marca o desmarca. La tarjeta del tablero muestra el avance (✔ 2/5 con barra); al marcar la última se sugiere pasar la tarea a «Lista»;
   si se marca «Lista» con subtareas pendientes, el portal avisa pero deja continuar. Cada marca queda en el historial de la tarea. El buscador también busca en las subtareas.
 
+### Evolutivo 8 · Etapa 3 (20 oct 2026) — app instalable y notificaciones del navegador
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261020220000_evolutivo8c.sql`.
+  Solo CREA la tabla nueva `PushSubscription` (dispositivos con notificaciones activadas) y **no toca ningún dato**. Las migraciones 8a y 8b deben estar aplicadas antes.
+- **Variables nuevas en Setup Node.js App › Environment variables** (las claves están en el archivo `dist-cpanel/CLAVES-VAPID-produccion.txt` de tu computadora; no las compartas ni las subas a GitHub):
+  `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT` (`mailto:admon@311consultores.com`). Sin ellas el portal funciona igual, pero no se pueden activar las notificaciones del navegador.
+- **App instalable (PWA):** ícono con el cubo del logo 311, pantalla completa. En celulares y tabletas (Admin, Editor y TEAM 311) aparece un mensaje fijo abajo para instalarla; la X lo oculta para siempre en ese dispositivo.
+  Las instrucciones y el botón de instalar siguen disponibles en *Configuración › App y avisos*. El rol Cliente no ve el mensaje ni las notificaciones.
+- **Notificaciones del navegador:** cada persona las activa por dispositivo (campanita o *App y avisos*) y puede apagar tipos de aviso. Cubren los avisos de tareas y, para Admin y Editor,
+  las solicitudes de edición de reportes, los registros de clientes nuevos y las facturas vencidas. No se muestran si el portal está abierto a la vista. En iPhone/iPad solo funcionan con la app instalada (iOS 16.4 o superior).
+- Al reemplazar la app, conserva `public/` (incluye `sw.js`, que debe estar en la raíz del sitio) — viene dentro del paquete.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

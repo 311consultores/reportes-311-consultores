@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSetting, readLogo311, setSetting } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
+import { notifyUsers, opsUserIds } from "@/lib/notifications";
 import { facturasVencidasEmail } from "@/lib/email-templates";
 import { dateOnly, formatCents, decimalToCents, fmtDate, isoDate, KIND_LABEL, todayMx } from "@/lib/finance";
 
@@ -65,6 +66,8 @@ export async function GET(req: Request) {
       inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined,
     });
     if (!force) await setSetting(LAST_KEY, today);
+    // Aviso (campanita y navegador) a Admin y Editor
+    await notifyUsers(await opsUserIds(), { kind: "INVOICE_OVERDUE", title: `${overdue.length === 1 ? "1 factura vencida" : `${overdue.length} facturas vencidas`} por ${formatCents(totalCents)}`, body: "Da seguimiento al cobro", link: "/facturas?estado=VENCIDA" });
     return Response.json({ ok: true, vencidas: overdue.length, enviado: !dryRun, dryRun });
   } catch (e) {
     console.error("[cron facturas] no se pudo enviar el aviso:", e);

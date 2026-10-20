@@ -26,7 +26,9 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
+  // La app instalable (sw.js, manifiesto e íconos) debe poder cargarse sin sesión. Los adjuntos del chat de tareas (hasta 100 MB) también
+  // quedan fuera: su ruta valida la sesión por su cuenta.
   // La subida de evidencias queda fuera del proxy: Next limita a 10 MB el cuerpo de las peticiones que pasan por él,
   // y esa ruta ya valida la sesión por su cuenta (responde 403 si no hay).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/reports/[^/]+/tasks/[^/]+/evidence).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/|api/reports/[^/]+/tasks/[^/]+/evidence|api/tasks/[^/]+/attachments).*)"],
 };

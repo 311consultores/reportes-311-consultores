@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, CheckCheck } from "lucide-react";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, unreadCount, type NotificationItem } from "@/app/actions/notifications";
 import { Avatar } from "@/components/avatar";
+import { usePush } from "@/lib/use-push";
 import { formatMx } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 
-const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬", TASK_SOON: "⏰", TASK_OVERDUE: "⚠️" };
+const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬", TASK_SOON: "⏰", TASK_OVERDUE: "⚠️", EDIT_REQUEST: "✏️", REGISTRATION: "🏢", INVOICE_OVERDUE: "💸" };
 
 /** Campanita con globo rojo y lista de avisos del portal. */
 export function NotificationBell({ initialUnread }: { initialUnread: number }) {
@@ -17,6 +19,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const push = usePush();
 
   // Revisa si hay avisos nuevos cada minuto
   useEffect(() => {
@@ -91,6 +94,16 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
               </li>
             ))}
           </ul>
+          {push.supported && (
+            <div className="space-y-1 border-t border-black/5 px-4 py-2.5 text-xs dark:border-white/10">
+              <label className="flex cursor-pointer items-center gap-2 font-medium">
+                <input type="checkbox" className="h-4 w-4 accent-[#007AFF]" checked={push.subscribed} disabled={push.busy} onChange={(e) => (e.target.checked ? void push.enable() : void push.disable())} />
+                Notificaciones del navegador en este dispositivo
+              </label>
+              {push.error && <p className="text-destructive">{push.error}</p>}
+              <Link href="/aplicacion" onClick={() => setOpen(false)} className="link inline-block">Elegir de qué avisarme</Link>
+            </div>
+          )}
         </div>
       )}
     </div>

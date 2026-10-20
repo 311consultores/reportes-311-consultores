@@ -9,6 +9,7 @@ import { formatDecimal, OVERDUE_COOKIE, todayMx } from "@/lib/finance";
 import { overdueSummary } from "@/lib/invoices";
 import { AppShell, type NavGroup } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
+import { PwaRegister } from "@/components/pwa-register";
 import { NotificationBell } from "@/components/notification-bell";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -71,12 +72,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             { href: "/configuracion", label: "General", icon: "general" },
             { href: "/eliminaciones", label: "Log", icon: "log", badge: pendingDeletions + pendingEdits },
             { href: "/usuarios", label: "Usuarios", icon: "usuarios" },
+            { href: "/aplicacion", label: "App y avisos", icon: "app" },
           ],
         },
       ]
     : user.role === "EDITOR"
-      ? [{ id: "configuracion", title: "Configuración", items: [{ href: "/usuarios", label: "Usuarios", icon: "usuarios" }] }]
-      : [];
+      ? [{ id: "configuracion", title: "Configuración", items: [{ href: "/usuarios", label: "Usuarios", icon: "usuarios" }, { href: "/aplicacion", label: "App y avisos", icon: "app" }] }]
+      : user.role === "TEAM_311"
+        ? [{ id: "configuracion", title: "Configuración", items: [{ href: "/aplicacion", label: "App y avisos", icon: "app" }] }]
+        : [];
 
   const brand = (
     <>
@@ -124,6 +128,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <OverdueBanner count={overdue.count} total={formatDecimal(overdue.total ?? 0)} today={today} dismissed={bannerDismissed} />
       )}
       {children}
+      {user.role !== "CLIENTE" && <PwaRegister />}
     </AppShell>
   );
 }
