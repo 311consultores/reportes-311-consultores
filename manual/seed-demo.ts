@@ -22,6 +22,14 @@ async function main() {
   if (!uploads.includes(".uploads")) throw new Error("Carpeta de archivos inesperada: " + uploads);
 
   // 1) Limpieza
+  // panel de tareas (Evolutivo 7)
+  await prisma.notification.deleteMany();
+  await prisma.taskAttachment.deleteMany();
+  await prisma.taskMessage.deleteMany();
+  await prisma.taskEvent.deleteMany();
+  await prisma.taskResource.deleteMany();
+  await prisma.taskAssignee.deleteMany();
+  await prisma.task.deleteMany();
   await prisma.ledgerEntry.deleteMany(); // finanzas (Evolutivo 4)
   await prisma.expense.deleteMany();
   await prisma.movement.deleteMany();
@@ -169,6 +177,51 @@ async function main() {
     { title: "Recorrido en obra", html: p2, photos: ["foto-2.jpg"], executedAt: "2026-10-06 16:30" },
     { title: "", html: "", photos: [] },
   ]);
+
+  // 5a) Tareas de ejemplo (panel de tareas)
+  const H = 3600e3;
+  const mkTask = async (
+    title: string, clientId: string, projectId: string, who: string[], status: "PENDIENTE" | "EN_PROCESO" | "PARA_REVISAR" | "TERMINADA",
+    dueInH: number, html: string, resources: { title: string; url: string }[] = [], extra: Record<string, unknown> = {},
+  ) =>
+    prisma.task.create({
+      data: {
+        title, clientId, projectId, status, descriptionHtml: html, dueAt: new Date(Date.now() + dueInH * H), createdById: editor.id, createdAt: new Date(Date.now() - 20 * H),
+        assignees: { create: who.map((userId) => ({ userId })) },
+        resources: { create: resources.map((r, position) => ({ ...r, position })) },
+        events: { create: [{ userId: editor.id, kind: "CREATED", createdAt: new Date(Date.now() - 20 * H) }] },
+        ...extra,
+      },
+    });
+  await mkTask("Preparar presentación de avances", hrz.id, torre.id, [ana.id], "PENDIENTE", 30,
+    "<p>Armar la presentación del avance de septiembre.</p><ul><li>Resumen de actividades</li><li>Fotos del recorrido</li></ul>",
+    [{ title: "Carpeta del cliente", url: "https://drive.google.com/drive/folders/ejemplo-horizonte" }, { title: "Plantilla de presentación", url: "https://drive.google.com/file/d/ejemplo-plantilla" }]);
+  await mkTask("Levantar requerimientos de expedientes", csa.id, expedientes.id, [luis.id, sofia.id], "EN_PROCESO", 8, "<p>Entrevistar a las áreas y documentar los requerimientos.</p>");
+  await mkTask("Actualizar inventario de equipos", csa.id, expedientes.id, [sofia.id], "PENDIENTE", -26, "<p>Revisar el inventario de computadoras del área médica.</p>");
+  const ready = await mkTask("Entregar reporte de recorrido", hrz.id, torre.id, [ana.id], "PARA_REVISAR", 20,
+    "<p>Entregar el reporte con fotos del recorrido por la obra.</p>", [{ title: "Fotos del recorrido", url: "https://drive.google.com/drive/folders/ejemplo-fotos" }], { readyAt: new Date() });
+  await prisma.taskEvent.createMany({
+    data: [
+      { taskId: ready.id, userId: ana.id, kind: "MOVED", note: "PENDIENTE → EN_PROCESO", createdAt: new Date(Date.now() - 6 * H) },
+      { taskId: ready.id, userId: ana.id, kind: "READY", note: "Entregué en la carpeta compartida", createdAt: new Date(Date.now() - 1 * H) },
+    ],
+  });
+  await prisma.taskMessage.createMany({
+    data: [
+      { taskId: ready.id, userId: ana.id, bodyHtml: "<p>Listo, subí el reporte y las fotos a la carpeta 📎</p>", createdAt: new Date(Date.now() - 55 * 60e3) },
+      { taskId: ready.id, userId: editor.id, bodyHtml: "<p>¡Gracias, Ana! Lo reviso hoy y te aviso.</p>", createdAt: new Date(Date.now() - 40 * 60e3) },
+      { taskId: ready.id, userId: ana.id, bodyHtml: "<p>Perfecto 🙌</p>", createdAt: new Date(Date.now() - 35 * 60e3) },
+    ],
+  });
+  const done = await mkTask("Capacitación al personal", csa.id, expedientes.id, [luis.id], "TERMINADA", -4, "<p>Impartir la capacitación del nuevo sistema.</p>",
+    [], { acceptedAt: new Date(Date.now() - 3 * H), surprise: true });
+  await prisma.taskEvent.create({ data: { taskId: done.id, userId: editor.id, kind: "ACCEPTED", note: "¡Excelente trabajo, quedó muy clara la capacitación!", createdAt: new Date(Date.now() - 3 * H) } });
+  await prisma.notification.createMany({
+    data: [
+      { userId: editor.id, kind: "TASK_READY", title: "Tarea lista para revisar: Entregar reporte de recorrido", body: "Ana Pérez — Entregué en la carpeta compartida", link: `/tareas?tarea=${ready.id}`, createdAt: new Date(Date.now() - 1 * H) },
+      { userId: editor.id, kind: "TASK_MESSAGE", title: "Ana Pérez escribió en «Entregar reporte de recorrido»", body: "Perfecto 🙌", link: `/tareas?tarea=${ready.id}`, createdAt: new Date(Date.now() - 35 * 60e3) },
+    ],
+  });
 
   // 5b) Facturas y recibos de ejemplo (importes inventados)
   const inv = (

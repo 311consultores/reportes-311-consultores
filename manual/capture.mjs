@@ -130,15 +130,17 @@ await shot("03-menu", {
   clip: { x: 0, y: 0, width: 300, height: 760 },
   marks: [
     { loc: group("Operación"), n: 1, at: "r", pad: 2 },
-    { loc: nav("Reportes"), n: 2, at: "r" },
-    { loc: nav("Clientes y proyectos"), n: 3, at: "r" },
-    { loc: nav("Registro de clientes"), n: 4, at: "r" },
-    { loc: group("Administración"), n: 5, at: "r", pad: 2 },
-    { loc: nav("Facturas"), n: 6, at: "r" },
-    { loc: group("Configuración"), n: 7, at: "r", pad: 2 },
-    { loc: nav("Usuarios"), n: 8, at: "r" },
-    { loc: L("aside form button"), n: 9, at: "bl" },
-    { loc: L("aside button[aria-label*='modo']"), n: 10, at: "t", pad: 0 },
+    { loc: nav("Tareas"), n: 2, at: "r" },
+    { loc: nav("Reportes"), n: 3, at: "r" },
+    { loc: nav("Clientes y proyectos"), n: 4, at: "r" },
+    { loc: nav("Registro de clientes"), n: 5, at: "r" },
+    { loc: group("Administración"), n: 6, at: "r", pad: 2 },
+    { loc: nav("Facturas"), n: 7, at: "r" },
+    { loc: group("Configuración"), n: 8, at: "r", pad: 2 },
+    { loc: nav("Usuarios"), n: 9, at: "r" },
+    { loc: L("aside form button"), n: 10, at: "bl" },
+    { loc: L("aside button[aria-label^='Avisos']"), n: 11, at: "t", pad: 0 },
+    { loc: L("aside button[aria-label*='modo']"), n: 12, at: "t", pad: 0 },
   ],
 });
 await page.setViewportSize({ width: 1440, height: 900 });
@@ -694,6 +696,120 @@ await shot("44-cambiar-cliente", {
     { loc: L("[role=dialog] select").nth(1), n: 2, at: "r" },
     { loc: L("[role=dialog] div.rounded-2xl").first(), n: 3, at: "tl" },
     { loc: L("[role=dialog] button.btn"), n: 4, at: "t" },
+  ],
+});
+await page.keyboard.press("Escape");
+
+// ---------- 11. Tareas ----------
+console.log("Tareas");
+await go("/tareas");
+await page.waitForSelector("section[aria-label='PENDIENTE'] article");
+await shot("45-tareas-tablero", {
+  clip: { x: 256, y: 0, width: 1184, height: 640 },
+  marks: [
+    { loc: L("main button.btn", { hasText: "Nueva tarea" }), n: 1, at: "t" },
+    { loc: L("button", { hasText: "Limpiar terminadas" }), n: 2, at: "t" },
+    { loc: L("[aria-label=Vista]"), n: 3, at: "t" },
+    { loc: L("select[aria-label='Filtrar por persona']"), n: 4, at: "t" },
+    { loc: L("section[aria-label='PENDIENTE'] > header"), n: 5, at: "tl" },
+    { loc: L("article", { hasText: "Actualizar inventario" }), n: 6, at: "tr" },
+    { loc: L("article", { hasText: "Levantar requerimientos" }), n: 7, at: "tr" },
+    { loc: L("section[aria-label='PARA REVISAR'] > header"), n: 8, at: "tl" },
+    { loc: L("a", { hasText: "Historial" }).last(), n: 9, at: "t" },
+  ],
+});
+
+await L("button.btn", { hasText: "Nueva tarea" }).click();
+await page.waitForSelector("[role=dialog] select");
+await page.setViewportSize({ width: 1440, height: 1500 });
+await page.selectOption("#t-client", { label: "Constructora Horizonte" });
+await page.selectOption("#t-project", { label: "Torre Norte" });
+await page.locator("[role=dialog] input[placeholder^='Escribe para buscar']").click();
+await page.locator("[role=dialog] ul li button", { hasText: "Luis Gómez" }).click();
+await page.fill("#t-title", "Revisar planos de la torre");
+await page.locator("[role=dialog] .tiptap").click();
+await page.keyboard.type("Revisar los planos actualizados y anotar las diferencias.");
+await page.getByRole("button", { name: "Agregar recurso" }).click();
+await page.fill("input[name=resourceTitle]", "Planos en Drive");
+await page.fill("input[name=resourceUrl]", "https://drive.google.com/drive/folders/ejemplo-planos");
+await page.locator("[role=dialog] h1, [role=dialog] h2").first().click();
+await page.waitForTimeout(400);
+const newBox = await L("[role=dialog] > div").boundingBox();
+await shot("46-nueva-tarea", {
+  vp: true, clip: { x: Math.max(0, newBox.x - 30), y: Math.max(0, newBox.y - 20), width: newBox.width + 60, height: newBox.height + 40 },
+  marks: [
+    { loc: L("#t-client"), n: 1, at: "t" },
+    { loc: L("#t-project"), n: 2, at: "t" },
+    { loc: L("[role=dialog] input[placeholder^='Escribe para buscar']"), n: 3, at: "r" },
+    { loc: L("#t-title"), n: 4, at: "t" },
+    { loc: L("#t-due"), n: 5, at: "t" },
+    { loc: L("[role=dialog] .tiptap"), n: 6, at: "r" },
+    { loc: L("[role=dialog] input[name=resourceTitle]"), n: 7, at: "t" },
+    { loc: L("[role=dialog] button", { hasText: "Agregar recurso" }), n: 8, at: "b" },
+    { loc: L("[role=dialog] button[type=submit]"), n: 9, at: "t" },
+  ],
+});
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.keyboard.press("Escape");
+
+await go("/tareas");
+await L("article", { hasText: "Entregar reporte de recorrido" }).click();
+await page.waitForSelector("[role=dialog] aside");
+await page.setViewportSize({ width: 1440, height: 1500 });
+await page.waitForTimeout(800);
+const detBox = await L("[role=dialog] > div").boundingBox();
+await shot("47-detalle-tarea", {
+  vp: true, clip: { x: Math.max(0, detBox.x - 30), y: Math.max(0, detBox.y - 20), width: detBox.width + 60, height: detBox.height + 40 },
+  marks: [
+    { loc: L("[role=dialog] h3", { hasText: "Comentarios" }), n: 1, at: "l" },
+    { loc: L("[role=dialog] [aria-live=polite]"), n: 2, at: "bl" },
+    { loc: L("[role=dialog] button", { hasText: "Emoji" }), n: 3, at: "b" },
+    { loc: L("[role=dialog] button", { hasText: "Adjuntar" }), n: 4, at: "b" },
+    { loc: L("[role=dialog] aside"), n: 5, at: "tr" },
+    { loc: L("[role=dialog] select#mover-a"), n: 6, at: "l" },
+    { loc: L("[role=dialog] aside button", { hasText: "Editar" }), n: 7, at: "b" },
+  ],
+});
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.keyboard.press("Escape");
+
+await go("/tareas");
+await L("article", { hasText: "Entregar reporte de recorrido" }).dragTo(L("section[aria-label='TERMINADA']"));
+await page.waitForSelector("text=Aceptar la tarea");
+await page.fill("#accept-note", "¡Excelente trabajo, quedó muy clara la entrega!");
+await shot("48-aceptar-tarea", {
+  vp: true, clip: { x: 360, y: 200, width: 720, height: 460 },
+  marks: [
+    { loc: L("#accept-note"), n: 1, at: "r" },
+    { loc: L("[role=dialog] input[type=checkbox]"), n: 2, at: "l" },
+    { loc: L("[role=dialog] button", { hasText: "Aceptar tarea" }), n: 3, at: "t" },
+  ],
+});
+await page.keyboard.press("Escape");
+
+await go("/tareas");
+await page.getByRole("button", { name: "Calendario" }).click();
+await page.waitForTimeout(500);
+await shot("49-calendario", {
+  clip: { x: 256, y: 0, width: 1184, height: 900 },
+  marks: [
+    { loc: L("[aria-label=Vista] button[aria-pressed=true]"), n: 1, at: "t" },
+    { loc: L("h2.capitalize"), n: 2, at: "t" },
+    { loc: L("button[aria-label='Mes siguiente']"), n: 3, at: "t" },
+    { loc: L("button[draggable=true]").first(), n: 4, at: "r" },
+    { loc: L("button", { hasText: /^Hoy$/ }), n: 5, at: "t" },
+  ],
+});
+await page.getByRole("button", { name: "Tablero" }).click();
+
+await L("aside button[aria-label^='Avisos']").click();
+await page.waitForSelector("[aria-label=Avisos] li button");
+await shot("50-avisos", {
+  vp: true, clip: { x: 0, y: 380, width: 640, height: 520 },
+  marks: [
+    { loc: L("aside button[aria-label^='Avisos']"), n: 1, at: "t", pad: 0 },
+    { loc: L("[aria-label=Avisos] li button").first(), n: 2, at: "r" },
+    { loc: L("[aria-label=Avisos] button", { hasText: "Marcar todo" }), n: 3, at: "t" },
   ],
 });
 await page.keyboard.press("Escape");
