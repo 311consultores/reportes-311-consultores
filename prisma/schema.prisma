@@ -65,6 +65,8 @@ model User {
   taskMessages        TaskMessage[]
   taskAttachments     TaskAttachment[]
   notifications       Notification[]
+  subtasksAssigned    Subtask[]            @relation("SubtaskAssignee")
+  subtasksDone        Subtask[]            @relation("SubtaskDoneBy")
 }
 
 model Client {
@@ -500,6 +502,7 @@ model Task {
   resources        TaskResource[]
   events           TaskEvent[]
   messages         TaskMessage[]
+  subtasks         Subtask[]
   attachments      TaskAttachment[]
 
   @@index([status])
@@ -591,4 +594,22 @@ model Notification {
   readAt    DateTime?
 
   @@index([userId, readAt])
+}
+
+// Renglón de lista de verificación dentro de una tarea (Evolutivo 8)
+model Subtask {
+  id         String    @id @default(uuid())
+  taskId     String
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title      String    @db.VarChar(191)
+  assigneeId String?
+  assignee   User?     @relation("SubtaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueAt      DateTime?
+  done       Boolean   @default(false)
+  doneAt     DateTime?
+  doneById   String?
+  doneBy     User?     @relation("SubtaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+  position   Int       @default(0)
+
+  @@index([taskId])
 }

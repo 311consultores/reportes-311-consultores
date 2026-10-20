@@ -10,6 +10,7 @@ import { RichTextView } from "@/components/rich-text";
 import { randomTaskPhrase } from "@/lib/task-phrases";
 import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
+import { toggleSubtask } from "@/app/actions/tasks";
 import { TaskChat } from "./task-chat";
 import type { TaskCard } from "./task-types";
 
@@ -36,6 +37,18 @@ export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
   const targets = STATUS_ORDER.filter((s) => canMove(role, mine, task.status, s));
   const canReady = role === "TEAM_311" && mine && active;
   const locked = task.status === "TERMINADA" && !isOps; // el TEAM 311 solo consulta
+  // Subtareas: se marcan al instante (Admin/Editor siempre; el TEAM asignado mientras la tarea no esté aceptada)
+  const [local, setLocal] = useState<Record<string, boolean>>({});
+  const subs = task.subtasks.map((s) => ({ ...s, done: local[s.id] ?? s.done }));
+  const doneCount = subs.filter((s) => s.done).length;
+  const allDone = subs.length > 0 && doneCount === subs.length;
+  const canCheck = isOps || (mine && !locked);
+  async function checkSub(id: string, done: boolean) {
+    setLocal((l) => ({ ...l, [id]: done }));
+    const r = await toggleSubtask(id, done);
+    if (r.error) setLocal((l) => { const { [id]: _x, ...rest } = l; void _x; return rest; });
+    else router.refresh();
+  }
 
   return (
     <div className="grid gap-6 md:grid-cols-[1fr_17rem]">
@@ -63,6 +76,37 @@ export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
           <h3 className="mb-1 text-sm font-semibold">Descripción</h3>
           <RichTextView html={task.descriptionHtml} />
         </div>
+
+        {task.subtasks.length > 0 && (
+          <div>
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              Subtareas <span className="text-xs font-normal text-zinc-500">{doneCount}/{task.subtasks.length}</span>
+            </h3>
+            <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+              <div className="h-full rounded-full bg-[#34C759] transition-all duration-300" style={{ width: `${Math.round((doneCount / task.subtasks.length) * 100)}%` }} />
+            </div>
+            <ul className="space-y-1.5">
+              {subs.map((s) => (
+                <li key={s.id} className="flex items-start gap-2.5 rounded-xl bg-black/[0.03] px-3 py-2 text-sm dark:bg-white/[0.04]">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#34C759]" checked={s.done} disabled={!canCheck} aria-label={s.title} onChange={(e) => checkSub(s.id, e.target.checked)} />
+                  <span className="min-w-0 flex-1">
+                    <span className={cn(s.done && "text-zinc-400 line-through")}>{s.title}</span>
+                    <span className="block text-xs text-zinc-500">
+                      {s.assigneeName ?? "Sin responsable"}{s.dueAt ? ` · entrega ${formatMx(s.dueAt)}` : ""}
+                      {s.done && s.doneByName ? ` · ✔ ${s.doneByName}` : ""}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {allDone && canReady && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-[#34C759]/15 px-3 py-2 text-sm">
+                <span>🎉 ¡Terminaste todas las subtareas! ¿Marcas la tarea como lista?</span>
+                <button type="button" className="btn px-3 py-1 text-xs" onClick={() => onMove("PARA_REVISAR")}><Wand2 size={13} /> Lista</button>
+              </div>
+            )}
+          </div>
+        )}
 
         <TaskChat taskId={task.id} meId={meId} />
 

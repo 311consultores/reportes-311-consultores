@@ -304,6 +304,15 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   Las fotos se ven en el menú, el chat de tareas, los avisos, «Creado por» de los reportes y «Creada por» de las tareas.
 - **Tareas:** buscador predictivo (desde 2 letras) en nombre, descripción, cliente, proyecto, personas, recursos y comentarios del chat, incluyendo el historial; también filtra el tablero.
 
+### Evolutivo 8 · Etapa 2 (20 oct 2026) — subtareas
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261020200000_evolutivo8b.sql`.
+  Solo CREA la tabla nueva `Subtask` y **no toca ningún dato**. La de la Etapa 1 (`..._evolutivo8a.sql`) debe estar aplicada antes.
+- Sin variables nuevas.
+- **Subtareas:** renglones de lista de verificación dentro de una tarea. Se agregan en *Nueva tarea / Editar tarea* con «+ Agregar subtarea» (nombre, responsable opcional y fecha opcional).
+  El TEAM 311 solo las marca o desmarca. La tarjeta del tablero muestra el avance (✔ 2/5 con barra); al marcar la última se sugiere pasar la tarea a «Lista»;
+  si se marca «Lista» con subtareas pendientes, el portal avisa pero deja continuar. Cada marca queda en el historial de la tarea. El buscador también busca en las subtareas.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

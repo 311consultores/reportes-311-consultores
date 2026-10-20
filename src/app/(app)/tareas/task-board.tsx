@@ -102,7 +102,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
       if (r === null) return;
       note = r;
     } else if (!isOps && to === "PARA_REVISAR") {
-      const r = await askReason({ title: "Marcar la tarea como lista", message: "Se avisa a Administración para que la revise.", reasonLabel: "Comentario final (opcional)", minLength: 0, confirmLabel: "¡Lista!" });
+      const pend = t.subtasks.filter((s) => !s.done).length;
+      const r = await askReason({ title: "Marcar la tarea como lista", message: `Se avisa a Administración para que la revise.${pend ? ` Ojo: todavía tienes ${pend} subtarea${pend === 1 ? "" : "s"} sin marcar; puedes continuar de todos modos.` : ""}`, reasonLabel: "Comentario final (opcional)", minLength: 0, confirmLabel: "¡Lista!" });
       if (r === null) return;
       note = r || undefined;
     }
@@ -238,6 +239,14 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
                       className={cn("card cursor-pointer space-y-2 p-3 transition-all duration-200 ease-out hover:-translate-y-0.5", dragId === t.id && "opacity-40", st === "overdue" && "ring-2 ring-[#FF3B30]/50", st === "soon" && "ring-2 ring-[#FF9500]/50")}
                     >
                       <h3 className="text-sm font-semibold leading-snug">{t.title}</h3>
+                      {t.subtasks.length > 0 && (
+                        <div className="space-y-1" title="Subtareas terminadas">
+                          <p className="text-[11px] font-semibold text-zinc-500">✔ {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length}</p>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                            <div className="h-full rounded-full bg-[#34C759] transition-all duration-300" style={{ width: `${Math.round((t.subtasks.filter((s) => s.done).length / t.subtasks.length) * 100)}%` }} />
+                          </div>
+                        </div>
+                      )}
                       {viewFor(t).kind === "surprise" && (
                         <p className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-[#AF52DE]/15 px-2.5 py-1 text-xs font-semibold text-[#8944AB] dark:text-[#DA8FFF]"><Gift size={13} /> ¡Tienes una sorpresa! Haz clic</p>
                       )}

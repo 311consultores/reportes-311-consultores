@@ -88,4 +88,5 @@ export const EVENT_LABEL: Record<string, string> = {
   ACCEPTED: "Aceptó la tarea",
   RETURNED: "Devolvió la tarea para corregir",
   EDITED: "Editó la tarea",
+  SUBTASK: "Actualizó una subtarea",
 };

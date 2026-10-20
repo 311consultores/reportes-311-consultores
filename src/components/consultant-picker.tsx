@@ -9,8 +9,14 @@ export type TeamOption = { id: string; name: string; photoUrl: string | null };
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Selector múltiple con buscador de usuarios TEAM 311: los elegidos aparecen como fotos con su nombre. */
-export function ConsultantPicker({ options, initial = [] }: { options: TeamOption[]; initial?: string[] }) {
-  const [selected, setSelected] = useState<string[]>(initial);
+export function ConsultantPicker({ options, initial = [], onChange }: { options: TeamOption[]; initial?: string[]; onChange?: (ids: string[]) => void }) {
+  const [selected, setSelectedRaw] = useState<string[]>(initial);
+  const setSelected = (u: string[] | ((s: string[]) => string[])) =>
+    setSelectedRaw((s) => {
+      const next = typeof u === "function" ? u(s) : u;
+      queueMicrotask(() => onChange?.(next)); // avisa a quien lo usa (por ejemplo, para las subtareas)
+      return next;
+    });
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);

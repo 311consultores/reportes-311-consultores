@@ -17,6 +17,7 @@ export type TaskCard = {
   assignees: { id: string; name: string; photoUrl: string | null }[];
   resources: { id: string; title: string; url: string }[];
   events: { id: string; kind: string; note: string | null; userName: string; createdAt: string }[];
+  subtasks: { id: string; title: string; assigneeId: string | null; assigneeName: string | null; dueAt: string | null; done: boolean; doneAt: string | null; doneByName: string | null }[];
   acceptedAt: string | null;
   surprise: boolean;
   surpriseOpened: boolean;

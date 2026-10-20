@@ -9,6 +9,7 @@ export const taskInclude = {
   assignees: { include: { user: { select: { id: true, name: true, photoUrl: true } } } },
   resources: { orderBy: { position: "asc" } },
   events: { orderBy: { createdAt: "desc" }, include: { user: { select: { name: true } } } },
+  subtasks: { orderBy: { position: "asc" }, include: { assignee: { select: { name: true } }, doneBy: { select: { name: true } } } },
 } satisfies Prisma.TaskInclude;
 
 export type TaskRow = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
@@ -32,6 +33,10 @@ export function toCard(t: TaskRow): TaskCard {
     assignees: t.assignees.map((a) => ({ id: a.user.id, name: a.user.name, photoUrl: a.user.photoUrl })),
     resources: t.resources.map((r) => ({ id: r.id, title: r.title, url: r.url })),
     events: t.events.map((e) => ({ id: e.id, kind: e.kind, note: e.note, userName: e.user.name, createdAt: e.createdAt.toISOString() })),
+    subtasks: t.subtasks.map((s) => ({
+      id: s.id, title: s.title, assigneeId: s.assigneeId, assigneeName: s.assignee?.name ?? null, dueAt: s.dueAt?.toISOString() ?? null,
+      done: s.done, doneAt: s.doneAt?.toISOString() ?? null, doneByName: s.doneBy?.name ?? null,
+    })),
     acceptedAt: t.acceptedAt?.toISOString() ?? null,
     surprise: t.surprise,
     surpriseOpened: !!t.surpriseOpenedAt,

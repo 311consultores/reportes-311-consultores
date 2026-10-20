@@ -42,6 +42,7 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
         { assignees: { some: { user: { name: { contains: q } } } } },
         { resources: { some: { title: { contains: q } } } },
         { messages: { some: { bodyHtml: { contains: q } } } },
+        { subtasks: { some: { title: { contains: q } } } },
       ],
     },
     orderBy: { updatedAt: "desc" },
@@ -52,6 +53,7 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
       assignees: { select: { user: { select: { name: true } } } },
       resources: { select: { title: true } },
       messages: { where: { bodyHtml: { contains: q } }, take: 1, select: { bodyHtml: true } },
+      subtasks: { where: { title: { contains: q } }, take: 1, select: { title: true } },
     },
   });
 
@@ -71,6 +73,7 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
     else if (person) { field = "Persona"; rank = 3; snippet = person.user.name; }
     else if (has(desc)) { field = "Descripción"; rank = 4; snippet = around(desc, q); }
     else if (res) { field = "Recurso"; rank = 5; snippet = res.title; }
+    else if (t.subtasks[0]) { field = "Subtarea"; rank = 5; snippet = t.subtasks[0].title; }
     else if (t.messages[0]) { snippet = around(htmlToText(t.messages[0].bodyHtml), q); }
     return {
       rank,

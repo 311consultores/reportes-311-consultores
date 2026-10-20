@@ -40,6 +40,7 @@ const taskLink = async (id: string) => `${await getBaseUrl()}/tareas?tarea=${id}
 async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
   clientId: string; projectId: string; title: string; descriptionHtml: string; dueAt: Date; assigneeIds: string[];
   resources: { title: string; url: string }[];
+  subtasks: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[];
 }> {
   const clientId = String(fd.get("clientId") ?? "");
   const projectId = String(fd.get("projectId") ?? "");
@@ -68,7 +69,22 @@ async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
     if (!/^https?:\/\/[^\s]+$/i.test(url) || url.length > 1000) return { error: `El recurso «${t || url}» necesita un link válido (que empiece con http:// o https://)` };
     resources.push({ title: (t || url).slice(0, 191), url });
   }
-  return { clientId, projectId, title, descriptionHtml, dueAt, assigneeIds: team.map((t) => t.id), resources };
+
+  // Subtareas: nombre obligatorio; la persona debe ser una de las asignadas a la tarea; fecha opcional
+  const assigneeIds = team.map((t) => t.id);
+  const sTitles = fd.getAll("subTitle").map(String);
+  const sIds = fd.getAll("subId").map(String);
+  const sWho = fd.getAll("subAssignee").map(String);
+  const sDue = fd.getAll("subDue").map(String);
+  const subtasks: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[] = [];
+  for (let i = 0; i < sTitles.length; i++) {
+    const t = sTitles[i].trim().slice(0, 191);
+    if (!t) continue;
+    const due = sDue[i] ? parseMxInput(sDue[i]) : null;
+    if (sDue[i] && !due) return { error: `La fecha de la subtarea «${t}» no es válida` };
+    subtasks.push({ id: /^[0-9a-f-]{36}$/i.test(sIds[i] ?? "") ? sIds[i] : null, title: t, assigneeId: assigneeIds.includes(sWho[i]) ? sWho[i] : null, dueAt: due });
+  }
+  return { clientId, projectId, title, descriptionHtml, dueAt, assigneeIds, resources, subtasks };
 }
 
 /** Crea una tarea (solo Admin y Editor). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
@@ -82,6 +98,7 @@ export async function createTask(fd: FormData): Promise<Result> {
       clientId: d.clientId, projectId: d.projectId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, createdById: user.id,
       assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
       resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
+      subtasks: { create: d.subtasks.map((s, position) => ({ title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position })) },
       events: { create: { userId: user.id, kind: "CREATED" } },
     },
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
@@ -104,6 +121,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   const d = await parseTaskForm(fd);
   if ("error" in d) return { error: d.error };
 
+  const existingSubtasks = await prisma.subtask.findMany({ where: { taskId }, select: { id: true } });
   const before = new Set(current.assignees.map((a) => a.userId));
   const added = d.assigneeIds.filter((id) => !before.has(id));
   await prisma.$transaction([
@@ -112,6 +130,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
     prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
     prisma.taskResource.deleteMany({ where: { taskId } }),
     prisma.taskResource.createMany({ data: d.resources.map((r, position) => ({ ...r, taskId, position })) }),
+    ...subtaskOps(taskId, d.subtasks, existingSubtasks),
     prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED" } }),
   ]);
 
@@ -225,4 +244,37 @@ export async function rescheduleTask(taskId: string, day: string): Promise<Resul
   await notifyUsers(task.assignees.map((a) => a.userId), { actorId: user.id, kind: "TASK_ASSIGNED", title: `Cambió la fecha de entrega: ${task.title}`, body: `Nueva entrega: ${formatMx(next)}`, link: `/tareas?tarea=${taskId}` });
   revalidatePath("/tareas");
   return { ok: true, taskId };
+}
+
+/** Operaciones para dejar las subtareas como llegaron del formulario: conserva (y actualiza) las existentes, crea las nuevas y borra las quitadas. */
+function subtaskOps(taskId: string, incoming: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[], existing: { id: string }[]) {
+  const have = new Set(existing.map((e) => e.id));
+  const keep = new Set(incoming.filter((s) => s.id && have.has(s.id)).map((s) => s.id as string));
+  return [
+    prisma.subtask.deleteMany({ where: { taskId, id: { notIn: [...keep] } } }),
+    ...incoming.map((s, position) =>
+      s.id && have.has(s.id)
+        ? prisma.subtask.update({ where: { id: s.id }, data: { title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position } })
+        : prisma.subtask.create({ data: { taskId, title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position } }),
+    ),
+  ];
+}
+
+/** Marca o desmarca una subtarea. Admin y Editor siempre; el TEAM 311 asignado, mientras la tarea no esté terminada. Queda en el historial. */
+export async function toggleSubtask(subtaskId: string, done: boolean): Promise<Result> {
+  const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const sub = await prisma.subtask.findUnique({ where: { id: subtaskId }, include: { task: { include: { assignees: { select: { userId: true } } } } } });
+  if (!sub) return { error: "La subtarea no existe" };
+  const ops = user.role === "ADMIN" || user.role === "EDITOR";
+  if (!ops) {
+    if (!sub.task.assignees.some((a) => a.userId === user.id)) return { error: "Esa tarea no es tuya" };
+    if (sub.task.status === "TERMINADA") return { error: "La tarea ya fue aceptada: solo puedes consultarla" };
+  }
+  if (sub.done === done) return { ok: true, taskId: sub.taskId };
+  await prisma.$transaction([
+    prisma.subtask.update({ where: { id: subtaskId }, data: { done, doneAt: done ? new Date() : null, doneById: done ? user.id : null } }),
+    prisma.taskEvent.create({ data: { taskId: sub.taskId, userId: user.id, kind: "SUBTASK", note: `${done ? "✔ Marcó" : "↩ Desmarcó"}: ${sub.title}` } }),
+  ]);
+  revalidatePath("/tareas");
+  return { ok: true, taskId: sub.taskId };
 }
