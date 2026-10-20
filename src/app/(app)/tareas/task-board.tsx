@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Gift, History, KanbanSquare, Plus, Wand2 } from "lucide-react";
+import { CalendarDays, Gift, History, KanbanSquare, Plus, Search, Wand2, X } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { clearFinished, moveTask, openSurprise, rescheduleTask } from "@/app/actions/tasks";
+import { getTaskCard, searchTasks, type TaskHit } from "@/app/actions/task-search";
 import { Avatar } from "@/components/avatar";
 import type { TeamOption } from "@/components/consultant-picker";
 import { useDialogs } from "@/components/dialogs";
@@ -18,6 +19,8 @@ import { TaskCalendar } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
 import { TaskForm, type ClientOption } from "./task-form";
 import type { TaskCard } from "./task-types";
+
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string };
 
@@ -39,9 +42,12 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
   const [dragId, setDragId] = useState<string>();
   const [hover, setHover] = useState<TaskStatus>();
   const [filters, setFilters] = useState({ person: "", client: "", project: "" });
+  const [q, setQ] = useState("");
+  const [extra, setExtra] = useState<TaskCard | null>(null); // tarea abierta desde la búsqueda que no está en el tablero (historial)
   const [message, setMessage] = useState<string>();
   const [, startRefresh] = useTransition();
   const [now, setNow] = useState(() => new Date());
+  const nq = norm(q.trim());
 
   // Si se llega desde un aviso o un enlace (?tarea=…) estando ya en el tablero, se abre esa tarea
   if (openId !== prevOpenId) {
@@ -63,10 +69,18 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
     () =>
       tasks
         .map((t) => ({ ...t, status: override[t.id] ?? t.status }))
-        .filter((t) => (!filters.person || t.assignees.some((a) => a.id === filters.person)) && (!filters.client || t.clientId === filters.client) && (!filters.project || t.projectId === filters.project)),
-    [tasks, override, filters],
+        .filter((t) => (!filters.person || t.assignees.some((a) => a.id === filters.person)) && (!filters.client || t.clientId === filters.client) && (!filters.project || t.projectId === filters.project))
+        .filter((t) => !nq || norm([t.title, t.clientName, t.projectName, ...t.assignees.map((a) => a.name), ...t.resources.map((r) => r.title)].join(" ")).includes(nq)),
+    [tasks, override, filters, nq],
   );
-  const byId = (id: string) => list.find((t) => t.id === id) ?? tasks.find((t) => t.id === id);
+  const byId = (id: string) => list.find((t) => t.id === id) ?? tasks.find((t) => t.id === id) ?? (extra?.id === id ? extra : undefined);
+
+  async function openHit(h: TaskHit) {
+    setQ("");
+    if (tasks.some((t) => t.id === h.id)) return setView(viewFor(tasks.find((t) => t.id === h.id)!));
+    const card = await getTaskCard(h.id);
+    if (card) { setExtra(card); setView(viewFor(card)); }
+  }
   const projectsForFilter = clients.find((c) => c.id === filters.client)?.projects ?? [];
   const isMine = (t: TaskCard) => t.assignees.some((a) => a.id === meId);
 
@@ -147,6 +161,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
         )}
         <Link href={history ? "/tareas" : "/tareas?historial=1"} className="btn-outline"><History size={16} /> {history ? "Volver al tablero" : "Historial"}</Link>
       </div>
+
+      <TaskSearch q={q} setQ={setQ} onPick={openHit} />
 
       {isOps && (
         <div className="flex flex-wrap gap-2">
@@ -353,5 +369,63 @@ function SurpriseModal({ task, onClose, onReveal }: { task: TaskCard; onClose: (
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Resalta las coincidencias del texto buscado. */
+function Highlight({ text, q }: { text: string; q: string }) {
+  const n = norm(q);
+  const i = n ? norm(text).indexOf(n) : -1;
+  if (i < 0) return <>{text}</>;
+  return <>{text.slice(0, i)}<mark className="rounded bg-[#FFCC00]/50 px-0.5 text-inherit">{text.slice(i, i + q.length)}</mark>{text.slice(i + q.length)}</>;
+}
+
+/** Buscador predictivo: a partir de 2 letras sugiere tareas (también del historial) y a la vez filtra el tablero. */
+function TaskSearch({ q, setQ, onPick }: { q: string; setQ: (v: string) => void; onPick: (h: TaskHit) => void }) {
+  const [hits, setHits] = useState<{ q: string; items: TaskHit[] }>({ q: "", items: [] });
+  const [focus, setFocus] = useState(false);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return;
+    const t = setTimeout(() => void searchTasks(term).then((items) => setHits({ q: term, items })).catch(() => {}), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const term = q.trim();
+  const show = focus && term.length >= 2 && hits.q === term;
+  return (
+    <div className="relative max-w-xl">
+      <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+      <input
+        className="input pl-10 pr-9"
+        placeholder="Buscar tareas (nombre, cliente, persona, comentarios…)"
+        aria-label="Buscar tareas"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setTimeout(() => setFocus(false), 150)}
+        autoComplete="off"
+      />
+      {q && <button type="button" aria-label="Borrar búsqueda" onMouseDown={(e) => e.preventDefault()} onClick={() => setQ("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-500 hover:bg-black/5 dark:hover:bg-white/10"><X size={14} /></button>}
+      {show && (
+        <ul className="glass absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-xl py-1 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+          {hits.items.length === 0 && <li className="px-3.5 py-2 text-sm text-zinc-500">Sin resultados</li>}
+          {hits.items.map((h) => (
+            <li key={h.id}>
+              <button type="button" className="block w-full px-3.5 py-2 text-left text-sm hover:bg-[#007AFF]/10" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(h)}>
+                <span className="flex items-center gap-2">
+                  <span className="font-medium"><Highlight text={h.title} q={term} /></span>
+                  {h.history && <span className="rounded-full bg-zinc-500/15 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-300">Historial</span>}
+                  <span className="ml-auto shrink-0 text-xs">{STATUS_INFO[h.status].emoji}</span>
+                </span>
+                <span className="block truncate text-xs text-zinc-500">{h.clientName} · {h.projectName}</span>
+                {h.snippet && <span className="block truncate text-xs text-zinc-500">{h.field}: <Highlight text={h.snippet} q={term} /></span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

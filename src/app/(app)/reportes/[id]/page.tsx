@@ -57,7 +57,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     include: {
       client: true,
       project: true,
-      createdBy: { select: { name: true } },
+      createdBy: { select: { id: true, name: true, photoUrl: true } },
       tasks: { orderBy: { sequentialNum: "asc" }, include: { evidences: { orderBy: { createdAt: "asc" } } } },
     },
   });
@@ -154,7 +154,10 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               })}
             </dd>
           </div>
-          <div><dt className="text-muted-foreground">Creado por</dt><dd>{report.createdBy.name}</dd></div>
+          <div>
+            <dt className="mb-1 text-muted-foreground">Creado por</dt>
+            <dd><AvatarChip name={report.createdBy.name} userId={report.createdBy.id} photoKey={report.createdBy.photoUrl} size={26} /></dd>
+          </div>
         </dl>
         {report.status === "RECHAZADO" && report.rejectionComment && (
           <p className="rounded-xl bg-[#FF3B30]/10 p-4 text-sm text-[#D70015] dark:text-[#FF453A]">

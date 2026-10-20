@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, CheckCheck } from "lucide-react";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, unreadCount, type NotificationItem } from "@/app/actions/notifications";
+import { Avatar } from "@/components/avatar";
 import { formatMx } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +73,14 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
             {items?.map((n) => (
               <li key={n.id}>
                 <button type="button" onClick={() => go(n)} className={cn("flex w-full items-start gap-2.5 px-4 py-2.5 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]", !n.read && "bg-[#007AFF]/[0.06]")}>
-                  <span className="mt-0.5 text-base">{ICON[n.kind] ?? "🔔"}</span>
+                  {n.actor ? (
+                    <span className="relative mt-0.5 shrink-0">
+                      <Avatar name={n.actor.name} userId={n.actor.id} photoKey={n.actor.photoUrl} size={30} />
+                      <span className="absolute -bottom-1 -right-1 text-xs">{ICON[n.kind] ?? "🔔"}</span>
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 text-base">{ICON[n.kind] ?? "🔔"}</span>
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className={cn("block", !n.read && "font-semibold")}>{n.title}</span>
                     {n.body && <span className="block truncate text-xs text-zinc-500">{n.body}</span>}

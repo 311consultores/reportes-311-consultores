@@ -87,7 +87,7 @@ export async function createTask(fd: FormData): Promise<Result> {
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
   });
 
-  await notifyUsers(d.assigneeIds, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
+  await notifyUsers(d.assigneeIds, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
   const link = await taskLink(task.id);
   await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
     tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
@@ -120,7 +120,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
       prisma.user.findMany({ where: { id: { in: added } }, select: { email: true } }),
       prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } }),
     ]);
-    await notifyUsers(added, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
+    await notifyUsers(added, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
     const link = await taskLink(taskId);
     await notify(people.map((p) => p.email), (withLogo) =>
       tareaAsignadaEmail({ title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", due: formatMx(d.dueAt), byName: user.name, link, withLogo }),
@@ -169,13 +169,13 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   const path = `/tareas?tarea=${taskId}`;
   const assigneeIds = task.assignees.map((a) => a.userId);
   if (to === "PARA_REVISAR" && !isOps(user)) {
-    await notifyUsers((await opsUserIds()).filter((id) => id !== user.id), { kind: "TASK_READY", title: `Tarea lista para revisar: ${task.title}`, body: `${user.name}${note ? ` — ${note}` : ""}`, link: path });
+    await notifyUsers((await opsUserIds()).filter((id) => id !== user.id), { actorId: user.id, kind: "TASK_READY", title: `Tarea lista para revisar: ${task.title}`, body: `${user.name}${note ? ` — ${note}` : ""}`, link: path });
   }
   if (to === "TERMINADA") {
-    await notifyUsers(assigneeIds, { kind: "TASK_ACCEPTED", title: `🎉 ¡Tu tarea fue aceptada!: ${task.title}`, body: note, link: path });
+    await notifyUsers(assigneeIds, { actorId: user.id, kind: "TASK_ACCEPTED", title: `🎉 ¡Tu tarea fue aceptada!: ${task.title}`, body: note, link: path });
   }
   if (returning) {
-    await notifyUsers(assigneeIds, { kind: "TASK_RETURNED", title: `Tu tarea volvió a «En proceso»: ${task.title}`, body: note, link: path });
+    await notifyUsers(assigneeIds, { actorId: user.id, kind: "TASK_RETURNED", title: `Tu tarea volvió a «En proceso»: ${task.title}`, body: note, link: path });
   }
   if (to === "PARA_REVISAR" && !isOps(user)) {
     await notify(reviewNotifyEmails(), (withLogo) =>
@@ -222,7 +222,7 @@ export async function rescheduleTask(taskId: string, day: string): Promise<Resul
     prisma.task.update({ where: { id: taskId }, data: { dueAt: next, reminderSentAt: null } }),
     prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Fecha de entrega: ${formatMx(task.dueAt)} → ${formatMx(next)}` } }),
   ]);
-  await notifyUsers(task.assignees.map((a) => a.userId), { kind: "TASK_ASSIGNED", title: `Cambió la fecha de entrega: ${task.title}`, body: `Nueva entrega: ${formatMx(next)}`, link: `/tareas?tarea=${taskId}` });
+  await notifyUsers(task.assignees.map((a) => a.userId), { actorId: user.id, kind: "TASK_ASSIGNED", title: `Cambió la fecha de entrega: ${task.title}`, body: `Nueva entrega: ${formatMx(next)}`, link: `/tareas?tarea=${taskId}` });
   revalidatePath("/tareas");
   return { ok: true, taskId };
 }

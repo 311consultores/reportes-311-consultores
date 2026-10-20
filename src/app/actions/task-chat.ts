@@ -71,7 +71,7 @@ export async function sendTaskMessage(input: { taskId: string; bodyHtml: string;
   const link = `/tareas?tarea=${task.id}`;
   const snippet = text ? text.slice(0, 280) : gifUrl ? "Envió un GIF" : `Envió ${atts.length} archivo(s)`;
   const toUsers = isOps(user) ? task.assignees.map((a) => a.userId) : await opsUserIds();
-  await notifyUsers(toUsers.filter((id) => id !== user.id), { kind: "TASK_MESSAGE", title: `${user.name} escribió en «${task.title}»`, body: snippet, link });
+  await notifyUsers(toUsers.filter((id) => id !== user.id), { actorId: user.id, kind: "TASK_MESSAGE", title: `${user.name} escribió en «${task.title}»`, body: snippet, link });
   if (!recent) {
     try {
       const logo = await readLogo311();

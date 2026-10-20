@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       id: "operacion",
       title: "Operación",
       items: [
-        { href: "/tareas", label: "Tareas", icon: "tareas", badge: tasksToReview },
+        ...(user.role !== "CLIENTE" ? [{ href: "/tareas", label: "Tareas", icon: "tareas" as const, badge: tasksToReview }] : []),
         { href: "/", label: "Reportes", icon: "reportes", badge: pendingEdits },
         ...(isOps
           ? [
@@ -98,7 +98,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   );
   const footer = (
     <div>
-      {isTeam ? (
+      {user.role !== "CLIENTE" ? (
         <Link href="/perfil" className="mx-1 mb-1 flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-all duration-200 ease-out hover:bg-black/5 dark:hover:bg-white/10" title="Mi perfil">
           <Avatar name={user.name} userId={user.id} photoKey={user.photoUrl} size={34} />
           <span className="min-w-0">{identity}</span>

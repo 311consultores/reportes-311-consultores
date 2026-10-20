@@ -13,6 +13,7 @@ export type TaskCard = {
   projectId: string;
   projectName: string;
   createdByName: string;
+  createdBy: { id: string; name: string; photoUrl: string | null };
   assignees: { id: string; name: string; photoUrl: string | null }[];
   resources: { id: string; title: string; url: string }[];
   events: { id: string; kind: string; note: string | null; userName: string; createdAt: string }[];

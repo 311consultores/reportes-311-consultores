@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { finishedCutoff, mxMonthStart } from "@/lib/tasks-shared";
 import { TaskBoard } from "./task-board";
+import { taskInclude, toCard } from "@/lib/task-cards";
 import type { TaskCard } from "./task-types";
 
 export const metadata = { title: "Tareas | Portal de Operaciones" };
@@ -30,40 +31,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       where,
       orderBy: history ? { acceptedAt: "desc" } : { dueAt: "asc" },
       take: history ? 200 : 500,
-      include: {
-        client: { select: { companyName: true } },
-        project: { select: { projectName: true } },
-        createdBy: { select: { name: true } },
-        assignees: { include: { user: { select: { id: true, name: true, photoUrl: true } } } },
-        resources: { orderBy: { position: "asc" } },
-        events: { orderBy: { createdAt: "desc" }, include: { user: { select: { name: true } } } },
-      },
+      include: taskInclude,
     }),
     isOps ? prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true, projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true } } } }) : Promise.resolve([]),
     isOps ? prisma.user.findMany({ where: { role: "TEAM_311", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true } }) : Promise.resolve([]),
   ]);
 
-  const tasks: TaskCard[] = rows.map((t) => ({
-    id: t.id,
-    title: t.title,
-    descriptionHtml: t.descriptionHtml,
-    dueAt: t.dueAt.toISOString(),
-    createdAt: t.createdAt.toISOString(),
-    status: t.status,
-    clientId: t.clientId,
-    clientName: t.client.companyName,
-    projectId: t.projectId,
-    projectName: t.project.projectName,
-    createdByName: t.createdBy.name,
-    assignees: t.assignees.map((a) => ({ id: a.user.id, name: a.user.name, photoUrl: a.user.photoUrl })),
-    resources: t.resources.map((r) => ({ id: r.id, title: r.title, url: r.url })),
-    events: t.events.map((e) => ({ id: e.id, kind: e.kind, note: e.note, userName: e.user.name, createdAt: e.createdAt.toISOString() })),
-    acceptedAt: t.acceptedAt?.toISOString() ?? null,
-    surprise: t.surprise,
-    surpriseOpened: !!t.surpriseOpenedAt,
-    acceptNote: t.events.find((e) => e.kind === "ACCEPTED")?.note ?? null, // los eventos vienen del más reciente al más antiguo
-    acceptedBy: t.events.find((e) => e.kind === "ACCEPTED")?.user.name ?? null,
-  }));
+  const tasks: TaskCard[] = rows.map(toCard);
 
   return (
     <TaskBoard

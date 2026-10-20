@@ -55,6 +55,11 @@ export function TaskDetail({ task, role, meId, onMove, onEdit, onClose }: {
         </div>
 
         <div>
+          <h3 className="mb-1 text-sm font-semibold">Creada por</h3>
+          <AvatarChip name={task.createdBy.name} userId={task.createdBy.id} photoKey={task.createdBy.photoUrl} size={26} />
+        </div>
+
+        <div>
           <h3 className="mb-1 text-sm font-semibold">Descripción</h3>
           <RichTextView html={task.descriptionHtml} />
         </div>

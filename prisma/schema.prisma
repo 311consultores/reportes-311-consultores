@@ -586,6 +586,7 @@ model Notification {
   title     String    @db.VarChar(191)
   body      String?   @db.Text
   link      String    @db.VarChar(300)
+  actorId   String?   @db.VarChar(191) // Quién generó el aviso (para mostrar su foto)
   createdAt DateTime  @default(now())
   readAt    DateTime?
 

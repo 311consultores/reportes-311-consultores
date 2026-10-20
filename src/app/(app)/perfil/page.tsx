@@ -4,8 +4,11 @@ import { Avatar } from "@/components/avatar";
 import { BirthdayField } from "../usuarios/birthday-field";
 import { ProfileForm } from "./profile-form";
 
+const ROLE_LABEL = { ADMIN: "Administrador", EDITOR: "Editor", TEAM_311: "TEAM 311" } as const;
+
 export default async function ProfilePage() {
-  const me = await requireUser(["TEAM_311"]);
+  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
+  const isTeam = me.role === "TEAM_311";
   const [row, projects] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: me.id }, select: { email: true, birthday: true, photoUrl: true } }),
     prisma.project.findMany({
@@ -24,7 +27,7 @@ export default async function ProfilePage() {
           <Avatar name={me.name} userId={me.id} photoKey={row.photoUrl} size={64} />
           <div>
             <p className="text-lg font-semibold tracking-tight">{me.name}</p>
-            <p className="meta">{row.email} · TEAM 311</p>
+            <p className="meta">{row.email} · {ROLE_LABEL[me.role as keyof typeof ROLE_LABEL]}</p>
           </div>
         </div>
         <ProfileForm name={me.name} userId={me.id} photoKey={row.photoUrl}>
@@ -32,6 +35,7 @@ export default async function ProfilePage() {
         </ProfileForm>
       </section>
 
+      {isTeam && (
       <section className="card space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Mis clientes y proyectos</h2>
         {projects.length === 0 ? (
@@ -44,6 +48,7 @@ export default async function ProfilePage() {
           </ul>
         )}
       </section>
+      )}
     </div>
   );
 }

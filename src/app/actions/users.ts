@@ -49,11 +49,12 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   let birthday: string | null = null;
   let photoUrl: string | null = null;
   let projectIds: string[] = [];
-  if (rest.role === "TEAM_311") {
+  if (rest.role !== "CLIENTE") {
+    // Foto y cumpleaños: todo el personal (Admin, Editor y TEAM 311); los proyectos asignados, solo el TEAM 311
     const b = parseBirthday(birthMonth ?? "", birthDay ?? "");
     if (!b.ok) return { error: b.error };
     birthday = b.value;
-    projectIds = await validProjectIds(fd.getAll("projectIds"));
+    if (rest.role === "TEAM_311") projectIds = await validProjectIds(fd.getAll("projectIds"));
     const file = photoFile(fd);
     if (file) {
       const s = await storePhoto(file);
@@ -138,12 +139,14 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
       password: z.string().optional(),
       role: z.enum(["ADMIN", "EDITOR", "CLIENTE"]),
       clientId: z.string().optional(),
+      birthMonth: z.string().optional(),
+      birthDay: z.string().optional(),
     })
     .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true } });
+  const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true, photoUrl: true } });
   if (!target || target.role === "TEAM_311") return { error: "Usuario no encontrado" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   if (d.id === me.id && d.role !== "ADMIN") return { error: "No puedes quitarte a ti mismo el rol de Administrador" };
@@ -151,14 +154,35 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
   const dup = await prisma.user.findUnique({ where: { email: d.email }, select: { id: true } });
   if (dup && dup.id !== d.id) return { error: "Ya existe un usuario con ese correo" };
 
+  // Foto y cumpleaños (el Cliente no los tiene)
+  let birthday: string | null | undefined;
+  let photoUrl: string | undefined;
+  if (d.role !== "CLIENTE") {
+    const b = parseBirthday(d.birthMonth ?? "", d.birthDay ?? "");
+    if (!b.ok) return { error: b.error };
+    birthday = b.value;
+    const file = photoFile(fd);
+    if (file) {
+      const s = await storePhoto(file);
+      if (!s.ok) return { error: s.error };
+      photoUrl = s.key;
+    }
+  }
+
   await prisma.$transaction([
     prisma.user.update({
       where: { id: d.id },
-      data: { name: d.name, email: d.email, role: d.role, ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
+      data: {
+        name: d.name, email: d.email, role: d.role,
+        ...(birthday !== undefined ? { birthday } : {}),
+        ...(photoUrl ? { photoUrl } : {}),
+        ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}),
+      },
     }),
     prisma.clientUser.deleteMany({ where: { userId: d.id } }),
     ...(d.role === "CLIENTE" && d.clientId ? [prisma.clientUser.create({ data: { userId: d.id, clientId: d.clientId } })] : []),
   ]);
+  if (photoUrl) await removePhoto(target.photoUrl);
   revalidatePath("/usuarios");
   return { ok: true };
 }
@@ -205,9 +229,9 @@ export async function deleteUser(userId: string, reason: string): Promise<{ erro
   return { ok: true };
 }
 
-/** «Mi perfil»: el TEAM 311 cambia su propia foto y cumpleaños. */
+/** «Mi perfil»: el personal (Admin, Editor y TEAM 311) cambia su propia foto y cumpleaños. */
 export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
-  const me = await requireUser(["TEAM_311"]);
+  const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);
   const b = parseBirthday(String(fd.get("birthMonth") ?? ""), String(fd.get("birthDay") ?? ""));
   if (!b.ok) return { error: b.error };
 

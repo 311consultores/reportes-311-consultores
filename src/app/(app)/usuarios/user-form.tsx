@@ -10,8 +10,8 @@ import { BirthdayField } from "./birthday-field";
 type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311";
 
 /** Alta de usuario. El Editor solo puede crear TEAM 311; el Administrador, cualquier rol. */
-export function UserForm({ isAdmin, companies, assign }: { isAdmin: boolean; companies: { id: string; name: string }[]; assign: AssignClient[] }) {
-  const [role, setRole] = useState<Role>(isAdmin ? "EDITOR" : "TEAM_311");
+export function UserForm({ isAdmin, companies, assign, defaultRole }: { isAdmin: boolean; companies: { id: string; name: string }[]; assign: AssignClient[]; defaultRole?: Role }) {
+  const [role, setRole] = useState<Role>(isAdmin ? (defaultRole ?? "EDITOR") : "TEAM_311");
   const [resetKey, setResetKey] = useState(0);
 
   return (
@@ -47,17 +47,19 @@ export function UserForm({ isAdmin, companies, assign }: { isAdmin: boolean; com
         )}
       </div>
 
-      {role === "TEAM_311" && (
+      {role !== "CLIENTE" && (
         <div key={resetKey} className="space-y-4 rounded-2xl border border-black/5 p-4 dark:border-white/10">
-          <h3 className="text-sm font-semibold">Perfil del TEAM 311</h3>
+          <h3 className="text-sm font-semibold">Perfil</h3>
           <div className="grid gap-4 md:grid-cols-2">
             <div><label className="label">Foto de perfil (opcional)</label><PhotoField name="photo" current="Nuevo" /></div>
             <div><label className="label">Fecha de cumpleaños (opcional)</label><BirthdayField /></div>
           </div>
-          <div>
-            <label className="label">Clientes y proyectos asignados</label>
-            <AssignmentsField clients={assign} />
-          </div>
+          {role === "TEAM_311" && (
+            <div>
+              <label className="label">Clientes y proyectos asignados</label>
+              <AssignmentsField clients={assign} />
+            </div>
+          )}
         </div>
       )}
     </ActionForm>

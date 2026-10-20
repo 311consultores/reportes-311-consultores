@@ -293,6 +293,17 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Calendario:** botón *Tablero / Calendario* (se recuerda la vista elegida). Mes completo; Admin y Editor pueden arrastrar una tarea a otro día para cambiar su fecha de entrega.
 - El mini-panel de cada tarea ahora tiene un catálogo de 500 frases de humor de oficina.
 
+### Evolutivo 8 · Etapa 1 (20 oct 2026) — usuarios con pestañas, perfil con foto para Admin/Editor y búsqueda de tareas
+- **Respaldo antes de actualizar (obligatorio):** exporta la base desde phpMyAdmin (o cPanel › *Backup*) y descarga el `.sql`.
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261020180000_evolutivo8a.sql`.
+  Solo agrega la columna opcional `actorId` a `Notification` (para mostrar la foto de quien genera un aviso) y **no toca ningún dato**.
+- Sin variables nuevas.
+- **Corrección:** el rol Cliente ya no ve «Tareas» en el menú (solo Reportes y Facturas).
+- **Usuarios:** pestañas Todos / Administradores / Editores / TEAM 311 / Clientes con conteo, buscador y filtro «Mostrar inactivos». El Editor ve a todos pero solo gestiona a los TEAM 311.
+- **Mi perfil** (foto con recortador y cumpleaños) ahora también para Admin y Editor; el Administrador puede editar la foto y el cumpleaños de cualquier usuario del personal.
+  Las fotos se ven en el menú, el chat de tareas, los avisos, «Creado por» de los reportes y «Creada por» de las tareas.
+- **Tareas:** buscador predictivo (desde 2 letras) en nombre, descripción, cliente, proyecto, personas, recursos y comentarios del chat, incluyendo el historial; también filtra el tablero.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

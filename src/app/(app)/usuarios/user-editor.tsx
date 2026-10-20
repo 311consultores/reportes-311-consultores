@@ -6,9 +6,11 @@ import { deleteUser, toggleUserActive, updateUser } from "@/app/actions/users";
 import { useDialogs } from "@/components/dialogs";
 import { ActionForm } from "@/components/action-form";
 import { Modal } from "@/components/modal";
+import { PhotoField } from "@/components/photo-field";
+import { BirthdayField } from "./birthday-field";
 
 type Role = "ADMIN" | "EDITOR" | "CLIENTE";
-export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null };
+export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null; photoUrl: string | null; birthday: string | null };
 
 /** Edición de un usuario Administrador, Editor o Cliente (solo lo ve el Administrador). */
 export function UserEditor({ user, companies, isSelf }: { user: PlainUser; companies: { id: string; name: string }[]; isSelf: boolean }) {
@@ -47,6 +49,12 @@ export function UserEditor({ user, companies, isSelf }: { user: PlainUser; compa
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+            )}
+            {role !== "CLIENTE" && (
+              <>
+                <div><label className="label">Foto de perfil</label><PhotoField name="photo" userId={user.id} photoKey={user.photoUrl} current={user.name} /></div>
+                <div><label className="label">Fecha de cumpleaños</label><BirthdayField value={user.birthday} /></div>
+              </>
             )}
           </div>
         </ActionForm>
