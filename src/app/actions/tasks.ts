@@ -10,6 +10,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES, TASK_MANAGER_ROLES } from "@/lib/roles";
+import { isPublished } from "@/lib/task-visibility";
 import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string };
@@ -40,7 +41,7 @@ const taskLink = async (id: string) => `${await getBaseUrl()}/tareas?tarea=${id}
 
 /** Lee y valida los campos del formulario de tarea (crear y editar). */
 async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promise<{ error: string } | {
-  clientId: string; projectId: string; areaId: string; title: string; descriptionHtml: string; dueAt: Date; assigneeIds: string[];
+  clientId: string; projectId: string; areaId: string; title: string; descriptionHtml: string; dueAt: Date; publishAt: Date | null; assigneeIds: string[];
   resources: { title: string; url: string }[];
   subtasks: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[];
 }> {
@@ -58,6 +59,12 @@ async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promi
   if (!(await prisma.area.findFirst({ where: { id: areaId, OR: [{ active: true }, ...(currentAreaId === areaId ? [{ id: areaId }] : [])] }, select: { id: true } }))) return { error: "El área elegida no está disponible" };
   if (title.length < 2) return { error: "Escribe el nombre de la tarea" };
   if (!dueAt) return { error: "Indica la fecha y hora de entrega" };
+  // Programar aparición (opcional): una fecha pasada o inmediata equivale a «aparece ya»
+  const pubRaw = String(fd.get("publishAt") ?? "").trim();
+  const pub = pubRaw ? parseMxInput(pubRaw) : null;
+  if (pubRaw && !pub) return { error: "La fecha de aparición no es válida" };
+  const publishAt = pub && pub.getTime() > Date.now() + 60_000 ? pub : null;
+  if (publishAt && publishAt >= dueAt) return { error: "La tarea debe aparecer antes de su fecha de entrega" };
   if (!(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
 
   const wanted = [...new Set(fd.getAll("consultantIds").map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
@@ -90,7 +97,7 @@ async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promi
     if (sDue[i] && !due) return { error: `La fecha de la subtarea «${t}» no es válida` };
     subtasks.push({ id: /^[0-9a-f-]{36}$/i.test(sIds[i] ?? "") ? sIds[i] : null, title: t, assigneeId: assigneeIds.includes(sWho[i]) ? sWho[i] : null, dueAt: due });
   }
-  return { clientId, projectId, areaId, title, descriptionHtml, dueAt, assigneeIds, resources, subtasks };
+  return { clientId, projectId, areaId, title, descriptionHtml, dueAt, publishAt, assigneeIds, resources, subtasks };
 }
 
 /** Crea una tarea (Admin, Editor y PROJECT 311). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
@@ -101,7 +108,7 @@ export async function createTask(fd: FormData): Promise<Result> {
 
   const task = await prisma.task.create({
     data: {
-      clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, createdById: user.id,
+      clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, publishAt: d.publishAt, createdById: user.id,
       assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
       resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
       subtasks: { create: d.subtasks.map((s, position) => ({ title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position })) },
@@ -110,11 +117,14 @@ export async function createTask(fd: FormData): Promise<Result> {
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
   });
 
-  await notifyUsers(d.assigneeIds, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
-  const link = await taskLink(task.id);
-  await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
-    tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
-  );
+  // Una tarea programada no avisa ahora: el aviso sale cuando aparece (lo hace la tarea programada de cada hora)
+  if (!d.publishAt) {
+    await notifyUsers(d.assigneeIds, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
+    const link = await taskLink(task.id);
+    await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
+      tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
+    );
+  }
   revalidatePath("/tareas");
   return { ok: true, taskId: task.id };
 }
@@ -130,8 +140,13 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   const existingSubtasks = await prisma.subtask.findMany({ where: { taskId }, select: { id: true } });
   const before = new Set(current.assignees.map((a) => a.userId));
   const added = d.assigneeIds.filter((id) => !before.has(id));
+  // La fecha de aparición solo se puede cambiar mientras la tarea no aparece; si se quita, aparece de inmediato
+  const wasPublished = isPublished(current);
+  const publishAt = wasPublished ? current.publishAt : d.publishAt;
+  const publishesNow = !wasPublished && !publishAt;
+  const cronWillNotify = wasPublished && current.publishAt !== null && current.publishNotifiedAt === null; // ya apareció pero el aviso aún no sale
   await prisma.$transaction([
-    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt } }),
+    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, ...(wasPublished ? {} : { publishAt, publishNotifiedAt: null }) } }),
     prisma.taskAssignee.deleteMany({ where: { taskId } }),
     prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
     prisma.taskResource.deleteMany({ where: { taskId } }),
@@ -140,12 +155,15 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
     prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED" } }),
   ]);
 
-  if (added.length) {
+  // Avisos: a las personas nuevas si la tarea ya es visible; a todas si acaba de publicarse; a nadie si sigue programada
+  const toNotify = publishesNow ? d.assigneeIds : wasPublished && !cronWillNotify ? added : [];
+  if (publishesNow) await prisma.task.update({ where: { id: taskId }, data: { publishNotifiedAt: new Date() } });
+  if (toNotify.length) {
     const [people, ctx] = await Promise.all([
-      prisma.user.findMany({ where: { id: { in: added } }, select: { email: true } }),
+      prisma.user.findMany({ where: { id: { in: toNotify } }, select: { email: true } }),
       prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } }),
     ]);
-    await notifyUsers(added, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
+    await notifyUsers(toNotify, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
     const link = await taskLink(taskId);
     await notify(people.map((p) => p.email), (withLogo) =>
       tareaAsignadaEmail({ title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", due: formatMx(d.dueAt), byName: user.name, link, withLogo }),
@@ -169,7 +187,7 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   });
   if (!task) return { error: "La tarea no existe" };
   const mine = task.assignees.some((a) => a.userId === user.id);
-  if (!isOps(user) && !mine) return { error: "Esa tarea no es tuya" };
+  if (!isOps(user) && (!mine || !isPublished(task))) return { error: "Esa tarea no es tuya" };
   if (!canMove(user.role, mine, task.status, to)) return { error: "No puedes mover la tarea a esa fase" };
 
   const note = opts.note?.trim().slice(0, 2000) || null;
@@ -273,7 +291,7 @@ export async function toggleSubtask(subtaskId: string, done: boolean): Promise<R
   if (!sub) return { error: "La subtarea no existe" };
   const ops = isOps(user);
   if (!ops) {
-    if (!sub.task.assignees.some((a) => a.userId === user.id)) return { error: "Esa tarea no es tuya" };
+    if (!sub.task.assignees.some((a) => a.userId === user.id) || !isPublished(sub.task)) return { error: "Esa tarea no es tuya" };
     if (sub.task.status === "TERMINADA") return { error: "La tarea ya fue aceptada: solo puedes consultarla" };
   }
   if (sub.done === done) return { ok: true, taskId: sub.taskId };
@@ -283,4 +301,52 @@ export async function toggleSubtask(subtaskId: string, done: boolean): Promise<R
   ]);
   revalidatePath("/tareas");
   return { ok: true, taskId: sub.taskId };
+}
+
+/** Agrega personas a una tarea sin abrir «Editar» (Admin, Editor y PROJECT 311). Avisa a quien se agrega si la tarea ya es visible. */
+export async function addTaskAssignees(taskId: string, userIds: string[]): Promise<Result> {
+  const user = await requireUser(TASK_MANAGER_ROLES);
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { assignees: { select: { userId: true } }, client: { select: { companyName: true } }, project: { select: { projectName: true } } },
+  });
+  if (!task) return { error: "La tarea no existe" };
+  const have = new Set(task.assignees.map((a) => a.userId));
+  const wanted = [...new Set(userIds.filter((s) => /^[0-9a-f-]{36}$/i.test(s) && !have.has(s)))];
+  const people = await prisma.user.findMany({ where: { id: { in: wanted }, role: { in: ASSIGNABLE_ROLES }, active: true }, select: { id: true, name: true, email: true } });
+  if (people.length === 0) return { error: "Elige al menos una persona que no esté ya asignada" };
+  await prisma.$transaction([
+    prisma.taskAssignee.createMany({ data: people.map((p) => ({ taskId, userId: p.id })) }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Agregó a: ${people.map((p) => p.name).join(", ")}` } }),
+  ]);
+  // Si la tarea es programada y todavía no aparece (o el aviso general aún no sale), el aviso llega al publicarse
+  if (isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
+    await notifyUsers(people.map((p) => p.id), { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${taskId}` });
+    const link = await taskLink(taskId);
+    await notify(people.map((p) => p.email), (withLogo) =>
+      tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
+    );
+  }
+  revalidatePath("/tareas");
+  return { ok: true, taskId };
+}
+
+/** Quita a una persona de una tarea (Admin, Editor y PROJECT 311). La tarea debe conservar al menos una persona. */
+export async function removeTaskAssignee(taskId: string, userId: string): Promise<Result> {
+  const user = await requireUser(TASK_MANAGER_ROLES);
+  const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { include: { user: { select: { name: true } } } } } });
+  if (!task) return { error: "La tarea no existe" };
+  const target = task.assignees.find((a) => a.userId === userId);
+  if (!target) return { error: "Esa persona ya no está asignada" };
+  if (task.assignees.length <= 1) return { error: "La tarea debe tener al menos una persona asignada" };
+  await prisma.$transaction([
+    prisma.taskAssignee.delete({ where: { taskId_userId: { taskId, userId } } }),
+    prisma.subtask.updateMany({ where: { taskId, assigneeId: userId }, data: { assigneeId: null } }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Quitó a: ${target.user.name}` } }),
+  ]);
+  if (isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
+    await notifyUsers([userId], { actorId: user.id, kind: "TASK_UNASSIGNED", title: `Ya no tienes asignada la tarea: ${task.title}`, body: `${user.name} te quitó de la tarea`, link: "/tareas" });
+  }
+  revalidatePath("/tareas");
+  return { ok: true, taskId };
 }

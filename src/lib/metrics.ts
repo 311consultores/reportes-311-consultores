@@ -2,6 +2,7 @@ import type { Role, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/branding";
 import { dayKey, mxMonthStart, parseMxInput } from "@/lib/tasks-shared";
+import { publishedWhere, startOf } from "@/lib/task-visibility";
 
 /** Dashboard de desempeño: todos los cálculos (solo lectura sobre los datos que el portal ya guarda). */
 
@@ -79,11 +80,12 @@ function calcTask(t: TaskData, f: Filters): TaskCalc {
   const ready = t.events.filter((e) => e.kind === "READY");
   const accepted = t.events.find((e) => e.kind === "ACCEPTED");
   const deliveredAt = ready[0]?.createdAt ?? accepted?.createdAt ?? null;
-  const p = deliveredAt ? punctualityScore(t.createdAt, t.dueAt, deliveredAt) : null;
+  const from0 = startOf(t); // desde que la tarea aparece (si se programó)
+  const p = deliveredAt ? punctualityScore(from0, t.dueAt, deliveredAt) : null;
   return {
     id: t.id,
     deliveredAt,
-    allottedMs: p?.allottedMs ?? Math.max(t.dueAt.getTime() - t.createdAt.getTime(), MIN_ALLOTTED_MS),
+    allottedMs: p?.allottedMs ?? Math.max(t.dueAt.getTime() - from0.getTime(), MIN_ALLOTTED_MS),
     lateMs: p?.lateMs ?? 0,
     score: p?.score ?? null,
     readyInPeriod: ready.filter((e) => inRange(e.createdAt, f)).length,
@@ -119,12 +121,12 @@ export function computeKpis(tasks: TaskData[], f: Filters, now: Date): Kpis {
   const readyEvents = calcs.reduce((n, [, c]) => n + c.readyInPeriod, 0);
   const returns = calcs.reduce((n, [, c]) => n + c.returnsInPeriod, 0);
 
-  const cycle = tasks.filter((t) => inRange(t.acceptedAt, f)).map((t) => t.acceptedAt!.getTime() - t.createdAt.getTime());
+  const cycle = tasks.filter((t) => inRange(t.acceptedAt, f)).map((t) => t.acceptedAt!.getTime() - startOf(t).getTime());
   const resp: number[] = [];
   for (const t of tasks) {
-    if (!inRange(t.createdAt, f)) continue;
+    if (!inRange(startOf(t), f)) continue;
     const first = t.events.find((e) => (e.kind === "MOVED" && /EN_PROCESO$/.test(e.note ?? "")) || e.kind === "READY");
-    if (first) resp.push(first.createdAt.getTime() - t.createdAt.getTime());
+    if (first) resp.push(first.createdAt.getTime() - startOf(t).getTime());
   }
   let subDone = 0;
   let subAll = 0;
@@ -160,7 +162,7 @@ async function loadTasks(f: Filters) {
       ...(f.clientId ? { clientId: f.clientId } : {}),
       ...(f.areaId ? (f.areaId === "none" ? { areaId: null } : { areaId: f.areaId }) : {}),
       ...(f.personId ? { assignees: { some: { userId: f.personId } } } : {}),
-      OR: [{ createdAt: { gte: f.from, lte: f.to } }, { events: { some: { createdAt: { gte: f.from, lte: f.to } } } }, { status: { not: "TERMINADA" } }],
+      AND: [publishedWhere(), { OR: [{ createdAt: { gte: f.from, lte: f.to } }, { events: { some: { createdAt: { gte: f.from, lte: f.to } } } }, { status: { not: "TERMINADA" } }] }],
     },
     take: 5000,
     include: {
@@ -380,6 +382,84 @@ async function computeReports(f: Filters): Promise<Dashboard["reports"]> {
     editRequests: list.reduce((n, r) => n + r.editRequests, 0),
     toFinishAvgMs: avg(list.flatMap((r) => (r.toFinishAvgMs === null ? [] : [r.toFinishAvgMs]))),
   };
+}
+
+// ---------- Filtros desde la dirección ----------
+
+export type Resolved = { period: ReturnType<typeof parsePeriodParams>; filters: Filters; measuredFrom: Date; thresholds: Thresholds; gran: "semana" | "mes" };
+
+/** Lee los filtros (periodo, persona, cliente, área) de la dirección y descarta ids que no existen. Lo comparten el tablero, la ficha y el CSV. */
+export async function resolveFilters(sp: Record<string, string | undefined>, opts: { ignorePerson?: boolean } = {}): Promise<Resolved> {
+  const [measuredFrom, thresholds] = await Promise.all([getMeasuredFrom(), getThresholds()]);
+  const period = parsePeriodParams(sp, measuredFrom);
+  const ok = async (id: string | undefined, kind: "user" | "client" | "area") => {
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return undefined;
+    const found =
+      kind === "user" ? await prisma.user.findFirst({ where: { id, role: { in: ["ADMIN", "EDITOR", "PROJECT_311", "TEAM_311"] } }, select: { id: true } })
+      : kind === "client" ? await prisma.client.findUnique({ where: { id }, select: { id: true } })
+      : await prisma.area.findUnique({ where: { id }, select: { id: true } });
+    return found ? id : undefined;
+  };
+  return {
+    period, measuredFrom, thresholds,
+    gran: sp.gran === "mes" ? "mes" : "semana",
+    filters: {
+      from: period.from, to: period.to,
+      personId: opts.ignorePerson ? undefined : await ok(sp.persona, "user"),
+      clientId: await ok(sp.cliente, "client"),
+      areaId: sp.area === "none" ? "none" : await ok(sp.area, "area"),
+    },
+  };
+}
+
+// ---------- Tendencia ----------
+
+export type TrendPoint = { label: string; from: Date; to: Date; kpis: Kpis };
+
+const mxDay = (d: Date) => new Date(`${dayKey(d)}T00:00:00-06:00`);
+
+/** Serie por semana (lunes a domingo, hora de México) o por mes para el periodo filtrado (máximo 26 puntos). */
+export async function computeTrend(f: Filters, gran: "semana" | "mes", now = new Date()): Promise<TrendPoint[]> {
+  const tasks = await loadTasks(f);
+  const buckets: { from: Date; to: Date; label: string }[] = [];
+  let cursor: Date;
+  if (gran === "semana") {
+    const day0 = mxDay(f.from);
+    const dow = (new Date(day0.getTime() + 12 * H).getUTCDay() + 6) % 7; // 0 = lunes
+    cursor = new Date(day0.getTime() - dow * 24 * H);
+  } else cursor = mxMonthStart(f.from);
+  while (cursor <= f.to && buckets.length < 26) {
+    const next = gran === "semana" ? new Date(cursor.getTime() + 7 * 24 * H) : mxMonthStart(new Date(cursor.getTime() + 33 * 24 * H));
+    const label = gran === "semana" ? new Date(cursor.getTime() + 12 * H).toLocaleDateString("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" }) : new Date(cursor.getTime() + 12 * H).toLocaleDateString("es-MX", { month: "short", year: "2-digit", timeZone: "America/Mexico_City" });
+    buckets.push({ from: cursor < f.from ? f.from : cursor, to: new Date(Math.min(next.getTime() - 1, f.to.getTime())), label });
+    cursor = next;
+  }
+  return buckets.map((b) => ({ label: b.label, from: b.from, to: b.to, kpis: computeKpis(tasks, { ...f, from: b.from, to: b.to }, now) }));
+}
+
+// ---------- Tareas entregadas (detalle de una ficha) ----------
+
+export type DeliveredRow = { id: string; title: string; client: string; area: string | null; dueAt: Date; deliveredAt: Date; score: number; lateMs: number; returns: number };
+
+export async function deliveredRows(f: Filters): Promise<DeliveredRow[]> {
+  const tasks = await loadTasks(f);
+  const rows: DeliveredRow[] = [];
+  for (const t of tasks) {
+    const c = calcTask(t, f);
+    if (c.deliveredAt && inRange(c.deliveredAt, f) && c.score !== null) {
+      rows.push({ id: t.id, title: t.title, client: t.client.companyName, area: t.area?.name ?? null, dueAt: t.dueAt, deliveredAt: c.deliveredAt, score: c.score, lateMs: c.lateMs, returns: c.returnsInPeriod });
+    }
+  }
+  return rows.sort((a, b) => b.deliveredAt.getTime() - a.deliveredAt.getTime());
+}
+
+// ---------- Resumen semanal ----------
+
+/** Lunes 00:00 (hora de México) de la semana en que cae `d`. */
+export function mxWeekStart(d: Date): Date {
+  const day0 = new Date(`${dayKey(d)}T00:00:00-06:00`);
+  const dow = (new Date(day0.getTime() + 12 * H).getUTCDay() + 6) % 7; // 0 = lunes
+  return new Date(day0.getTime() - dow * 24 * H);
 }
 
 // ---------- Presentación ----------

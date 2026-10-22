@@ -361,6 +361,28 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Cambio de rol:** al editar un usuario, el ADMINISTRADOR ya puede cambiar su rol (incluye TEAM 311 y PROJECT 311). No puede cambiar su propio rol ni quitárselo al único Administrador activo.
 - **Desempeño** (menú Administración, solo ADMINISTRADOR): puntualidad proporcional (100 % si se entrega a tiempo; si no, 100 − retraso ÷ tiempo que se tenía × 100), devoluciones, ciclo, respuesta, subtareas, carga, embudo, comparativos por persona, área, cliente y proyecto, calidad de asignación y de gestión, reportes y chat. Filtros de periodo, persona, cliente y área. Solo mide desde `metrics_start`.
 
+### Evolutivo 10 · Etapa 2 (22 oct 2026) — fichas individuales, tendencias, semáforo configurable y CSV
+- **Sin migración nueva y sin variables nuevas.** Hacer respaldo de todos modos antes de reemplazar la app. Requiere la migración 10a (etapa 1) ya aplicada.
+- En *Desempeño*: gráfica de **tendencia** (por semana o por mes), **ficha individual** de cada persona (clic en su nombre; compara contra la meta del equipo y contra el periodo anterior, con la lista de tareas entregadas y su calificación),
+  **exportar a Excel (CSV)** de cada tabla con los filtros actuales y **configuración del semáforo** (verde/ámbar) y de la fecha «Medir desde».
+- Los umbrales y la fecha se guardan en la tabla `AppSetting` (`metrics_green`, `metrics_amber`, `metrics_start`).
+
+### Evolutivo 10 · Etapa 3 (22 oct 2026) — resumen semanal por correo y manual del ADMINISTRADOR
+- **Sin migración nueva y sin variables nuevas.** Respaldo recomendado antes de reemplazar la app.
+- **Resumen semanal de desempeño:** lo envía la misma tarea programada de cada hora (`/api/cron/tareas`) los **lunes a partir de las 8:00 (hora de México)**, con la semana anterior (lunes a domingo), **solo a necesito@311consultores.com**.
+  Incluye puntualidad, devoluciones, abiertas y vencidas, reportes, puntos para atender y tablas por área y por persona. Se registra en `AppSetting` (`desempeno_semanal_lunes`) para no repetirse; si el envío falla se reintenta en la hora siguiente.
+  Para probarlo sin esperar al lunes: `/api/cron/tareas?token=TU_CRON_TOKEN&semanal=1` (reenvía el resumen de la semana pasada; también ejecuta el resto de las revisiones del cron).
+
+### Evolutivo 11 · Etapa 1 (22 oct 2026) — tareas programadas, buscador de cliente, reasignación rápida y copiar mensaje
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261022120000_evolutivo11a.sql`. Solo AGREGA dos columnas vacías a `Task` (`publishAt`, `publishNotifiedAt`) y un índice; **no toca ningún dato**. Las migraciones anteriores (hasta la 10a) deben estar aplicadas.
+- Sin variables ni tareas programadas nuevas: el aviso de las tareas programadas lo envía la tarea programada de cada hora (`/api/cron/tareas`), así que puede tardar hasta 1 hora después de que la tarea aparece (la tarea en sí aparece exactamente a su hora).
+- **Tareas programadas:** en *Nueva tarea* hay «Programar aparición (opcional)». Hasta esa fecha y hora la persona asignada no ve la tarea (ni su chat ni archivos); ADMINISTRADOR, EDITOR y PROJECT 311 la ven con la etiqueta «Programada · aparece el …». Se pueden editar, reprogramar y eliminar libremente (sin solicitud).
+  La puntualidad, el tiempo de respuesta y el de ciclo se cuentan desde que la tarea aparece.
+- **Buscador de cliente** (texto predictivo) en *Nueva tarea*, *Editar tarea* y en el filtro de clientes del tablero.
+- **Reasignación rápida:** en el detalle de la tarea, chips con X para quitar y «+ Agregar» para sumar personas (mínimo una). Se avisa a quien se agrega y a quien se quita.
+- **WhatsApp:** el botón verde ahora copia el mensaje («Hola Ana y Luis te acabo de asignar la tarea: …») con el nombre de todas las personas asignadas, y muestra «Mensaje copiado» 3 segundos. Se conserva «Copiar enlace de la tarea» y el teléfono en el perfil.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

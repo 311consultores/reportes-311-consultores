@@ -12,6 +12,7 @@ export type TaskCard = {
   title: string;
   descriptionHtml: string;
   dueAt: string;
+  publishAt: string | null; // tarea programada: aparece para la persona asignada a partir de esta fecha
   createdAt: string;
   status: TaskStatus;
   clientId: string;

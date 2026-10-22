@@ -23,6 +23,7 @@ export function toCard(t: TaskRow): TaskCard {
     title: t.title,
     descriptionHtml: t.descriptionHtml,
     dueAt: t.dueAt.toISOString(),
+    publishAt: t.publishAt?.toISOString() ?? null,
     createdAt: t.createdAt.toISOString(),
     status: t.status,
     clientId: t.clientId,

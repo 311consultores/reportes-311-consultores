@@ -493,6 +493,8 @@ model Task {
   client           Client           @relation(fields: [clientId], references: [id])
   projectId        String
   project          Project          @relation(fields: [projectId], references: [id])
+  publishAt        DateTime? // Tarea programada: aparece para la persona asignada a partir de esta fecha y hora (vacío = de inmediato)
+  publishNotifiedAt DateTime? // Cuándo se avisó a las personas asignadas de una tarea programada
   areaId           String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
   area             Area?            @relation(fields: [areaId], references: [id])
   title            String           @db.VarChar(191)
@@ -522,6 +524,7 @@ model Task {
   @@index([clientId])
   @@index([projectId])
   @@index([areaId])
+  @@index([publishAt])
 }
 
 // Áreas en que se divide el equipo (DISEÑO, CRM…): cada tarea pertenece a una; las personas pueden estar en varias

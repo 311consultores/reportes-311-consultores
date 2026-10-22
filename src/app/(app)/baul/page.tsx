@@ -1,6 +1,7 @@
 import { isTaskManager, STAFF_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { publishedWhere } from "@/lib/task-visibility";
 import { noteInclude, toNoteCard } from "@/lib/notes";
 import { TRASH_DAYS } from "@/lib/note-types";
 import { BaulApp } from "./baul-app";
@@ -17,7 +18,7 @@ export default async function BaulPage({ searchParams }: { searchParams: Promise
   // La papelera conserva 30 días: lo más viejo se borra al entrar
   await prisma.note.deleteMany({ where: { ownerId: me.id, trashedAt: { lt: trashCutoff() } } });
 
-  const taskScope = isOps ? {} : { assignees: { some: { userId: me.id } } };
+  const taskScope = isOps ? {} : { AND: [{ assignees: { some: { userId: me.id } } }, publishedWhere()] };
   const [own, shared, labels, clients, tasks, people] = await Promise.all([
     prisma.note.findMany({ where: { ownerId: me.id }, include: noteInclude, orderBy: [{ pinned: "desc" }, { position: "asc" }] }),
     prisma.note.findMany({ where: { shares: { some: { userId: me.id } }, trashedAt: null, ownerId: { not: me.id } }, include: noteInclude, orderBy: { updatedAt: "desc" } }),

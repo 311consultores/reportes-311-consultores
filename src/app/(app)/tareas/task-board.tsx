@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Gift, History, KanbanSquare, Plus, Search, Wand2, X } from "lucide-react";
+import { CalendarDays, Clock, Gift, History, KanbanSquare, Plus, Search, Wand2, X } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { clearFinished, moveTask, openSurprise, rescheduleTask } from "@/app/actions/tasks";
 import { getTaskCard, searchTasks, type TaskHit } from "@/app/actions/task-search";
@@ -14,6 +14,8 @@ import { Confetti } from "@/components/confetti";
 import { Modal } from "@/components/modal";
 import { randomCongrats } from "@/lib/congrats-phrases";
 import { isTaskManager } from "@/lib/roles";
+import { ComboSelect } from "@/components/combo-select";
+import { isPublishedIso } from "@/lib/task-schedule";
 import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 import { TaskCalendar } from "./task-calendar";
@@ -172,10 +174,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
             <option value="">Todas las personas</option>
             {team.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <select className="input !w-auto" aria-label="Filtrar por cliente" value={filters.client} onChange={(e) => setFilters({ ...filters, client: e.target.value, project: "" })}>
-            <option value="">Todos los clientes</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <ComboSelect className="w-64" ariaLabel="Filtrar por cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={filters.client} onChange={(v) => setFilters({ ...filters, client: v, project: "" })} allLabel="Todos los clientes" placeholder="Todos los clientes" />
           <select className="input !w-auto" aria-label="Filtrar por proyecto" value={filters.project} disabled={!filters.client} onChange={(e) => setFilters((f) => ({ ...f, project: e.target.value }))}>
             <option value="">Todos los proyectos</option>
             {projectsForFilter.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -244,6 +243,9 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
                       onClick={() => setView(viewFor(t))}
                       className={cn("card cursor-pointer space-y-2 p-3 transition-all duration-200 ease-out hover:-translate-y-0.5", dragId === t.id && "opacity-40", st === "overdue" && "ring-2 ring-[#FF3B30]/50", st === "soon" && "ring-2 ring-[#FF9500]/50")}
                     >
+                      {!isPublishedIso(t.publishAt, now) && isOps && (
+                        <p className="inline-flex items-center gap-1.5 rounded-full bg-[#5856D6]/15 px-2.5 py-1 text-[11px] font-semibold text-[#4B49C0] dark:text-[#A5A3FF]" title="La persona asignada aún no la ve"><Clock size={12} /> Programada · aparece {formatMx(t.publishAt as string)}</p>
+                      )}
                       {t.areaName && <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide text-white" style={{ backgroundColor: t.areaColor ?? "#007AFF" }}>{t.areaName}</span>}
                       <h3 className="text-sm font-semibold leading-snug">{t.title}</h3>
                       {t.subtasks.length > 0 && (
@@ -291,6 +293,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
             key={open.id}
             task={open}
             notes={notesByTask[open.id] ?? []}
+            team={team}
             role={role}
             meId={meId}
             onClose={closeView}

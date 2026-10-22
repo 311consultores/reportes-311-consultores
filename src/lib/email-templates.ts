@@ -224,6 +224,54 @@ export function passwordResetEmail(p: { name: string; link: string; withLogo: bo
 }
 
 
+/** Resumen semanal de desempeño para el Administrador. Las cifras llegan ya con formato. */
+export function desempenoSemanalEmail(p: {
+  periodLabel: string; link: string; withLogo: boolean;
+  team: { label: string; value: string }[];
+  alerts: string[];
+  areas: { name: string; cells: string[] }[];
+  people: { name: string; cells: string[] }[];
+}) {
+  const subject = `Resumen semanal de desempeño · ${p.periodLabel}`;
+  const head = ["Puntualidad", "Devoluciones", "Entregadas", "Abiertas / vencidas"];
+  const textTable = (rows: { name: string; cells: string[] }[]) => rows.map((r) => `- ${r.name}: ${r.cells.map((c, i) => `${head[i]} ${c}`).join(" · ")}`);
+  const text = [
+    `Resumen del equipo del ${p.periodLabel}`,
+    "",
+    ...p.team.map((t) => `${t.label}: ${t.value}`),
+    "",
+    ...(p.alerts.length ? ["Para atender:", ...p.alerts.map((a) => `- ${a}`), ""] : []),
+    "Por área:",
+    ...textTable(p.areas),
+    "",
+    "Por persona:",
+    ...textTable(p.people),
+    "",
+    "Ver el dashboard completo:",
+    p.link,
+  ].join("\n");
+  const table = (title: string, rows: { name: string; cells: string[] }[]) =>
+    rows.length === 0
+      ? ""
+      : `<p style="margin:18px 0 6px;font-weight:600;">${esc(title)}</p>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+<tr style="text-align:left;color:#86868b;"><th style="padding:4px 8px 4px 0;font-weight:500;"></th>${head.map((h) => `<th style="padding:4px 8px;font-weight:500;">${h}</th>`).join("")}</tr>
+${rows.map((r) => `<tr style="border-top:1px solid #e5e5ea;"><td style="padding:5px 8px 5px 0;">${esc(r.name)}</td>${r.cells.map((c) => `<td style="padding:5px 8px;">${esc(c)}</td>`).join("")}</tr>`).join("")}
+</table>`;
+  const html = shell(
+    `<p style="margin:0 0 14px;">Este es el resumen de desempeño del equipo del <strong>${esc(p.periodLabel)}</strong>.</p>
+<table style="margin:0 0 8px;font-size:14px;border-collapse:collapse;">
+${p.team.map((t) => `<tr><td style="padding:3px 16px 3px 0;color:#86868b;">${esc(t.label)}</td><td><strong>${esc(t.value)}</strong></td></tr>`).join("")}
+</table>
+${p.alerts.length ? `<div style="margin:14px 0;padding:10px 14px;background:#fff4e5;border-radius:10px;font-size:14px;"><strong>Para atender</strong><ul style="margin:6px 0 0;padding-left:18px;">${p.alerts.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}
+${table("Por área", p.areas)}
+${table("Por persona", p.people)}
+<p style="margin:20px 0 8px;">${button(p.link, "Abrir el dashboard")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
 /** Aviso al TEAM 311: se le asignó una tarea nueva. */
 export function tareaAsignadaEmail(p: { title: string; clientName: string; projectName: string; due: string; byName: string; link: string; withLogo: boolean }) {
   const subject = `Nueva tarea para ti: ${p.title}`;

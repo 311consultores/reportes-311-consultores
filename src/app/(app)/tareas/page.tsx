@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES } from "@/lib/roles";
 import { requireUser } from "@/lib/auth";
 import { finishedCutoff, mxMonthStart } from "@/lib/tasks-shared";
+import { publishedWhere } from "@/lib/task-visibility";
 import { TaskBoard } from "./task-board";
 import { taskInclude, toCard } from "@/lib/task-cards";
 import type { TaskCard, TaskPrefill } from "./task-types";
@@ -17,7 +18,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const history = historial === "1";
 
   // El TEAM 311 solo ve las tareas que le asignaron; Admin, Editor y PROJECT 311 ven todas
-  const mine: Prisma.TaskWhereInput = isOps ? {} : { assignees: { some: { userId: user.id } } };
+  const mine: Prisma.TaskWhereInput = isOps ? {} : { AND: [{ assignees: { some: { userId: user.id } } }, publishedWhere()] }; // una tarea programada no aparece hasta su fecha
   const cutoff = finishedCutoff();
   const where: Prisma.TaskWhereInput = history
     ? { ...mine, status: "TERMINADA", OR: [{ hiddenAt: { not: null } }, { acceptedAt: { lt: cutoff } }] }

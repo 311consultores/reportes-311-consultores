@@ -2,6 +2,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { STAFF_ROLES } from "@/lib/roles";
+import { publishedWhere } from "@/lib/task-visibility";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type CurrentUser } from "@/lib/auth";
 import { htmlToText } from "@/lib/sanitize";
@@ -12,7 +13,7 @@ import type { TaskCard } from "@/app/(app)/tareas/task-types";
 export type TaskHit = { id: string; title: string; clientName: string; projectName: string; status: TaskCard["status"]; history: boolean; field: string; snippet: string | null };
 
 /** Tareas que puede ver esta persona: Admin y Editor todas; el TEAM 311 solo las suyas. */
-const scopeFor = (u: CurrentUser): Prisma.TaskWhereInput => (u.role === "TEAM_311" ? { assignees: { some: { userId: u.id } } } : {});
+const scopeFor = (u: CurrentUser): Prisma.TaskWhereInput => (u.role === "TEAM_311" ? { AND: [{ assignees: { some: { userId: u.id } } }, publishedWhere()] } : {});
 
 const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 

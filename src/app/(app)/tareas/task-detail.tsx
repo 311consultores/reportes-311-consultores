@@ -3,17 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Check, ExternalLink, Link2, MessageCircle, Pencil, Wand2 } from "lucide-react";
+import { CalendarClock, Check, Clock, ExternalLink, Link2, MessageCircle, Pencil, Plus, Wand2, X } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { AvatarChip } from "@/components/avatar";
 import { DeleteButton } from "@/components/delete-button";
 import { RichTextView } from "@/components/rich-text";
 import { isTaskManager } from "@/lib/roles";
-import { taskAssignMessage, whatsappUrl } from "@/lib/whatsapp";
+import { useDialogs } from "@/components/dialogs";
+import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
+import { isPublishedIso } from "@/lib/task-schedule";
+import { taskAssignMessage } from "@/lib/whatsapp";
 import { randomTaskPhrase } from "@/lib/task-phrases";
 import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
-import { toggleSubtask } from "@/app/actions/tasks";
+import { addTaskAssignees, removeTaskAssignee, toggleSubtask } from "@/app/actions/tasks";
 import { TaskChat } from "./task-chat";
 import type { TaskCard } from "./task-types";
 
@@ -21,8 +24,8 @@ const eventNote = (kind: string, note: string | null) =>
   kind === "MOVED" && note ? note.replace(/[A-Z_]+/g, (k) => (STATUS_INFO[k as TaskStatus]?.label.toLowerCase() ?? k)).replace(" → ", " → ") : note;
 
 /** Cuerpo de la ventana de detalle de una tarea (estilo Trello): contenido a la izquierda y mini-panel a la derecha. */
-export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClose }: {
-  task: TaskCard; notes?: { id: string; title: string }[]; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void;
+export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, onEdit, onClose }: {
+  task: TaskCard; notes?: { id: string; title: string }[]; team?: TeamOption[]; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => new Date());
@@ -42,14 +45,50 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
   const locked = task.status === "TERMINADA" && !isOps; // el TEAM 311 solo consulta
   // Enlace de la tarea para copiar y mandar por WhatsApp (solo quien gestiona tareas)
   const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState<string>();
   const taskUrl = typeof window === "undefined" ? "" : `${window.location.origin}/tareas?tarea=${task.id}`;
-  async function copyLink() {
-    try { await navigator.clipboard.writeText(taskUrl); } catch {
-      const ta = document.createElement("textarea"); ta.value = taskUrl; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  async function copyText(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
     }
+  }
+  async function copyLink() {
+    await copyText(taskUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+  // El botón de WhatsApp copia el mensaje (con el nombre de todas las personas asignadas) para pegarlo en WhatsApp
+  async function copyMessage() {
+    await copyText(taskAssignMessage(task.assignees.map((a) => a.name), task.title, taskUrl));
+    setToast("Mensaje copiado");
+    setTimeout(() => setToast(undefined), 3000);
+  }
+  // Agregar o quitar personas sin abrir «Editar»
+  const { confirm } = useDialogs();
+  const [adding, setAdding] = useState(false);
+  const [newIds, setNewIds] = useState<string[]>([]);
+  const [pickerKey, setPickerKey] = useState(0);
+  const [assignError, setAssignError] = useState<string>();
+  const [busyAssign, setBusyAssign] = useState(false);
+  const addable = team.filter((p) => !task.assignees.some((a) => a.id === p.id));
+  async function addPeople() {
+    setAssignError(undefined);
+    setBusyAssign(true);
+    const r = await addTaskAssignees(task.id, newIds);
+    setBusyAssign(false);
+    if (r.error) return setAssignError(r.error);
+    setAdding(false); setNewIds([]); setPickerKey((k) => k + 1);
+    router.refresh();
+  }
+  async function removePerson(id: string, name: string) {
+    const ok = await confirm({ title: "Quitar de la tarea", message: `Se quitará a ${name} de esta tarea y se le avisará que ya no es suya.`, confirmLabel: "Quitar" });
+    if (!ok) return;
+    setAssignError(undefined);
+    const r = await removeTaskAssignee(task.id, id);
+    if (r.error) setAssignError(r.error);
+    else router.refresh();
+  }
+  const scheduled = isOps && !isPublishedIso(task.publishAt, now);
   // Subtareas: se marcan al instante (Admin/Editor siempre; el TEAM asignado mientras la tarea no esté aceptada)
   const [local, setLocal] = useState<Record<string, boolean>>({});
   const subs = task.subtasks.map((s) => ({ ...s, done: local[s.id] ?? s.done }));
@@ -72,22 +111,40 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
             {info.emoji} {info.label}
           </span>
           {task.areaName && <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide text-white" style={{ backgroundColor: task.areaColor ?? "#007AFF" }}>{task.areaName}</span>}
+          {scheduled && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#5856D6]/15 px-3 py-1 text-xs font-semibold text-[#4B49C0] dark:text-[#A5A3FF]" title="La persona asignada aún no la ve"><Clock size={13} /> Programada · aparece {formatMx(task.publishAt as string)}</span>}
         </div>
 
         <div>
           <h3 className="mb-1 text-sm font-semibold">Asignada a</h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {task.assignees.map((a) => (
-              <span key={a.id} className="inline-flex items-center gap-1">
+              <span key={a.id} className="inline-flex items-center gap-0.5">
                 <AvatarChip name={a.name} userId={a.id} photoKey={a.photoUrl} size={26} />
-                {isOps && a.id !== meId && (
-                  <a href={whatsappUrl(a.phone, taskAssignMessage(a.name, task.title, taskUrl))} target="_blank" rel="noopener noreferrer" title={a.phone ? `Enviar por WhatsApp a ${a.name}` : `Enviar por WhatsApp (${a.name} no tiene teléfono: elige el contacto en WhatsApp)`} aria-label={`Enviar por WhatsApp a ${a.name}`} className="inline-flex items-center gap-1 rounded-full bg-[#25D366]/15 px-2.5 py-1 text-xs font-semibold text-[#128C4A] transition-all hover:bg-[#25D366]/25 dark:text-[#4ADE80]">
-                    <MessageCircle size={13} /> WhatsApp
-                  </a>
+                {isOps && task.assignees.length > 1 && (
+                  <button type="button" aria-label={`Quitar a ${a.name}`} title={`Quitar a ${a.name}`} onClick={() => removePerson(a.id, a.name)} className="rounded-full p-1 text-zinc-500 hover:bg-black/5 dark:hover:bg-white/10"><X size={13} /></button>
                 )}
               </span>
             ))}
+            {isOps && (
+              <button type="button" aria-expanded={adding} onClick={() => setAdding((v) => !v)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-black/20 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-black/5 dark:border-white/25 dark:text-zinc-300 dark:hover:bg-white/10"><Plus size={13} /> Agregar</button>
+            )}
+            {isOps && (
+              <button type="button" onClick={copyMessage} title="Copia el mensaje para pegarlo en WhatsApp" aria-label="WhatsApp: copiar mensaje" className="inline-flex items-center gap-1 rounded-full bg-[#25D366]/15 px-2.5 py-1 text-xs font-semibold text-[#128C4A] transition-all hover:bg-[#25D366]/25 dark:text-[#4ADE80]">
+                <MessageCircle size={13} /> WhatsApp
+              </button>
+            )}
+            {toast && <span role="status" className="rounded-full bg-[#34C759]/15 px-2.5 py-1 text-xs font-semibold text-[#1E7B3A] dark:text-[#6EE7A0]">✔ {toast}</span>}
           </div>
+          {adding && isOps && (
+            <div className="mt-2 space-y-2 rounded-xl bg-black/[0.03] p-3 dark:bg-white/[0.04]">
+              <ConsultantPicker key={pickerKey} options={addable} onChange={setNewIds} hint="Se les avisa que se les asignó la tarea." emptyText="No hay más personas disponibles" searchText="Escribe para buscar a quién agregar…" />
+              <div className="flex items-center gap-2">
+                <button type="button" className="btn px-3 py-1.5 text-xs" disabled={busyAssign || newIds.length === 0} onClick={addPeople}>{busyAssign ? "Agregando…" : "Agregar a la tarea"}</button>
+                <button type="button" className="btn-outline px-3 py-1.5 text-xs" onClick={() => { setAdding(false); setNewIds([]); setPickerKey((k) => k + 1); }}>Cancelar</button>
+              </div>
+            </div>
+          )}
+          {assignError && <p className="mt-1 text-xs text-destructive">{assignError}</p>}
         </div>
 
         <div>
@@ -224,7 +281,7 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
             <DeleteButton
               targetType="WORKTASK"
               targetId={task.id}
-              isAdmin={role === "ADMIN"}
+              isAdmin={role === "ADMIN" || scheduled}
               alreadyPending={false}
               onExecuted={() => { onClose(); router.refresh(); }}
               label="Solicitar eliminación"

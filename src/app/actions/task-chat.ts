@@ -7,6 +7,7 @@ import { readLogo311 } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { tareaMensajeEmail } from "@/lib/email-templates";
 import { isTaskManager, STAFF_ROLES } from "@/lib/roles";
+import { isPublished } from "@/lib/task-visibility";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { htmlToText, sanitizeRichHtml } from "@/lib/sanitize";
 
@@ -27,7 +28,7 @@ const isOps = (u: CurrentUser) => isTaskManager(u.role);
 async function taskFor(user: CurrentUser, taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true, user: { select: { email: true } } } } } });
   if (!task) return null;
-  if (!isOps(user) && !task.assignees.some((a) => a.userId === user.id)) return null;
+  if (!isOps(user) && (!task.assignees.some((a) => a.userId === user.id) || !isPublished(task))) return null;
   return task;
 }
 

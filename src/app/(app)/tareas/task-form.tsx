@@ -5,7 +5,9 @@ import { Plus, X } from "lucide-react";
 import { createTask, updateTask } from "@/app/actions/tasks";
 import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { RichTextEditor } from "@/components/rich-text";
+import { ComboSelect } from "@/components/combo-select";
 import { defaultDue, toMxInput } from "@/lib/tasks-shared";
+import { isPublishedIso } from "@/lib/task-schedule";
 import type { AreaOption, TaskCard, TaskPrefill } from "./task-types";
 
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
@@ -28,6 +30,9 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
       : (prefill?.subtasks ?? []).map((t, i) => ({ key: 2000 + i, id: "", title: t, who: "", due: "" })), // los elementos de una lista del Baúl pasan a ser subtareas
   );
   const [areaId, setAreaId] = useState(task?.areaId ?? "");
+  const [publishAt, setPublishAt] = useState(task?.publishAt ? toMxInput(new Date(task.publishAt)) : "");
+  // La fecha de aparición solo se puede definir al crear o mientras la tarea programada aún no aparece
+  const canSchedule = !task || !isPublishedIso(task.publishAt);
   const [error, setError] = useState<string>();
   const [busy, start] = useTransition();
   const projects = clients.find((c) => c.id === clientId)?.projects ?? [];
@@ -48,10 +53,7 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="label" htmlFor="t-client">Cliente</label>
-          <select id="t-client" name="clientId" className="input" value={clientId} onChange={(e) => { setClientId(e.target.value); setProjectId(""); }} required>
-            <option value="">Elige un cliente…</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <ComboSelect name="clientId" ariaLabel="Cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={clientId} onChange={(v) => { setClientId(v); setProjectId(""); }} placeholder="Escribe para buscar un cliente…" required />
         </div>
         <div>
           <label className="label" htmlFor="t-project">Proyecto</label>
@@ -85,6 +87,14 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
           <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
           {!task && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
         </div>
+        {canSchedule && (
+          <div className="md:col-span-2">
+            <label className="label" htmlFor="t-publish">Programar aparición (opcional)</label>
+            <input id="t-publish" name="publishAt" type="datetime-local" className="input md:!w-64" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} />
+            <p className="mt-1 text-xs text-zinc-500">{publishAt ? "La persona asignada verá la tarea (y recibirá el aviso) hasta esa fecha y hora; el tiempo para entregar cuenta desde entonces. Tú la ves desde ahora con la etiqueta «Programada»." : "Déjalo vacío para que la tarea aparezca de inmediato. Si lo llenas, la tarea queda programada y no satura el panel de la persona."}</p>
+            {publishAt && <button type="button" className="mt-1 text-xs font-medium text-[#007AFF] hover:underline" onClick={() => setPublishAt("")}>Quitar programación (que aparezca ya)</button>}
+          </div>
+        )}
       </div>
 
       <div>

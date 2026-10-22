@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { launch, ROOT } from "./lib.mjs";
 
-const pdf = fs.readFileSync(path.join(ROOT, process.argv[2] === "project" ? "Manual-PROJECT-311.pdf" : "Manual-de-uso-311-Consultores.pdf"));
+const pdf = fs.readFileSync(path.join(ROOT, ({ project: "Manual-PROJECT-311.pdf", admin: "Manual-ADMINISTRADOR.pdf" })[process.argv[2]] ?? "Manual-de-uso-311-Consultores.pdf"));
 const pdfjs = path.join(ROOT, "node_modules", "pdfjs-dist", "build");
 const out = path.join(ROOT, "salida", "prev");
 fs.mkdirSync(out, { recursive: true });

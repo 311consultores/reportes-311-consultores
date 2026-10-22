@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/roles";
 import { STATUS_INFO, formatMx } from "@/lib/tasks-shared";
-import {
-  computeDashboard, fmtDur, fmtPct, getMeasuredFrom, getThresholds, lightFor, parsePeriodParams, type GroupRow, type Kpis, type Light, type Thresholds,
-} from "@/lib/metrics";
+import { computeDashboard, computeTrend, fmtDur, fmtPct, lightFor, resolveFilters, type GroupRow, type Kpis, type Light, type Thresholds } from "@/lib/metrics";
+import { ConfigForm } from "./config-form";
+import { TrendChart } from "./trend-chart";
 
 export const metadata = { title: "Desempeño | Portal de Operaciones" };
 
@@ -75,19 +75,19 @@ function GroupTable({ rows, t, empty }: { rows: GroupRow[]; t: Thresholds; empty
 export default async function PerformancePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requireUser(["ADMIN"]);
   const sp = await searchParams;
-  const [measuredFrom, thresholds, clients, areas, people] = await Promise.all([
-    getMeasuredFrom(),
-    getThresholds(),
+  const [r, clients, areas, people] = await Promise.all([
+    resolveFilters(sp),
     prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true } }),
     prisma.area.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.user.findMany({ where: { active: true, role: { in: ["ADMIN", "EDITOR", "PROJECT_311", "TEAM_311"] } }, orderBy: { name: "asc" }, select: { id: true, name: true, role: true } }),
   ]);
-  const period = parsePeriodParams(sp, measuredFrom);
-  const personId = people.some((p) => p.id === sp.persona) ? sp.persona : undefined;
-  const clientId = clients.some((c) => c.id === sp.cliente) ? sp.cliente : undefined;
-  const areaId = sp.area === "none" || areas.some((a) => a.id === sp.area) ? sp.area : undefined;
-  const d = await computeDashboard({ from: period.from, to: period.to, personId, clientId, areaId });
-  const t = thresholds;
+  const { period, measuredFrom, thresholds: t, gran } = r;
+  const { personId, clientId, areaId } = r.filters;
+  const [d, trend] = await Promise.all([computeDashboard(r.filters), computeTrend(r.filters, gran)]);
+  const keep = Object.entries({ periodo: sp.periodo, desde: sp.desde, hasta: sp.hasta, cliente: clientId, area: areaId, gran: sp.gran }).filter(([, v]) => v) as [string, string][];
+  const qsBase = new URLSearchParams(keep).toString();
+  const withQs = (extra: Record<string, string>) => `?${new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(qsBase)), ...extra }).toString()}`;
+  const csv = (tipo: string) => `/api/desempeno/export?${new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(qsBase)), ...(personId ? { persona: personId } : {}), tipo }).toString()}`;
   const k = d.team;
   const maxLoad = Math.max(1, ...d.loadDist.map((r) => r.open));
   const maxFunnel = Math.max(1, ...d.funnel.map((f) => f.count));
@@ -164,6 +164,16 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         </div>
       </Section>
 
+      <Section title="Tendencia" hint="Tareas entregadas (barras) y puntualidad proporcional (línea) a lo largo del periodo; las franjas de color son el semáforo.">
+        <div className="flex justify-end">
+          <span className="inline-flex overflow-hidden rounded-xl border border-black/10 text-sm dark:border-white/10" role="group" aria-label="Agrupar por">
+            <Link href={withQs({ gran: "semana" })} className={`px-3 py-1.5 font-medium ${gran === "semana" ? "bg-[#007AFF] text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}>Por semana</Link>
+            <Link href={withQs({ gran: "mes" })} className={`px-3 py-1.5 font-medium ${gran === "mes" ? "bg-[#007AFF] text-white" : "hover:bg-black/5 dark:hover:bg-white/10"}`}>Por mes</Link>
+          </span>
+        </div>
+        <TrendChart points={trend} t={t} />
+      </Section>
+
       <Section title="Por persona" hint="Cada persona se compara con la meta del equipo, no contra las demás. Solo cuentan las tareas donde está asignada.">
         <div className="card overflow-x-auto p-0">
           <table className="w-full">
@@ -173,7 +183,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             <tbody className="divide-y divide-black/5 dark:divide-white/10">
               {opsPeople.map((p) => (
                 <tr key={p.id}>
-                  <td className="td font-medium">{p.name}<span className="meta block text-xs font-normal">{ROLE_LABEL[p.role]}</span></td>
+                  <td className="td font-medium"><Link className="link" href={`/desempeno/persona/${p.id}${qsBase ? `?${qsBase}` : ""}`}>{p.name}</Link><span className="meta block text-xs font-normal">{ROLE_LABEL[p.role]} · ver ficha</span></td>
                   <td className="td text-xs">{p.areas.join(", ") || "—"}</td>
                   <td className="td">{p.kpis.delivered}</td>
                   <td className="td"><Punct k={p.kpis} t={t} /></td>
@@ -290,6 +300,18 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             </tbody>
           </table>
         </div>
+      </Section>
+
+      <Section title="Exportar a Excel (CSV)" hint="Descarga la tabla que elijas con los filtros actuales; se abre directo en Excel.">
+        <div className="flex flex-wrap gap-2">
+          {[["personas", "Por persona"], ["areas", "Por área"], ["clientes", "Por cliente"], ["proyectos", "Por proyecto"], ["gestion", "Gestión"], ["reportes", "Reportes"], ["tendencia", "Tendencia"]].map(([k2, label]) => (
+            <a key={k2} href={csv(k2)} className="btn-outline">{label}</a>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Configuración del semáforo y de la medición">
+        <div className="card"><ConfigForm green={t.green} amber={t.amber} since={period.desde && measuredFrom ? new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Mexico_City" }).format(measuredFrom) : ""} /></div>
       </Section>
 
       <p className="meta text-xs">Semáforo de puntualidad: verde desde {t.green} %, ámbar de {t.amber} % a {t.green - 1} %, rojo por debajo de {t.amber} %. {d.taskCount} tarea(s) consideradas con los filtros actuales.</p>

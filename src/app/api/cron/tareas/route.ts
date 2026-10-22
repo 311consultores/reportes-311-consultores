@@ -3,16 +3,22 @@ import { prisma } from "@/lib/prisma";
 import { getSetting, readLogo311, setSetting } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
-import { notaRecordatorioEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
+import { desempenoSemanalEmail, notaRecordatorioEmail, tareaAsignadaEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
 import { htmlToText } from "@/lib/sanitize";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { formatMx } from "@/lib/tasks-shared";
+import { publishedWhere } from "@/lib/task-visibility";
 import { todayMx } from "@/lib/finance";
+import { computeDashboard, fmtPct, getMeasuredFrom, getThresholds, mxWeekStart, lightFor } from "@/lib/metrics";
+import { dayKey } from "@/lib/tasks-shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const LAST_KEY = "tareas_vencidas_fecha";
+const WEEKLY_KEY = "desempeno_semanal_lunes";
+/** El resumen semanal de desempeño se envía únicamente a esta dirección. */
+const WEEKLY_TO = "necesito@311consultores.com";
 const opsEmails = () => (process.env.TEAM_NOTIFY_EMAILS ?? "admon@311consultores.com,necesito@311consultores.com").split(/[,;\s]+/).filter(Boolean);
 
 const sameToken = (a: string, b: string) => {
@@ -37,11 +43,33 @@ export async function GET(req: Request) {
   const base = await getBaseUrl();
   const logo = await readLogo311();
   const inline = logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined;
-  const result = { porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false };
+  const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false };
+
+  // 0) Tareas programadas que ya aparecieron: se avisa a las personas asignadas (campanita, navegador y correo)
+  const published = await prisma.task.findMany({
+    where: { publishAt: { not: null, lte: now }, publishNotifiedAt: null },
+    include: {
+      client: { select: { companyName: true } }, project: { select: { projectName: true } }, createdBy: { select: { name: true } },
+      assignees: { include: { user: { select: { id: true, email: true, active: true } } } },
+    },
+  });
+  for (const t of published) {
+    try {
+      const people = t.assignees.map((a) => a.user).filter((u) => u.active);
+      if (people.length) {
+        await notifyUsers(people.map((u) => u.id), { actorId: t.createdById, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${t.title}`, body: `${t.client.companyName} · ${t.project.projectName} — entrega ${formatMx(t.dueAt)}`, link: `/tareas?tarea=${t.id}` });
+        await sendMail({ to: people.map((u) => u.email), ...tareaAsignadaEmail({ title: t.title, clientName: t.client.companyName, projectName: t.project.projectName, due: formatMx(t.dueAt), byName: t.createdBy.name, link: `${base}/tareas?tarea=${t.id}`, withLogo: !!logo }), inline });
+      }
+      await prisma.task.update({ where: { id: t.id }, data: { publishNotifiedAt: now } });
+      result.programadas++;
+    } catch (e) {
+      console.error("[cron tareas] aviso de tarea programada:", e);
+    }
+  }
 
   // 1) Por vencer (menos de 12 horas)
   const soon = await prisma.task.findMany({
-    where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { gt: now, lte: new Date(now.getTime() + 12 * 3600_000) }, reminderSentAt: null },
+    where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { gt: now, lte: new Date(now.getTime() + 12 * 3600_000) }, reminderSentAt: null, ...publishedWhere(now) },
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, email: true, active: true } } } } },
   });
   for (const t of soon) {
@@ -84,7 +112,7 @@ export async function GET(req: Request) {
   const force = url.searchParams.get("force") === "1";
   if (force || (hourMx >= 8 && (await getSetting(LAST_KEY)) !== today)) {
     const overdue = await prisma.task.findMany({
-      where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { lt: now } },
+      where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { lt: now }, ...publishedWhere(now) },
       orderBy: { dueAt: "asc" },
       include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, name: true, email: true, active: true } } } } },
     });
@@ -117,6 +145,49 @@ export async function GET(req: Request) {
         console.error("[cron tareas] vencidas:", e);
         return Response.json({ ...result, error: "No se pudo enviar el aviso de tareas vencidas" }, { status: 502 });
       }
+    }
+  }
+
+  // 3) Resumen semanal de desempeño: los lunes a partir de las 8:00 (México), con la semana anterior (lunes a domingo). Solo a necesito@311consultores.com.
+  const monday = mxWeekStart(now);
+  const mondayKey = dayKey(monday);
+  const weeklyForce = url.searchParams.get("semanal") === "1";
+  if (weeklyForce || (mondayKey === today && hourMx >= 8 && (await getSetting(WEEKLY_KEY)) !== mondayKey)) {
+    try {
+      const measuredFrom = await getMeasuredFrom();
+      const prevStart = new Date(monday.getTime() - 7 * 86_400_000);
+      const to = new Date(monday.getTime() - 1);
+      const from = prevStart < measuredFrom ? measuredFrom : prevStart;
+      if (to > from) {
+        const [d, th] = await Promise.all([computeDashboard({ from, to }, now), getThresholds()]);
+        const light = (p: number | null) => (lightFor(p, th) === "red" ? "🔴 " : lightFor(p, th) === "amber" ? "🟠 " : lightFor(p, th) === "green" ? "🟢 " : "");
+        const cells = (k: typeof d.team) => [`${light(k.punctuality)}${fmtPct(k.punctuality)} (${k.onTime} de ${k.delivered})`, `${fmtPct(k.returnRate)} (${k.returns})`, String(k.delivered), `${k.open} / ${k.overdue}`];
+        const alerts: string[] = [];
+        for (const p of d.people) if (p.kpis.delivered > 0 && lightFor(p.kpis.punctuality, th) === "red") alerts.push(`${p.name}: puntualidad ${fmtPct(p.kpis.punctuality)} (${p.kpis.onTime} de ${p.kpis.delivered} a tiempo)`);
+        for (const a of d.byArea) if (a.kpis.delivered > 0 && lightFor(a.kpis.punctuality, th) === "red") alerts.push(`Área ${a.name}: puntualidad ${fmtPct(a.kpis.punctuality)}`);
+        for (const p of d.loadDist.filter((r) => r.overdue > 0)) alerts.push(`${p.name} tiene ${p.overdue} tarea(s) vencida(s) abierta(s)`);
+        const fmtD = (x: Date) => formatMx(x, false);
+        const m = await sendMail({
+          to: [WEEKLY_TO],
+          ...desempenoSemanalEmail({
+            periodLabel: `${fmtD(from)} al ${fmtD(to)}`, link: `${base}/desempeno`, withLogo: !!logo, alerts: alerts.slice(0, 12),
+            team: [
+              { label: "Puntualidad (proporcional)", value: `${fmtPct(d.team.punctuality)} · ${d.team.onTime} de ${d.team.delivered} tareas a tiempo` },
+              { label: "Devoluciones", value: `${fmtPct(d.team.returnRate)} (${d.team.returns})` },
+              { label: "Tareas abiertas / vencidas", value: `${d.team.open} / ${d.team.overdue}` },
+              { label: "Reportes terminados / enviados", value: `${d.reports.finished} / ${d.reports.sent}` },
+            ],
+            areas: d.byArea.map((g) => ({ name: g.name, cells: cells(g.kpis) })),
+            people: d.people.filter((p) => p.role === "TEAM_311" || p.role === "PROJECT_311").map((p) => ({ name: p.name, cells: cells(p.kpis) })),
+          }),
+          inline,
+        });
+        void m;
+        result.resumenSemanal = true;
+      }
+      if (!weeklyForce) await setSetting(WEEKLY_KEY, mondayKey);
+    } catch (e) {
+      console.error("[cron tareas] resumen semanal:", e);
     }
   }
   return Response.json({ ok: true, ...result });

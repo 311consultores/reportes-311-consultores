@@ -180,7 +180,10 @@ export async function requestDeletion(targetType: TargetType, targetId: string, 
   const dup = await prisma.deletionRequest.findFirst({ where: { targetType, targetId, status: "PENDIENTE" } });
   if (dup) return { error: "Ya existe una solicitud pendiente" };
 
-  if (isAdmin) {
+  // Una tarea programada que todavía no aparece se elimina libremente, sin solicitud
+  const scheduledTask = targetType === "WORKTASK" && !!(await prisma.task.findFirst({ where: { id: targetId, publishAt: { gt: new Date() } }, select: { id: true } }));
+
+  if (isAdmin || scheduledTask) {
     await performDeletion(targetType, targetId, user.id, cleanReason);
     await prisma.deletionRequest.create({
       data: {

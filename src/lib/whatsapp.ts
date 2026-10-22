@@ -6,14 +6,14 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   return null;
 }
 
-/** Enlace de WhatsApp con el mensaje ya escrito. Sin teléfono, WhatsApp deja elegir el contacto. */
-export function whatsappUrl(phone: string | null | undefined, text: string): string {
-  const n = normalizePhone(phone);
-  return `https://wa.me/${n ?? ""}?text=${encodeURIComponent(text)}`;
+/** «Ana», «Ana y Luis», «Ana, Luis y Sofía». */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
 }
 
-/** Mensaje al asignar una tarea: «Hola Ana te acabo de asignar la tarea: …, puedes verla dando click aquí: …». */
-export function taskAssignMessage(fullName: string, title: string, url: string): string {
-  const first = fullName.trim().split(/\s+/)[0] || fullName;
-  return `Hola ${first} te acabo de asignar la tarea: ${title}, puedes verla dando click aquí: ${url}`;
+/** Mensaje para copiar y pegar en WhatsApp: «Hola Ana y Luis te acabo de asignar la tarea: …, puedes verla dando click aquí: …». */
+export function taskAssignMessage(fullNames: string[], title: string, url: string): string {
+  const firsts = fullNames.map((n) => n.trim().split(/\s+/)[0] || n);
+  return `Hola ${joinNames(firsts)} te acabo de asignar la tarea: ${title}, puedes verla dando click aquí: ${url}`;
 }
