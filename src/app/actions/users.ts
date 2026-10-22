@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { normalizePhone } from "@/lib/whatsapp";
 import { parseBirthday, removePhoto, storePhoto } from "@/lib/avatar";
 
 type State = { error?: string; ok?: boolean } | undefined;
@@ -21,6 +22,22 @@ async function validProjectIds(raw: FormDataEntryValue[]): Promise<string[]> {
   const ids = [...new Set(raw.map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
   if (ids.length === 0) return [];
   return (await prisma.project.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((p) => p.id);
+}
+
+/** Teléfono opcional: se guarda solo con dígitos (10 para México, o con lada). */
+function parsePhone(fd: FormData): { ok: true; value: string | null } | { ok: false; error: string } {
+  const raw = String(fd.get("phone") ?? "").trim();
+  if (!raw) return { ok: true, value: null };
+  const n = normalizePhone(raw);
+  if (!n) return { ok: false, error: "El teléfono debe tener 10 dígitos (o incluir la lada del país)" };
+  return { ok: true, value: n };
+}
+
+/** Áreas que existen de verdad entre los ids recibidos. */
+async function validAreaIds(raw: FormDataEntryValue[]): Promise<string[]> {
+  const ids = [...new Set(raw.map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
+  if (ids.length === 0) return [];
+  return (await prisma.area.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((a) => a.id);
 }
 
 const photoFile = (fd: FormData) => {
@@ -89,6 +106,7 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
       name: nameField,
       email: z.string().trim().toLowerCase().email("Correo inválido").optional(),
       password: z.string().optional(),
+      role: z.enum(["TEAM_311", "PROJECT_311", "EDITOR", "ADMIN"]).optional(),
       birthMonth: z.string().optional(),
       birthDay: z.string().optional(),
     })
@@ -96,11 +114,13 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, photoUrl: true } });
+  const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, photoUrl: true, active: true } });
   if (!target || !isTeamRole(target.role)) return { error: "Solo se pueden editar usuarios TEAM 311 o PROJECT 311 desde aquí" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   const b = parseBirthday(d.birthMonth ?? "", d.birthDay ?? "");
   if (!b.ok) return { error: b.error };
+  const ph = parsePhone(fd);
+  if (!ph.ok) return { error: ph.error };
 
   // Solo el Administrador cambia el correo
   const email = me.role === "ADMIN" ? d.email : undefined;
@@ -116,24 +136,32 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
     if (!s.ok) return { error: s.error };
     photoUrl = s.key;
   }
+  // Cambio de rol: solo el Administrador, y no el propio
+  const newRole = me.role === "ADMIN" && d.role && d.role !== target.role ? d.role : target.role;
+  if (newRole !== target.role && d.id === me.id) return { error: "No puedes cambiar tu propio rol" };
+  const finalRole = newRole;
   const projectIds = await validProjectIds(fd.getAll("projectIds"));
+  const areaIds = isTeamRole(finalRole) ? await validAreaIds(fd.getAll("areaIds")) : [];
 
   await prisma.$transaction([
     prisma.user.update({
       where: { id: d.id },
-      data: { name: d.name, ...(email ? { email } : {}), birthday: b.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
+      data: { name: d.name, role: finalRole, ...(email ? { email } : {}), birthday: b.value, phone: ph.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
     }),
     // Los proyectos asignados (para reportes) solo aplican al TEAM 311
-    ...(target.role === "TEAM_311"
+    ...(finalRole === "TEAM_311"
       ? [prisma.userProject.deleteMany({ where: { userId: d.id } }), prisma.userProject.createMany({ data: projectIds.map((projectId) => ({ userId: d.id, projectId })) })]
-      : []),
+      : [prisma.userProject.deleteMany({ where: { userId: d.id } })]),
+    // Áreas del equipo (varias por persona)
+    prisma.userArea.deleteMany({ where: { userId: d.id } }),
+    prisma.userArea.createMany({ data: areaIds.map((areaId) => ({ userId: d.id, areaId })) }),
   ]);
   if (photoUrl) await removePhoto(target.photoUrl);
   revalidatePath("/usuarios");
   return { ok: true };
 }
 
-/** Edición de un usuario ADMIN, EDITOR o CLIENTE (solo Administrador). */
+/** Edición de un usuario ADMIN, EDITOR o CLIENTE, con cambio de rol (solo Administrador). */
 export async function updateUser(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN"]);
   const parsed = z
@@ -142,7 +170,7 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
       name: nameField,
       email: z.string().trim().toLowerCase().email("Correo inválido"),
       password: z.string().optional(),
-      role: z.enum(["ADMIN", "EDITOR", "CLIENTE"]),
+      role: z.enum(["ADMIN", "EDITOR", "CLIENTE", "TEAM_311", "PROJECT_311"]),
       clientId: z.string().optional(),
       birthMonth: z.string().optional(),
       birthDay: z.string().optional(),
@@ -153,6 +181,7 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
 
   const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true, photoUrl: true } });
   if (!target || isTeamRole(target.role)) return { error: "Usuario no encontrado" };
+  if (target.role === "ADMIN" && d.role !== "ADMIN" && target.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) return { error: "No puedes quitar el rol al único Administrador activo" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   if (d.id === me.id && d.role !== "ADMIN") return { error: "No puedes quitarte a ti mismo el rol de Administrador" };
   if (d.role === "CLIENTE" && !d.clientId) return { error: "Selecciona la empresa del usuario cliente" };
@@ -185,6 +214,9 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
       },
     }),
     prisma.clientUser.deleteMany({ where: { userId: d.id } }),
+    // Al cambiar de rol se limpian los datos que ya no aplican (proyectos de reportes solo del TEAM 311; áreas solo de TEAM 311 y PROJECT 311)
+    ...(d.role !== "TEAM_311" ? [prisma.userProject.deleteMany({ where: { userId: d.id } })] : []),
+    ...(!isTeamRole(d.role) ? [prisma.userArea.deleteMany({ where: { userId: d.id } })] : []),
     ...(d.role === "CLIENTE" && d.clientId ? [prisma.clientUser.create({ data: { userId: d.id, clientId: d.clientId } })] : []),
   ]);
   if (photoUrl) await removePhoto(target.photoUrl);
@@ -239,6 +271,8 @@ export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN", "EDITOR", "TEAM_311", "PROJECT_311"]);
   const b = parseBirthday(String(fd.get("birthMonth") ?? ""), String(fd.get("birthDay") ?? ""));
   if (!b.ok) return { error: b.error };
+  const ph = parsePhone(fd);
+  if (!ph.ok) return { error: ph.error };
 
   let photoUrl: string | undefined;
   const file = photoFile(fd);
@@ -248,7 +282,7 @@ export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
     photoUrl = s.key;
   }
   const current = await prisma.user.findUnique({ where: { id: me.id }, select: { photoUrl: true } });
-  await prisma.user.update({ where: { id: me.id }, data: { birthday: b.value, ...(photoUrl ? { photoUrl } : {}) } });
+  await prisma.user.update({ where: { id: me.id }, data: { birthday: b.value, phone: ph.value, ...(photoUrl ? { photoUrl } : {}) } });
   if (photoUrl) await removePhoto(current?.photoUrl);
   revalidatePath("/perfil");
   revalidatePath("/", "layout");

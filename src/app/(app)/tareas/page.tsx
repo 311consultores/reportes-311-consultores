@@ -27,7 +27,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // Racha: tareas aceptadas este mes (solo el TEAM 311 la ve)
   const streak = isOps ? 0 : await prisma.task.count({ where: { ...mine, status: "TERMINADA", acceptedAt: { gte: mxMonthStart() } } });
 
-  const [rows, clients, team] = await Promise.all([
+  const [rows, clients, team, areaRows] = await Promise.all([
     prisma.task.findMany({
       where,
       orderBy: history ? { acceptedAt: "desc" } : { dueAt: "asc" },
@@ -36,6 +36,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     }),
     isOps ? prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true, projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true } } } }) : Promise.resolve([]),
     isOps ? prisma.user.findMany({ where: { role: { in: ASSIGNABLE_ROLES }, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true, role: true } }) : Promise.resolve([]),
+    isOps ? prisma.area.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, color: true, active: true } }) : Promise.resolve([]),
   ]);
 
   const tasks: TaskCard[] = rows.map(toCard);
@@ -76,6 +77,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       streak={streak}
       clients={clients.map((c) => ({ id: c.id, name: c.companyName, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })) }))}
       team={team}
+      areas={areaRows}
     />
   );
 }

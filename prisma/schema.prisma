@@ -57,6 +57,8 @@ model User {
   movementsCreated    Movement[]
   photoUrl            String? // Clave de la foto de perfil (TEAM 311) en el almacenamiento
   birthday            String?              @db.VarChar(5) // "MM-DD": solo día y mes
+  phone               String?              @db.VarChar(20) // teléfono (solo dígitos) para abrir WhatsApp
+  areas               UserArea[]
   projectAccess       UserProject[]
   editRequests        EditRequest[]        @relation("EditRequester")
   editReviews         EditRequest[]        @relation("EditReviewer")
@@ -491,6 +493,8 @@ model Task {
   client           Client           @relation(fields: [clientId], references: [id])
   projectId        String
   project          Project          @relation(fields: [projectId], references: [id])
+  areaId           String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
+  area             Area?            @relation(fields: [areaId], references: [id])
   title            String           @db.VarChar(191)
   descriptionHtml  String           @db.Text
   dueAt            DateTime // Fecha y hora de entrega
@@ -517,6 +521,28 @@ model Task {
   @@index([dueAt])
   @@index([clientId])
   @@index([projectId])
+  @@index([areaId])
+}
+
+// Áreas en que se divide el equipo (DISEÑO, CRM…): cada tarea pertenece a una; las personas pueden estar en varias
+model Area {
+  id        String     @id @default(uuid())
+  name      String     @unique @db.VarChar(100)
+  color     String     @default("#007AFF") @db.VarChar(9)
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  users     UserArea[]
+  tasks     Task[]
+}
+
+model UserArea {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  areaId String
+  area   Area   @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, areaId])
+  @@index([areaId])
 }
 
 model TaskAssignee {

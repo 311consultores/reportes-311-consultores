@@ -345,6 +345,22 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
   Recibe solo avisos de tareas (no solicitudes de edición, registros de clientes ni facturas vencidas).
 - Los nombres de los roles se muestran en mayúsculas: ADMINISTRADOR, EDITOR, PROJECT 311, TEAM 311, CLIENTE (solo cambia lo que se ve; los datos guardados no cambian).
 
+### Evolutivo 9b (21 oct 2026) — enlace y WhatsApp de las tareas
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261021180000_evolutivo9b.sql`. Solo AGREGA la columna vacía `User.phone`; **no toca datos**. La 9a debe estar aplicada antes.
+- En el detalle de cada tarea, ADMINISTRADOR, EDITOR y PROJECT 311 ven **Copiar enlace de la tarea** y un botón **WhatsApp** por cada persona asignada (abre WhatsApp con el mensaje ya escrito).
+  El teléfono (opcional, 10 dígitos) lo captura cada persona en *Mi perfil*, o el Admin/Editor en *Usuarios › Editar* (TEAM 311 y PROJECT 311). Sin teléfono, WhatsApp deja elegir el contacto.
+- Cambio de subdominio: ver `MIGRACION-SUBDOMINIO.md` (solo configuración en cPanel; sin cambios de código).
+
+### Evolutivo 10 · Etapa 1 (21 oct 2026) — áreas y dashboard de desempeño
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261021200000_evolutivo10a.sql`. Las migraciones 9a y 9b deben estar aplicadas antes.
+  Solo CREA las tablas `Area` y `UserArea`, agrega la columna vacía `Task.areaId`, inserta las 7 áreas (DISEÑO, CRM, CONSULTORÍA, DESARROLLO, DIRECCIÓN, REDES Y ADS, WEB) y guarda la fecha de hoy como inicio de las métricas (`metrics_start`). **No toca ningún dato existente**; las tareas actuales quedan «Sin área».
+- Sin variables ni tareas programadas nuevas.
+- **Áreas:** el ADMINISTRADOR las crea, renombra, recolorea y desactiva en *Configuración*. Cada tarea lleva UNA área (obligatoria al crearla o editarla), con filtro y etiqueta de color en el tablero. Cada persona de TEAM 311 / PROJECT 311 puede estar en varias áreas (*Usuarios › Editar*; también lo hace el Editor).
+- **Cambio de rol:** al editar un usuario, el ADMINISTRADOR ya puede cambiar su rol (incluye TEAM 311 y PROJECT 311). No puede cambiar su propio rol ni quitárselo al único Administrador activo.
+- **Desempeño** (menú Administración, solo ADMINISTRADOR): puntualidad proporcional (100 % si se entrega a tiempo; si no, 100 − retraso ÷ tiempo que se tenía × 100), devoluciones, ciclo, respuesta, subtareas, carga, embudo, comparativos por persona, área, cliente y proyecto, calidad de asignación y de gestión, reportes y chat. Filtros de periodo, persona, cliente y área. Solo mide desde `metrics_start`.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

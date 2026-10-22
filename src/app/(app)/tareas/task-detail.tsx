@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ExternalLink, Pencil, Wand2 } from "lucide-react";
+import { CalendarClock, Check, ExternalLink, Link2, MessageCircle, Pencil, Wand2 } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { AvatarChip } from "@/components/avatar";
 import { DeleteButton } from "@/components/delete-button";
 import { RichTextView } from "@/components/rich-text";
 import { isTaskManager } from "@/lib/roles";
+import { taskAssignMessage, whatsappUrl } from "@/lib/whatsapp";
 import { randomTaskPhrase } from "@/lib/task-phrases";
 import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,16 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
   const targets = STATUS_ORDER.filter((s) => canMove(role, mine, task.status, s));
   const canReady = role === "TEAM_311" && mine && active;
   const locked = task.status === "TERMINADA" && !isOps; // el TEAM 311 solo consulta
+  // Enlace de la tarea para copiar y mandar por WhatsApp (solo quien gestiona tareas)
+  const [copied, setCopied] = useState(false);
+  const taskUrl = typeof window === "undefined" ? "" : `${window.location.origin}/tareas?tarea=${task.id}`;
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(taskUrl); } catch {
+      const ta = document.createElement("textarea"); ta.value = taskUrl; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
   // Subtareas: se marcan al instante (Admin/Editor siempre; el TEAM asignado mientras la tarea no esté aceptada)
   const [local, setLocal] = useState<Record<string, boolean>>({});
   const subs = task.subtasks.map((s) => ({ ...s, done: local[s.id] ?? s.done }));
@@ -60,12 +71,22 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
           <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: `${info.dot}1f`, color: info.dot }}>
             {info.emoji} {info.label}
           </span>
+          {task.areaName && <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide text-white" style={{ backgroundColor: task.areaColor ?? "#007AFF" }}>{task.areaName}</span>}
         </div>
 
         <div>
           <h3 className="mb-1 text-sm font-semibold">Asignada a</h3>
           <div className="flex flex-wrap gap-2">
-            {task.assignees.map((a) => <AvatarChip key={a.id} name={a.name} userId={a.id} photoKey={a.photoUrl} size={26} />)}
+            {task.assignees.map((a) => (
+              <span key={a.id} className="inline-flex items-center gap-1">
+                <AvatarChip name={a.name} userId={a.id} photoKey={a.photoUrl} size={26} />
+                {isOps && a.id !== meId && (
+                  <a href={whatsappUrl(a.phone, taskAssignMessage(a.name, task.title, taskUrl))} target="_blank" rel="noopener noreferrer" title={a.phone ? `Enviar por WhatsApp a ${a.name}` : `Enviar por WhatsApp (${a.name} no tiene teléfono: elige el contacto en WhatsApp)`} aria-label={`Enviar por WhatsApp a ${a.name}`} className="inline-flex items-center gap-1 rounded-full bg-[#25D366]/15 px-2.5 py-1 text-xs font-semibold text-[#128C4A] transition-all hover:bg-[#25D366]/25 dark:text-[#4ADE80]">
+                    <MessageCircle size={13} /> WhatsApp
+                  </a>
+                )}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -155,6 +176,11 @@ export function TaskDetail({ task, notes = [], role, meId, onMove, onEdit, onClo
             </p>
           )}
         </div>
+        {isOps && (
+          <button type="button" className="btn-outline w-full justify-center" onClick={copyLink}>
+            {copied ? <><Check size={15} /> ¡Enlace copiado!</> : <><Link2 size={15} /> Copiar enlace de la tarea</>}
+          </button>
+        )}
         <p className="rounded-xl bg-[#FF9500]/10 px-3 py-2 text-[13px] italic text-[#B25E00] dark:text-[#FFB340]">“{phrase}”</p>
 
         <div>

@@ -12,12 +12,13 @@ import { DeleteUserButton, UserEditor } from "./user-editor";
 export default async function UsersPage() {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   const isAdmin = me.role === "ADMIN";
-  const [users, clients] = await Promise.all([
+  const [users, clients, areaList] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "asc" },
-      include: { projectAccess: { select: { projectId: true } }, clientAccess: { select: { clientId: true } } },
+      include: { projectAccess: { select: { projectId: true } }, clientAccess: { select: { clientId: true } }, areas: { select: { areaId: true } } },
     }),
     prisma.client.findMany({ orderBy: { companyName: "asc" }, include: { projects: { orderBy: { projectName: "asc" } } } }),
+    prisma.area.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, color: true, active: true } }),
   ]);
   const assign = clients.map((c) => ({ id: c.id, name: c.companyName, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })) }));
   const companies = clients.map((c) => ({ id: c.id, name: c.companyName }));
@@ -50,7 +51,7 @@ export default async function UsersPage() {
           <td className="td">
             <div className="flex items-center justify-end gap-2">
               {isTeamType && (
-                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, projectIds: u.projectAccess.map((p) => p.projectId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} showProjects={u.role === "TEAM_311"} />
+                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, phone: u.phone, projectIds: u.projectAccess.map((p) => p.projectId), role: u.role, areaIds: u.areas.map((x) => x.areaId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} areas={areaList} canChangeRole={isAdmin && u.id !== me.id} />
               )}
               {isAdmin && !isTeamType && (
                 <UserEditor

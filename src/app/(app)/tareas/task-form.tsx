@@ -6,13 +6,13 @@ import { createTask, updateTask } from "@/app/actions/tasks";
 import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { RichTextEditor } from "@/components/rich-text";
 import { defaultDue, toMxInput } from "@/lib/tasks-shared";
-import type { TaskCard, TaskPrefill } from "./task-types";
+import type { AreaOption, TaskCard, TaskPrefill } from "./task-types";
 
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
 
 /** Formulario para crear o editar una tarea (Admin y Editor). */
-export function TaskForm({ clients, team, task, prefill, onDone, onCancel }: {
-  clients: ClientOption[]; team: TeamOption[]; task?: TaskCard; prefill?: TaskPrefill; onDone: (taskId: string) => void; onCancel: () => void;
+export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel }: {
+  clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; task?: TaskCard; prefill?: TaskPrefill; onDone: (taskId: string) => void; onCancel: () => void;
 }) {
   const [clientId, setClientId] = useState(task?.clientId ?? prefill?.clientId ?? "");
   const [projectId, setProjectId] = useState(task?.projectId ?? prefill?.projectId ?? "");
@@ -27,6 +27,7 @@ export function TaskForm({ clients, team, task, prefill, onDone, onCancel }: {
       ? task.subtasks.map((s, i) => ({ key: 1000 + i, id: s.id, title: s.title, who: s.assigneeId ?? "", due: s.dueAt ? toMxInput(new Date(s.dueAt)) : "" }))
       : (prefill?.subtasks ?? []).map((t, i) => ({ key: 2000 + i, id: "", title: t, who: "", due: "" })), // los elementos de una lista del Baúl pasan a ser subtareas
   );
+  const [areaId, setAreaId] = useState(task?.areaId ?? "");
   const [error, setError] = useState<string>();
   const [busy, start] = useTransition();
   const projects = clients.find((c) => c.id === clientId)?.projects ?? [];
@@ -59,6 +60,14 @@ export function TaskForm({ clients, team, task, prefill, onDone, onCancel }: {
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className="label" htmlFor="t-area">Área</label>
+        <select id="t-area" name="areaId" className="input" value={areaId} onChange={(e) => setAreaId(e.target.value)} required>
+          <option value="">Elige el área…</option>
+          {areas.filter((a) => a.active || a.id === task?.areaId).map((a) => <option key={a.id} value={a.id}>{a.name}{a.active ? "" : " (desactivada)"}</option>)}
+        </select>
       </div>
 
       <div>

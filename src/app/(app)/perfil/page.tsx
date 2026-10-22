@@ -9,7 +9,7 @@ export default async function ProfilePage() {
   const me = await requireUser(STAFF_ROLES);
   const isTeam = me.role === "TEAM_311";
   const [row, projects] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: me.id }, select: { email: true, birthday: true, photoUrl: true } }),
+    prisma.user.findUniqueOrThrow({ where: { id: me.id }, select: { email: true, birthday: true, photoUrl: true, phone: true } }),
     prisma.project.findMany({
       where: { id: { in: me.projectAccess.map((p) => p.projectId) } },
       include: { client: { select: { companyName: true } } },
@@ -31,6 +31,11 @@ export default async function ProfilePage() {
         </div>
         <ProfileForm name={me.name} userId={me.id} photoKey={row.photoUrl}>
           <div><label className="label">Fecha de cumpleaños</label><BirthdayField value={row.birthday} /></div>
+          <div>
+            <label className="label" htmlFor="phone">Teléfono / WhatsApp (opcional)</label>
+            <input id="phone" name="phone" type="tel" inputMode="tel" maxLength={20} defaultValue={row.phone ?? ""} placeholder="10 dígitos, ej. 5512345678" className="input" />
+            <p className="mt-1 text-xs text-zinc-500">Se usa para que te manden tareas por WhatsApp. Solo lo ve el equipo interno.</p>
+          </div>
         </ProfileForm>
       </section>
 

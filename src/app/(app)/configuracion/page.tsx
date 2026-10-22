@@ -2,10 +2,13 @@ import { requireUser } from "@/lib/auth";
 import { getLogo311Key } from "@/lib/branding";
 import { uploadLogo311 } from "@/app/actions/settings";
 import { ActionForm } from "@/components/action-form";
+import { prisma } from "@/lib/prisma";
+import { AreasPanel } from "./areas-panel";
 
 export default async function SettingsPage() {
   await requireUser(["ADMIN"]);
   const hasLogo = !!(await getLogo311Key());
+  const areas = await prisma.area.findMany({ orderBy: { name: "asc" }, include: { _count: { select: { tasks: true, users: true } } } });
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -37,6 +40,8 @@ export default async function SettingsPage() {
           <input type="file" name="logo" accept="image/png,image/jpeg" required className="input" />
         </ActionForm>
       </section>
+
+      <AreasPanel areas={areas.map((a) => ({ id: a.id, name: a.name, color: a.color, active: a.active, tasks: a._count.tasks, people: a._count.users }))} />
     </div>
   );
 }

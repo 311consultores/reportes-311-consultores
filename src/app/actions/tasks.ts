@@ -39,19 +39,23 @@ async function notify(to: string[], build: (withLogo: boolean) => { subject: str
 const taskLink = async (id: string) => `${await getBaseUrl()}/tareas?tarea=${id}`;
 
 /** Lee y valida los campos del formulario de tarea (crear y editar). */
-async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
-  clientId: string; projectId: string; title: string; descriptionHtml: string; dueAt: Date; assigneeIds: string[];
+async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promise<{ error: string } | {
+  clientId: string; projectId: string; areaId: string; title: string; descriptionHtml: string; dueAt: Date; assigneeIds: string[];
   resources: { title: string; url: string }[];
   subtasks: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[];
 }> {
   const clientId = String(fd.get("clientId") ?? "");
   const projectId = String(fd.get("projectId") ?? "");
+  const areaId = String(fd.get("areaId") ?? "");
   const title = String(fd.get("title") ?? "").trim().slice(0, 191);
   const descriptionHtml = String(fd.get("descriptionHtml") ?? "");
   const dueAt = parseMxInput(String(fd.get("dueAt") ?? ""));
 
   if (!/^[0-9a-f-]{36}$/i.test(clientId)) return { error: "Selecciona un cliente" };
   if (!/^[0-9a-f-]{36}$/i.test(projectId)) return { error: "Selecciona un proyecto" };
+  if (!/^[0-9a-f-]{36}$/i.test(areaId)) return { error: "Selecciona el área de la tarea" };
+  // Solo áreas activas (la tarea puede conservar su área actual aunque ya esté desactivada)
+  if (!(await prisma.area.findFirst({ where: { id: areaId, OR: [{ active: true }, ...(currentAreaId === areaId ? [{ id: areaId }] : [])] }, select: { id: true } }))) return { error: "El área elegida no está disponible" };
   if (title.length < 2) return { error: "Escribe el nombre de la tarea" };
   if (!dueAt) return { error: "Indica la fecha y hora de entrega" };
   if (!(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
@@ -86,7 +90,7 @@ async function parseTaskForm(fd: FormData): Promise<{ error: string } | {
     if (sDue[i] && !due) return { error: `La fecha de la subtarea «${t}» no es válida` };
     subtasks.push({ id: /^[0-9a-f-]{36}$/i.test(sIds[i] ?? "") ? sIds[i] : null, title: t, assigneeId: assigneeIds.includes(sWho[i]) ? sWho[i] : null, dueAt: due });
   }
-  return { clientId, projectId, title, descriptionHtml, dueAt, assigneeIds, resources, subtasks };
+  return { clientId, projectId, areaId, title, descriptionHtml, dueAt, assigneeIds, resources, subtasks };
 }
 
 /** Crea una tarea (Admin, Editor y PROJECT 311). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
@@ -97,7 +101,7 @@ export async function createTask(fd: FormData): Promise<Result> {
 
   const task = await prisma.task.create({
     data: {
-      clientId: d.clientId, projectId: d.projectId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, createdById: user.id,
+      clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, createdById: user.id,
       assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
       resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
       subtasks: { create: d.subtasks.map((s, position) => ({ title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position })) },
@@ -120,14 +124,14 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   const user = await requireUser(TASK_MANAGER_ROLES);
   const current = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: true } });
   if (!current) return { error: "La tarea no existe" };
-  const d = await parseTaskForm(fd);
+  const d = await parseTaskForm(fd, current.areaId);
   if ("error" in d) return { error: d.error };
 
   const existingSubtasks = await prisma.subtask.findMany({ where: { taskId }, select: { id: true } });
   const before = new Set(current.assignees.map((a) => a.userId));
   const added = d.assigneeIds.filter((id) => !before.has(id));
   await prisma.$transaction([
-    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt } }),
+    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt } }),
     prisma.taskAssignee.deleteMany({ where: { taskId } }),
     prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
     prisma.taskResource.deleteMany({ where: { taskId } }),

@@ -19,15 +19,15 @@ import { cn } from "@/lib/utils";
 import { TaskCalendar } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
 import { TaskForm, type ClientOption } from "./task-form";
-import type { TaskCard, TaskPrefill } from "./task-types";
+import type { AreaOption, TaskCard, TaskPrefill } from "./task-types";
 
 const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string };
 
 /** Tablero Kanban de tareas con tarjetas arrastrables, filtros (Admin y Editor) y ventana de detalle. */
-export function TaskBoard({ tasks, role, meId, clients, team, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {} }: {
-  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number; prefill?: TaskPrefill; notesByTask?: Record<string, { id: string; title: string }[]>;
+export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {} }: {
+  tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number; prefill?: TaskPrefill; notesByTask?: Record<string, { id: string; title: string }[]>;
 }) {
   const router = useRouter();
   const { askReason } = useDialogs();
@@ -42,7 +42,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
   const [prevOpenId, setPrevOpenId] = useState(openId);
   const [dragId, setDragId] = useState<string>();
   const [hover, setHover] = useState<TaskStatus>();
-  const [filters, setFilters] = useState({ person: "", client: "", project: "" });
+  const [filters, setFilters] = useState({ person: "", client: "", project: "", area: "" });
   const [q, setQ] = useState("");
   const [extra, setExtra] = useState<TaskCard | null>(null); // tarea abierta desde la búsqueda que no está en el tablero (historial)
   const [message, setMessage] = useState<string>();
@@ -70,7 +70,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
     () =>
       tasks
         .map((t) => ({ ...t, status: override[t.id] ?? t.status }))
-        .filter((t) => (!filters.person || t.assignees.some((a) => a.id === filters.person)) && (!filters.client || t.clientId === filters.client) && (!filters.project || t.projectId === filters.project))
+        .filter((t) => (!filters.person || t.assignees.some((a) => a.id === filters.person)) && (!filters.client || t.clientId === filters.client) && (!filters.project || t.projectId === filters.project) && (!filters.area || (filters.area === "none" ? !t.areaId : t.areaId === filters.area)))
         .filter((t) => !nq || norm([t.title, t.clientName, t.projectName, ...t.assignees.map((a) => a.name), ...t.resources.map((r) => r.title)].join(" ")).includes(nq)),
     [tasks, override, filters, nq],
   );
@@ -180,6 +180,11 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
             <option value="">Todos los proyectos</option>
             {projectsForFilter.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          <select className="input !w-auto" aria-label="Filtrar por área" value={filters.area} onChange={(e) => setFilters((f) => ({ ...f, area: e.target.value }))}>
+            <option value="">Todas las áreas</option>
+            {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <option value="none">Sin área</option>
+          </select>
         </div>
       )}
 
@@ -239,6 +244,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
                       onClick={() => setView(viewFor(t))}
                       className={cn("card cursor-pointer space-y-2 p-3 transition-all duration-200 ease-out hover:-translate-y-0.5", dragId === t.id && "opacity-40", st === "overdue" && "ring-2 ring-[#FF3B30]/50", st === "soon" && "ring-2 ring-[#FF9500]/50")}
                     >
+                      {t.areaName && <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide text-white" style={{ backgroundColor: t.areaColor ?? "#007AFF" }}>{t.areaName}</span>}
                       <h3 className="text-sm font-semibold leading-snug">{t.title}</h3>
                       {t.subtasks.length > 0 && (
                         <div className="space-y-1" title="Subtareas terminadas">
@@ -272,11 +278,11 @@ export function TaskBoard({ tasks, role, meId, clients, team, openId, history, i
       )}
 
       <Modal open={view?.kind === "new"} onClose={closeView} wide title="Nueva tarea" subtitle="Se asigna a quien elijas del equipo y nace en PENDIENTE">
-        <TaskForm clients={clients} team={team} prefill={prefill} onCancel={closeView} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />
+        <TaskForm clients={clients} team={team} areas={areas} prefill={prefill} onCancel={closeView} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />
       </Modal>
 
       <Modal open={view?.kind === "edit" && !!open} onClose={closeView} wide title="Editar tarea" subtitle={open?.title}>
-        {open && <TaskForm clients={clients} team={team} task={open} onCancel={() => setView({ kind: "detail", id: open.id })} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />}
+        {open && <TaskForm clients={clients} team={team} areas={areas} task={open} onCancel={() => setView({ kind: "detail", id: open.id })} onDone={(id) => { router.refresh(); setView({ kind: "detail", id }); }} />}
       </Modal>
 
       <Modal open={view?.kind === "detail" && !!open} onClose={closeView} wide title={open?.title ?? ""} subtitle={open ? `${open.clientName} · ${open.projectName}` : undefined}>

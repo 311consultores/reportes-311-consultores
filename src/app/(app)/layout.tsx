@@ -55,7 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             title: "Administración",
             items: [
               { href: "/facturas", label: "Facturas", icon: "facturas" as const, badge: overdue.count },
-              ...(isAdmin ? [{ href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }] : []),
+              ...(isAdmin ? [{ href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }, { href: "/desempeno", label: "Desempeño", icon: "desempeno" as const }] : []),
             ],
           },
         ]

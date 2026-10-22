@@ -9,7 +9,7 @@ import { Modal } from "@/components/modal";
 import { PhotoField } from "@/components/photo-field";
 import { BirthdayField } from "./birthday-field";
 
-type Role = "ADMIN" | "EDITOR" | "CLIENTE";
+type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
 export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null; photoUrl: string | null; birthday: string | null };
 
 /** Edición de un usuario Administrador, Editor o Cliente (solo lo ve el Administrador). */
@@ -38,6 +38,8 @@ export function UserEditor({ user, companies, isSelf }: { user: PlainUser; compa
                   <option value="EDITOR">EDITOR</option>
                   <option value="ADMIN">ADMINISTRADOR</option>
                   <option value="CLIENTE">CLIENTE</option>
+                  <option value="PROJECT_311">PROJECT 311</option>
+                  <option value="TEAM_311">TEAM 311</option>
                 </select>
               )}
             </div>
