@@ -29,6 +29,8 @@ if (fs.existsSync(path.join(root, "public"))) {
 }
 // El .env local nunca debe viajar en el paquete
 fs.rmSync(path.join(out, "app", ".env"), { force: true });
+// Tampoco los archivos de prueba locales (.uploads): en producción las evidencias viven fuera de la app (UPLOADS_DIR)
+fs.rmSync(path.join(out, "app", ".uploads"), { recursive: true, force: true });
 
 // Límites de recursos para hosting compartido: los hilos cuentan como procesos del plan. Se definen al inicio de
 // server.js, antes de que Node o Prisma creen sus grupos de hilos; si el hosting define las variables, se respetan.
@@ -82,6 +84,7 @@ const engines = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p);
+    else if (/query_engine.*\.node\.tmp\d*$/.test(e.name)) fs.rmSync(p, { force: true }); // restos de un «prisma generate» interrumpido
     else if (/query_engine.*\.node$/.test(e.name)) {
       if (/windows|debian/.test(e.name)) fs.rmSync(p, { force: true });
       else engines.push(e.name);

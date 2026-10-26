@@ -59,6 +59,8 @@ model User {
   birthday            String?              @db.VarChar(5) // "MM-DD": solo día y mes
   phone               String?              @db.VarChar(20) // teléfono (solo dígitos) para abrir WhatsApp
   areas               UserArea[]
+  gameScores          GameScore[]
+  metaAccess          MetaAccess[]
   projectAccess       UserProject[]
   editRequests        EditRequest[]        @relation("EditRequester")
   editReviews         EditRequest[]        @relation("EditReviewer")
@@ -87,6 +89,7 @@ model Client {
   projects    Project[]
   reports     Report[]
   users       ClientUser[]
+  metaAccounts MetaAccount[]
 
   // Datos fiscales y de contacto (solo los ven Admin y Editor)
   requiresInvoice Boolean             @default(false)
@@ -525,6 +528,44 @@ model Task {
   @@index([projectId])
   @@index([areaId])
   @@index([publishAt])
+}
+
+// Campañas Meta: cuentas publicitarias que el portal puede gestionar (se importan del Business Manager) y quién puede verlas
+model MetaAccount {
+  id          String       @id @default(uuid())
+  adAccountId String       @unique @db.VarChar(40) // «act_123456789»
+  name        String       @db.VarChar(191)
+  currency    String?      @db.VarChar(10)
+  clientId    String? // Cliente del portal al que pertenece la cuenta
+  client      Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  active      Boolean      @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime     @default(now())
+  access      MetaAccess[]
+
+  @@index([clientId])
+}
+
+model MetaAccess {
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String
+  account   MetaAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([userId, accountId])
+  @@index([accountId])
+}
+
+// Las Retas (juego): mejor puntaje de cada persona, por periodo: «ALL» (de siempre) y «AAAA-MM» (del mes)
+model GameScore {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period     String   @db.VarChar(10)
+  score      Int
+  achievedAt DateTime @default(now())
+
+  @@id([userId, period])
+  @@index([period, score])
 }
 
 // Áreas en que se divide el equipo (DISEÑO, CRM…): cada tarea pertenece a una; las personas pueden estar en varias

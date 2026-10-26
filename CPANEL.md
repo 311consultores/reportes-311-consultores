@@ -383,6 +383,23 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Reasignación rápida:** en el detalle de la tarea, chips con X para quitar y «+ Agregar» para sumar personas (mínimo una). Se avisa a quien se agrega y a quien se quita.
 - **WhatsApp:** el botón verde ahora copia el mensaje («Hola Ana y Luis te acabo de asignar la tarea: …») con el nombre de todas las personas asignadas, y muestra «Mensaje copiado» 3 segundos. Se conserva «Copiar enlace de la tarea» y el teléfono en el perfil.
 
+### Evolutivo 11 · Etapas 2 y 3 (22 oct 2026) — calendario con vistas y cumpleaños, y Las Retas
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261022180000_evolutivo11b.sql`. Solo CREA la tabla nueva `GameScore` (puntajes del juego); **no toca ningún dato**. La 11a debe estar aplicada antes.
+- Sin variables ni tareas programadas nuevas.
+- **Calendario** (Tareas › Calendario): vistas *Hoy, 3 días, 7 días, 15 días, Mes* y *Lista* (vencidas y próximas, agrupadas por día). Se recuerda la vista elegida. Los **cumpleaños** 🎂 de todo el equipo interno aparecen cada año (interruptor «Mostrar cumpleaños»); el TEAM 311 ve solo sus tareas pero todos los cumpleaños.
+  Quien gestiona tareas puede arrastrar una tarea a otro día en cualquier vista de días (conserva la hora).
+- **Las Retas** (menú Operación; ADMINISTRADOR, EDITOR, PROJECT 311 y TEAM 311; el CLIENTE no lo ve): juego de un tlacuache que corre, salta y se agacha (espacio/↑/↓ o botones táctiles). Ranking *Del mes* y *De siempre* con foto, nombre y mejor puntaje; 👑 al primer lugar del mes.
+  Las partidas se validan en el servidor (firma de inicio + tiempo transcurrido), por lo que un puntaje imposible se rechaza. Aviso en la campanita (y notificación del navegador) cuando alguien supera tu récord o te quita el primer lugar.
+  El ADMINISTRADOR puede quitar el puntaje de una persona o reiniciar el ranking del mes o el de siempre. Jugar no cuenta para el desempeño laboral.
+
+### Evolutivo 12 · Etapa 1 (26 oct 2026) — Campañas Meta (conexión y lectura) con guía de IA
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261026120000_evolutivo12a.sql`. Solo CREA las tablas nuevas `MetaAccount` y `MetaAccess`; **no toca ningún dato**. Las anteriores (hasta la 11b) deben estar aplicadas.
+- **Variables nuevas** (Setup Node.js App › Environment variables; **nunca en el chat**): `META_ACCESS_TOKEN`, `ANTHROPIC_API_KEY` y, opcionales, `META_API_VERSION` y `ANTHROPIC_MODEL`. Pasos completos en `META.md`. Sin ellas el portal funciona igual; el panel avisa que falta conectar.
+- **Campañas Meta** (menú Operación; ADMINISTRADOR, EDITOR y PROJECT 311): elegir cliente/cuenta y recorrer *Campaña → Conjunto de anuncios → Anuncio* (solo lectura en esta etapa) con estados y términos traducidos, y el botón «Explícame esto» (Claude). El ADMINISTRADOR importa las cuentas, las liga a clientes y decide quién ve cuáles en *Campañas Meta › Conexión y accesos*.
+- El modo demostración (`META_DEMO`) solo funciona en desarrollo; en el servidor está desactivado aunque la variable exista.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

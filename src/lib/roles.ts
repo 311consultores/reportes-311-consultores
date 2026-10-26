@@ -18,4 +18,7 @@ export const TASK_MANAGER_ROLES: Role[] = ["ADMIN", "EDITOR", "PROJECT_311"];
 /** Personas a quienes se les puede asignar una tarea. */
 export const ASSIGNABLE_ROLES: Role[] = ["ADMIN", "EDITOR", "PROJECT_311", "TEAM_311"];
 
+/** Quienes usan el panel de campañas de Meta (el Administrador además lo configura). */
+export const META_ROLES: Role[] = ["ADMIN", "EDITOR", "PROJECT_311"];
+
 export const isTaskManager = (role: Role) => TASK_MANAGER_ROLES.includes(role);

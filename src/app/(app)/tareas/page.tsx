@@ -24,7 +24,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     ? { ...mine, status: "TERMINADA", OR: [{ hiddenAt: { not: null } }, { acceptedAt: { lt: cutoff } }] }
     : { ...mine, OR: [{ status: { not: "TERMINADA" } }, { hiddenAt: null, acceptedAt: { gte: cutoff } }] };
 
-  const view = (await cookies()).get("tareas_vista")?.value === "calendario" ? "calendario" : "tablero";
+  const jar = await cookies();
+  const view = jar.get("tareas_vista")?.value === "calendario" ? "calendario" : "tablero";
+  const calMode = (["hoy", "3d", "7d", "15d", "mes", "lista"] as const).find((m) => m === jar.get("tareas_cal_vista")?.value) ?? "mes";
+  const showBirthdays = jar.get("tareas_cumples")?.value !== "0";
   // Racha: tareas aceptadas este mes (solo el TEAM 311 la ve)
   const streak = isOps ? 0 : await prisma.task.count({ where: { ...mine, status: "TERMINADA", acceptedAt: { gte: mxMonthStart() } } });
 
@@ -41,6 +44,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   ]);
 
   const tasks: TaskCard[] = rows.map(toCard);
+  // Cumpleaños de todo el equipo interno (el calendario los muestra a todos los roles internos)
+  const birthdays = (await prisma.user.findMany({ where: { active: true, birthday: { not: null }, role: { in: ASSIGNABLE_ROLES } }, select: { id: true, name: true, photoUrl: true, birthday: true } }))
+    .map((u) => ({ id: u.id, name: u.name, photoUrl: u.photoUrl, md: u.birthday as string }));
 
   // «Convertir en tarea» desde el Baúl: se precarga el formulario con la nota (solo Admin y Editor; la nota debe ser suya o compartida con la persona)
   let prefill: TaskPrefill | undefined;
@@ -73,6 +79,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       openId={tarea}
       history={history}
       initialView={view}
+      calMode={calMode}
+      showBirthdays={showBirthdays}
+      birthdays={birthdays}
       prefill={prefill}
       notesByTask={notesByTask}
       streak={streak}

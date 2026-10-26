@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, ChevronDown, FileText, Gauge, KanbanSquare, Menu, Smartphone, StickyNote, Receipt, ScrollText, Settings, Users, UserPlus, Wallet, X,
+  Building2, ChevronDown, FileText, Gamepad2, Gauge, KanbanSquare, Megaphone, Menu, Smartphone, StickyNote, Receipt, ScrollText, Settings, Users, UserPlus, Wallet, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
-const ICONS = { baul: StickyNote, app: Smartphone, tareas: KanbanSquare, reportes: FileText, clientes: Building2, registros: UserPlus, facturas: Receipt, finanzas: Wallet, desempeno: Gauge, general: Settings, log: ScrollText, usuarios: Users };
+const ICONS = { baul: StickyNote, app: Smartphone, tareas: KanbanSquare, reportes: FileText, clientes: Building2, registros: UserPlus, facturas: Receipt, finanzas: Wallet, desempeno: Gauge, retas: Gamepad2, meta: Megaphone, general: Settings, log: ScrollText, usuarios: Users };
 export type IconName = keyof typeof ICONS;
 
 export type NavItem = { href: string; label: string; icon: IconName; badge?: number };

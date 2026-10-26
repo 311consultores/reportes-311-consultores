@@ -8,5 +8,6 @@ export const PUSH_GROUPS: PushGroup[] = [
   { id: "fechas", label: "Tareas por vencer o vencidas", kinds: ["TASK_SOON", "TASK_OVERDUE"] },
   { id: "reportes", label: "Solicitudes de edición de reportes y registros de clientes nuevos", kinds: ["EDIT_REQUEST", "REGISTRATION"], ops: true },
   { id: "facturas", label: "Facturas vencidas", kinds: ["INVOICE_OVERDUE"], ops: true },
+  { id: "retas", label: "Las Retas: te superan o te quitan el primer lugar", kinds: ["GAME_BEATEN"] },
   { id: "baul", label: "Notas del Baúl compartidas contigo y recordatorios", kinds: ["NOTE_SHARED", "NOTE_REMINDER"] },
 ];

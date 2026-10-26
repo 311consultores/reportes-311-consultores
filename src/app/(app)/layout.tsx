@@ -43,7 +43,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       items: [
         ...(user.role !== "CLIENTE" ? [{ href: "/tareas", label: "Tareas", icon: "tareas" as const, badge: tasksToReview }] : []),
         ...(!isProject ? [{ href: "/", label: "Reportes", icon: "reportes" as const, badge: pendingEdits }] : []),
-        ...(user.role !== "CLIENTE" ? [{ href: "/baul", label: "Baúl", icon: "baul" as const }] : []),
+        ...(user.role !== "CLIENTE" ? [{ href: "/baul", label: "Baúl", icon: "baul" as const }, { href: "/retas", label: "Las Retas", icon: "retas" as const }] : []),
+        ...(isOps || isProject ? [{ href: "/meta", label: "Campañas Meta", icon: "meta" as const }] : []),
         ...(isOps || isProject ? [{ href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const }] : []),
         ...(isOps ? [{ href: "/registros", label: "Registro de clientes", icon: "registros" as const, badge: pendingRegistrations }] : []),
       ],

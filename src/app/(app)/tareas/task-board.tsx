@@ -18,7 +18,7 @@ import { ComboSelect } from "@/components/combo-select";
 import { isPublishedIso } from "@/lib/task-schedule";
 import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
-import { TaskCalendar } from "./task-calendar";
+import { TaskCalendar, type Birthday, type CalMode } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
 import { TaskForm, type ClientOption } from "./task-form";
 import type { AreaOption, TaskCard, TaskPrefill } from "./task-types";
@@ -28,8 +28,9 @@ const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").t
 type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string };
 
 /** Tablero Kanban de tareas con tarjetas arrastrables, filtros (Admin y Editor) y ventana de detalle. */
-export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {} }: {
+export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {}, calMode = "mes", showBirthdays = true, birthdays = [] }: {
   tasks: TaskCard[]; role: Role; meId: string; clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; openId?: string; history?: boolean; initialView?: string; streak?: number; prefill?: TaskPrefill; notesByTask?: Record<string, { id: string; title: string }[]>;
+  calMode?: CalMode; showBirthdays?: boolean; birthdays?: Birthday[];
 }) {
   const router = useRouter();
   const { askReason } = useDialogs();
@@ -211,7 +212,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
           </table>
         </div>
       ) : mode === "calendario" ? (
-        <TaskCalendar tasks={list} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
+        <TaskCalendar tasks={list} birthdays={birthdays} initialMode={calMode} initialBirthdays={showBirthdays} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {STATUS_ORDER.map((s) => {
