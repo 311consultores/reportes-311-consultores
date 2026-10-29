@@ -49,7 +49,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         <div className="flex flex-wrap gap-3">
           <Link href="/documentos/nuevo/recibo" className="btn"><FilePlus2 size={16} /> Recibo de pago</Link>
           <Link href="/documentos/nuevo/acuerdo" className="btn"><FilePlus2 size={16} /> Acuerdo de confidencialidad</Link>
-          <span className="btn-outline cursor-not-allowed opacity-60" title="Disponible en la siguiente etapa"><FilePlus2 size={16} /> Contrato (próximamente)</span>
+          <Link href="/documentos/nuevo/contrato" className="btn"><FilePlus2 size={16} /> Contrato de prestación de servicios</Link>
         </div>
       </section>
 

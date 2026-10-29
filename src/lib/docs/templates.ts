@@ -1,6 +1,6 @@
 // Textos de los documentos. Las cláusulas fijas son las de los archivos de 311 Consultores / TRIADA; solo cambian los campos capturados.
-import { cleanText, dateCompact, dateLong, moneyWords, money, ordinal, plural, rich, safeFileName, spellRfc, type DocBlock, type TextDoc } from "@/lib/docs/text";
-import type { AcuerdoData, Empresa, RepLegal, ClienteDoc, ReciboData } from "@/lib/docs/types";
+import { cleanText, dateCompact, dateLong, moneyShort, moneyWords, money, ordinal, plural, rich, safeFileName, spellRfc, type DocBlock, type TextDoc } from "@/lib/docs/text";
+import type { AcuerdoData, ContratoData, Empresa, RepLegal, ClienteDoc, ReciboData } from "@/lib/docs/types";
 
 const p = (s: string, align: "j" | "l" | "r" | "c" = "j"): DocBlock => ({ k: "p", r: rich(cleanText(s)), align });
 const h = (s: string): DocBlock => ({ k: "h", r: rich(cleanText(s)) });
@@ -118,6 +118,110 @@ export function acuerdoDoc(d: AcuerdoData): TextDoc {
     firmas(d.empresa, d.cargoEmpresa, d.rep, d.cliente),
   );
   return { title: "ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN", blocks };
+}
+
+// ---------- Contrato de prestación de servicios ----------
+/** Servicios del catálogo: el contrato los lista como A, B, C… según los que se elijan (el Anexo A ya no se menciona). */
+export const SERVICIOS_BASE: { id: string; text: string }[] = [
+  { id: "software", text: "**Desarrollo de Software:** El diseño, programación, implementación y entrega de un sistema informático cuyas especificaciones técnicas, funcionalidades y alcances serán los acordados por escrito entre las partes." },
+  { id: "marketing", text: "**Servicios de Marketing y Publicidad:** La creación, ejecución y distribución de campañas publicitarias, diseño gráfico, producción audiovisual, planeación de medios y estrategias de marketing digital y tradicional." },
+  { id: "consultoria", text: "**Consultoría Técnica:** El suministro de asesoría técnica, administrativa y de ingeniería necesaria para la correcta integración del software y el cumplimiento de los objetivos comerciales de EL CLIENTE." },
+];
+
+export const contratoTotal = (d: Pick<ContratoData, "pagos">) => d.pagos.reduce((s, x) => s + x.cents, 0);
+
+export function contratoDoc(d: ContratoData): TextDoc {
+  const lugar = d.empresa.ciudad.trim();
+  const fecha = `En ${lugar} a ${dateLong(d.fecha)}`;
+  const total = contratoTotal(d);
+  const letra = (n: number) => String.fromCharCode(65 + n);
+  const rom = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
+
+  const rescision: [string, string][] = [
+    ["Incumplimiento de las Obligaciones Contractuales", "Si cualquiera de las partes incumple con las obligaciones fundamentales establecidas en el contrato, la otra parte puede optar por rescindir el contrato. Por ejemplo, si el prestador de servicios no entrega los servicios conforme a lo pactado en términos de calidad, tiempo, o alcance, o si EL CLIENTE o su equipo no colabora con el plan desarrollado por LA EMPRESA."],
+    ["Falta de Pago", `“EL CLIENTE” contará con un plazo máximo de ${plural(d.prorrogaDias, "día hábil", "días hábiles")} posteriores a la fecha de pago estipulada en la cláusula SEGUNDA, como prórroga para realizar el pago por cuestiones bancarias o de fuerza mayor.\nSin embargo, si “EL CLIENTE” no cumple con los pagos en los tiempos y formas estipulados en este contrato y es notificado en tres ocasiones; “LA EMPRESA” podrá rescindir el contrato de manera unilateral, bastando con notificar por medio electrónico al siguiente correo electrónico: ${d.emailRescision.trim()} su voluntad para rescindir el presente contrato.`],
+    ["Violación de Confidencialidad", "Si cualquiera de las partes viola las cláusulas de confidencialidad establecidas en el contrato, la parte afectada puede rescindir el contrato. Esto es especialmente relevante si se compromete información sensible o estratégica."],
+    ["Cambio Sustancial en las Circunstancias", "Si se produce un cambio sustancial en las circunstancias que afecte significativamente la capacidad de cualquiera de las partes para cumplir con el contrato (por ejemplo, cambios en la ley, desastres naturales, u otras circunstancias imprevistas), esto puede ser motivo de rescisión."],
+    ["Falta de Calidad o No Conformidad", "El cliente puede rescindir el contrato si el servicio prestado no cumple con los estándares de calidad o especificaciones técnicas pactadas, después de haber solicitado al prestador de servicios corregir la situación sin éxito."],
+    ["Incumplimiento de Normativas Legales", "Si cualquiera de las partes incumple con las leyes, regulaciones o normativas aplicables que rigen la prestación del servicio, la otra parte puede rescindir el contrato."],
+    ["Desaparición o Disolución de una de las Partes", "La desaparición, disolución o quiebra de una de las partes puede ser motivo de rescisión del contrato, especialmente si dicha circunstancia afecta la capacidad de la parte afectada para cumplir con sus obligaciones.\nEn caso de que alguna de las partes tenga conocimiento propio de alguno de los impedimentos anteriormente mencionados, estará obligada a avisar a la otra, en un plazo máximo de quince días naturales contados a partir de dicho conocimiento; en caso de no notificar a la otra parte dentro del plazo estipulado previamente, deberán pagar la penalidad señalada en el último párrafo de la presente cláusula."],
+    ["Mutuo Acuerdo", "Las partes pueden acordar de manera mutua la rescisión del contrato en cualquier momento, generalmente mediante la firma de un acuerdo de rescisión que especifique los términos y condiciones de dicha terminación."],
+    ["Incumplimiento de Plazos Esenciales", "Si el prestador de servicios no cumple con los plazos esenciales establecidos en el contrato para la entrega del servicio, y dicha demora afecta sustancialmente al cliente, éste último podrá rescindir el contrato y hacer la penalidad a su favor, estipulada más adelante."],
+  ];
+
+  const blocks: DocBlock[] = [
+    { k: "p", r: rich(cleanText(fecha)), align: "r" },
+    center("REUNIDOS"),
+    p(parteEmpresa(d.empresa)),
+    p(parteCliente(d.cliente, d.rep)),
+    center("INTERVIENEN"),
+    p(`Ambas partes en su propio nombre y derecho, reconociéndose mutuamente capacidad legal suficiente para el otorgamiento del presente CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES (en adelante, el "Contrato"), y EXPONEN`),
+    p("I. Que LA EMPRESA es una empresa dedicada a la prestación de servicios profesionales en el ámbito de consultoría en estrategias comerciales y de marketing digital."),
+    p(`II. Que EL CLIENTE requiere de los servicios profesionales de LA EMPRESA en el ámbito de gestión y comercialización de material en el ramo ${d.ramo.trim()}.`),
+    p("III. Que ambas partes desean establecer un acuerdo formal para la prestación de dichos servicios."),
+    center("POR LO TANTO, SE SOMETEN A LAS SIGUIENTES"),
+    center("CLÁUSULAS"),
+
+    h("PRIMERA. - Objeto"),
+    p("El objeto del presente Contrato es la prestación por parte de LA EMPRESA de los siguientes servicios profesionales a EL CLIENTE:"),
+    ...d.servicios.map((s, i) => li(`${letra(i)}.`, s)),
+
+    h("SEGUNDA. - Precio"),
+    p(`El precio total por los servicios profesionales prestados por LA EMPRESA será de ${moneyShort(total)} (${moneyWords(total, { capitalize: true, mexicanos: true })}). Dicho monto se liquidará de la siguiente manera:`),
+    p(`${plural(d.pagos.length, "pago mensual que queda dividido", "pagos mensuales que quedan divididos")} de la siguiente manera:`, "l"),
+    ...d.pagos.map((x) => p(`${x.mes.trim()} - ${moneyShort(x.cents)}${x.masIva ? " + IVA" : ""} (${moneyWords(x.cents, { capitalize: true, mexicanos: true })})`, "l")),
+    p("Los pagos se realizarán en efectivo dentro de los primeros 5 días naturales de cada período de servicio."),
+
+    h("TERCERA. - Duración"),
+    p(`El presente Contrato tendrá una duración de ${plural(d.meses, "mes", "meses")} a partir de la fecha de su firma.`),
+
+    h("CUARTA. - Obligaciones de LA EMPRESA"),
+    p("LA EMPRESA se obliga a:"),
+    li("1.", "Prestar los servicios profesionales objeto del presente Contrato con la diligencia, profesionalidad y cuidado debidos, de conformidad con los principios y normas aplicables a su profesión."),
+    li("2.", "Utilizar en la prestación de los servicios profesionales los medios y recursos adecuados para la obtención de los mejores resultados posibles."),
+    li("3.", "Realizar un informe de manera bimestral, contando a partir de la fecha de firma del presente contrato, sobre los avances o resultados obtenidos de los servicios contratados."),
+    li("4.", "Guardar absoluta confidencialidad sobre toda la información y documentación que le sea proporcionada por EL CLIENTE en relación con el presente Contrato."),
+
+    h("QUINTA. - Obligaciones de EL CLIENTE"),
+    p("EL CLIENTE se obliga a:"),
+    li("1.", "Proporcionar a LA EMPRESA toda la información y documentación necesaria para la prestación de los servicios profesionales."),
+    li("2.", "Facilitar la información y comunicaciones necesarias para que LA EMPRESA pueda llevar a cabo la prestación de los servicios profesionales contratados, para cumplir con su funcionalidad."),
+    li("3.", "Realizar el pago de los montos pactados conforme a los plazos y condiciones establecidos en la cláusula SEGUNDA."),
+    li("4.", "Colaborar con LA EMPRESA en la medida de sus posibilidades para la correcta ejecución de los servicios."),
+
+    h("SEXTA. - Confidencialidad"),
+    p("Ambas partes se obligan a mantener bajo la más estricta reserva y confidencialidad toda la Información Confidencial a la que tengan acceso con motivo de la ejecución del presente Contrato."),
+    p("**Definición:** Se entiende por Información Confidencial todo dato técnico, financiero, comercial, estratégico, códigos fuente, bases de datos, diagramas de flujo, secretos industriales y cualquier información propiedad de la otra parte, ya sea que se entregue de forma verbal, escrita o electrónica."),
+    p("**Obligaciones:** Las partes se comprometen a:"),
+    li("●", "No divulgar, revelar o comunicar dicha información a terceros sin autorización previa y por escrito."),
+    li("●", "Utilizar la información única y exclusivamente para el cumplimiento del objeto de este contrato."),
+    li("●", "Instruir a sus empleados, colaboradores o subcontratistas sobre el deber de confidencialidad aquí pactado."),
+    p(`**Vigencia:** Esta obligación de confidencialidad permanecerá vigente durante la duración del presente Contrato y hasta por un periodo de ${plural(d.anios, "año", "años")} posteriores a su terminación.`),
+    p("**Excepciones:** No se considerará confidencial aquella información que sea de dominio público, que deba ser revelada por mandato judicial o que ya estuviera en posesión de la parte receptora antes de la firma de este instrumento."),
+
+    h("SÉPTIMA. - Rescisión del Contrato"),
+    p("El presente Contrato podrá ser rescindido por cualquiera de las partes, mediante notificación por escrito a la otra parte con 15 días de anticipación, y podrá rescindirse por las siguientes causas:"),
+    ...rescision.flatMap(([titulo, texto], i) => [
+      p(`**${rom[i]}. ${titulo}:**`, "l"),
+      ...texto.split("\n").map((t) => p(t)),
+    ]),
+    p(`En caso de que cualquiera de las partes (EL CLIENTE o LA EMPRESA) decida rescindir unilateralmente el presente contrato sin haber obtenido previamente el consentimiento expreso y por escrito de la otra parte el cual debe llevarse a cabo mediante un acuerdo de rescisión, se compromete a pagar una penalidad equivalente al ${d.penalidadPct}% del valor total del contrato, como compensación por los daños y perjuicios ocasionados. Esta penalidad será pagadera dentro de los 30 días naturales siguientes a la notificación de la rescisión unilateral. En caso de incumplimiento en el pago de la penalidad, la parte perjudicada tendrá el derecho de iniciar las acciones legales correspondientes para su cobro, además de reclamar cualquier daño adicional que pueda resultar de dicha rescisión.`),
+    p("**Excepciones:**", "l"),
+    p("Esta última cláusula no será aplicable en los casos en que la rescisión se deba a causas de fuerza mayor, caso imprevisto, o cualquier otra causa que esté debidamente justificada y fuera del control de la parte que rescinde. Esta cláusula busca proteger a ambas partes contra rescisiones unilaterales sin el debido proceso, asegurando una compensación en caso de que una de las partes no respete los términos establecidos en el contrato."),
+
+    h("OCTAVA. - Jurisdicción"),
+    p(`Para la interpretación y ejecución del presente Contrato, las partes se someten a la jurisdicción de los tribunales de ${lugar}; renunciando a cualquier otro fuero que pudiera corresponderles.`),
+  ];
+
+  if (d.extra && d.extra.texto.trim()) blocks.push(...extraClause(9, d.extra));
+
+  blocks.push(
+    p("Y EN PRUEBA DE CONFORMIDAD, LO FIRMAN AMBAS PARTES POR DUPLICADO EJEMPLAR Y A UN SOLO EFECTO EN EL LUGAR Y FECHA INDICADOS EN EL PRESENTE CONTRATO."),
+    { k: "p", r: rich(cleanText(fecha)), align: "r" },
+    { k: "space", h: 6 },
+    firmas(d.empresa, d.cargoEmpresa, d.rep, d.cliente),
+  );
+  return { title: "CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES", blocks };
 }
 
 // ---------- Nombres de archivo y correos ----------

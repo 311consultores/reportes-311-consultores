@@ -5,7 +5,7 @@ import type { DocKind } from "@prisma/client";
 import { readLogo, readLogo311 } from "@/lib/branding";
 import { buildReciboDocx, buildTextDocx } from "@/lib/docs/docx";
 import { ReciboPdf, TextDocPdf } from "@/lib/docs/pdf-render";
-import { acuerdoDoc, reciboView } from "@/lib/docs/templates";
+import { acuerdoDoc, contratoDoc, reciboView } from "@/lib/docs/templates";
 import { parseDocData } from "@/lib/docs/types";
 import type { TextDoc } from "@/lib/docs/text";
 
@@ -29,7 +29,8 @@ async function exclusive<T>(fn: () => Promise<T>): Promise<T> {
 function textDocOf(row: Row): TextDoc {
   const d = parseDocData(row.data);
   if (d.kind === "ACUERDO") return acuerdoDoc(d);
-  throw new Error("Este tipo de documento todavía no está disponible");
+  if (d.kind === "CONTRATO") return contratoDoc(d);
+  throw new Error("Este documento no es de texto");
 }
 
 export async function renderPdf(row: Row): Promise<Buffer> {

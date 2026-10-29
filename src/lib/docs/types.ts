@@ -18,6 +18,7 @@ export type DocsConfig = Empresa & {
   cargos: string[]; // cargos que puede tener quien firma por la empresa
   recibe: Persona[]; // personas autorizadas para «Confirma de recibido» (con firma escaneada opcional)
   bcc: string; // copia oculta de cada envío
+  emailRescision: string; // correo al que se notifica la rescisión por falta de pago (contratos)
 };
 
 export const DEFAULT_CONFIG: DocsConfig = {
@@ -25,6 +26,7 @@ export const DEFAULT_CONFIG: DocsConfig = {
   cargos: ["Director de Marketing", "Consultor de Marketing"],
   recibe: [],
   bcc: "necesito@311consultores.com",
+  emailRescision: "",
 };
 
 export type RepLegal = { nombre: string; domicilio: string; curp: string; ine: string; rol: string };
@@ -67,9 +69,11 @@ export type ContratoData = {
   ramo: string;
   servicios: string[];
   pagos: PagoContrato[];
-  meses: number;
+  meses: number; // duración del contrato
+  anios: number; // años de confidencialidad posteriores a la terminación
   penalidadPct: number;
-  prorrogaDias: number;
+  prorrogaDias: number; // días hábiles de prórroga para pagar
+  emailRescision: string;
   extra?: { titulo: string; texto: string } | null;
 };
 

@@ -7,7 +7,9 @@ import { todayMx } from "@/lib/finance";
 import { getClientOpts } from "@/lib/docs/client-opts";
 import { getDocsConfig } from "@/lib/docs/config";
 import { parseDocData } from "@/lib/docs/types";
+import { SERVICIOS_BASE } from "@/lib/docs/templates";
 import { AcuerdoForm } from "../../acuerdo-form";
+import { ContratoForm } from "../../contrato-form";
 import { ReciboForm } from "../../recibo-form";
 
 export const metadata = { title: "Editar documento | Portal de Operaciones" };
@@ -25,7 +27,7 @@ export default async function EditDocumentPage({ params }: { params: Promise<{ i
   return (
     <div className="max-w-4xl space-y-6">
       <Link href={`/documentos/${id}`} className="btn-outline inline-flex"><ArrowLeft size={16} /> Volver a la vista previa</Link>
-      <h1 className="page-title">Editar {d.kind === "RECIBO" ? `recibo ${doc.folio ?? ""}` : "acuerdo de confidencialidad"}</h1>
+      <h1 className="page-title">Editar {d.kind === "RECIBO" ? `recibo ${doc.folio ?? ""}` : d.kind === "CONTRATO" ? "contrato de prestación de servicios" : "acuerdo de confidencialidad"}</h1>
       {d.kind === "RECIBO" ? (
         <ReciboForm
           docId={id} clients={clients} today={todayMx()} recibe={cfg.recibe.map((p) => ({ nombre: p.nombre, hasFirma: !!p.firmaKey }))}
@@ -43,7 +45,17 @@ export default async function EditDocumentPage({ params }: { params: Promise<{ i
           }}
         />
       ) : (
-        <p className="meta">Este tipo de documento todavía no se puede editar.</p>
+        <ContratoForm
+          docId={id} clients={clients} cargos={cfg.cargos.includes(d.cargoEmpresa) ? cfg.cargos : [d.cargoEmpresa, ...cfg.cargos]} catalog={SERVICIOS_BASE} today={todayMx()} defaultEmail={cfg.emailRescision}
+          initial={{
+            clientId: doc.clientId, razon: d.cliente.razon, clienteDomicilio: d.cliente.domicilio, repNombre: d.rep.nombre, repDomicilio: d.rep.domicilio, repCurp: d.rep.curp, repIne: d.rep.ine, repRol: d.rep.rol,
+            fecha: d.fecha, cargo: d.cargoEmpresa, ramo: d.ramo, meses: d.meses, anios: d.anios, penalidadPct: d.penalidadPct, prorrogaDias: d.prorrogaDias, emailRescision: d.emailRescision,
+            extraTitulo: d.extra?.titulo ?? "", extraTexto: d.extra?.texto ?? "",
+            servicios: SERVICIOS_BASE.filter((s) => d.servicios.includes(s.text)).map((s) => s.id),
+            serviciosExtra: d.servicios.filter((t) => !SERVICIOS_BASE.some((s) => s.text === t)),
+            pagos: d.pagos.map((p, i) => ({ key: i + 1, mes: p.mes, monto: (p.cents / 100).toFixed(2), iva: p.masIva })),
+          }}
+        />
       )}
     </div>
   );

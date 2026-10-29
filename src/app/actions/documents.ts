@@ -12,9 +12,9 @@ import { mailConfigured, mailDryRun, sendMail } from "@/lib/mailer";
 import { isValidIsoDate, parseMoney, todayMx } from "@/lib/finance";
 import { empresaOf, getDocsConfig, missingEmpresa, saveDocsConfig } from "@/lib/docs/config";
 import { renderPdf } from "@/lib/docs/render";
-import { acuerdoFileName, reciboFileName } from "@/lib/docs/templates";
+import { acuerdoFileName, contratoFileName, reciboFileName, SERVICIOS_BASE } from "@/lib/docs/templates";
 import { invalidEmails, parseEmails } from "@/lib/docs/text";
-import { parseDocData, type AcuerdoData, type DocsConfig, type ReciboData } from "@/lib/docs/types";
+import { parseDocData, type AcuerdoData, type ContratoData, type DocsConfig, type ReciboData } from "@/lib/docs/types";
 
 type State = { error?: string; ok?: boolean } | undefined;
 const STAFF = ["ADMIN", "EDITOR"] as const;
@@ -40,12 +40,14 @@ export async function saveDocsConfigAction(_p: State, fd: FormData): Promise<Sta
       repIne: txt(30, "Escribe el número de INE del representante"),
       ciudad: txt(120, "Escribe la ciudad (por ejemplo Mérida, Yucatán, México)"),
       bcc: z.string().trim().max(191),
+      emailRescision: z.string().trim().max(191),
     })
     .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
   const bcc = d.bcc ? parseEmails(d.bcc) : [];
   if (invalidEmails(bcc).length) return { error: "El correo de copia oculta no es válido" };
+  if (d.emailRescision && invalidEmails([d.emailRescision.toLowerCase()]).length) return { error: "El correo para notificar la rescisión no es válido" };
 
   const cargos = String(fd.get("cargos") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (cargos.length === 0) return { error: "Agrega al menos un cargo para quien firma por la empresa" };
@@ -144,6 +146,89 @@ export async function saveAcuerdo(docId: string | null, _p: State, fd: FormData)
   redirect(`/documentos/${saved.id}`);
 }
 
+// ---------- Contrato de prestación de servicios ----------
+export async function saveContrato(docId: string | null, _p: State, fd: FormData): Promise<State> {
+  const user = await requireUser([...STAFF]);
+  const parsed = z
+    .object({
+      clientId: z.string().uuid("Elige un cliente"),
+      razon: txt(255, "Escribe la razón social del cliente"),
+      clienteDomicilio: z.string().trim().max(400),
+      repNombre: txt(150, "Escribe el nombre del representante legal"),
+      repDomicilio: txt(300, "Escribe el domicilio del representante legal"),
+      repCurp: z.string().trim().toUpperCase().length(18, "La CURP debe tener 18 caracteres"),
+      repIne: z.string().trim().toUpperCase().min(5, "Escribe la clave de elector (INE)").max(20, "La clave de elector es demasiado larga"),
+      repRol: z.string().trim().max(120),
+      fecha: dateField,
+      cargo: txt(120, "Elige el cargo de quien firma por la empresa"),
+      ramo: txt(120, "Escribe el ramo del cliente (por ejemplo ferretero)"),
+      meses: z.coerce.number().int().min(1, "La duración debe ser de al menos 1 mes").max(120, "La duración es demasiado larga"),
+      anios: z.coerce.number().int().min(0, "Los años de confidencialidad no pueden ser negativos").max(30, "Los años de confidencialidad son demasiados"),
+      penalidadPct: z.coerce.number().int().min(1, "La penalidad debe ser de al menos 1%").max(100, "La penalidad no puede pasar de 100%"),
+      prorrogaDias: z.coerce.number().int().min(0, "Los días de prórroga no pueden ser negativos").max(60, "Los días de prórroga son demasiados"),
+      emailRescision: z.string().trim().toLowerCase().max(191),
+      extraTitulo: z.string().trim().max(150),
+      extraTexto: z.string().trim().max(5000, "La cláusula adicional es demasiado larga"),
+    })
+    .safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  if (!d.emailRescision || invalidEmails([d.emailRescision]).length) return { error: "Escribe un correo válido para notificar la rescisión por falta de pago" };
+
+  // Servicios: los del catálogo que se marcaron más los que se escribieron a mano
+  const servicios = [
+    ...SERVICIOS_BASE.filter((s) => fd.getAll("servicio").map(String).includes(s.id)).map((s) => s.text),
+    ...fd.getAll("servicioExtra").map((s) => String(s).trim()).filter(Boolean).map((s) => (s.length > 600 ? "" : s)),
+  ];
+  if (servicios.some((s) => s === "")) return { error: "La descripción de un servicio es demasiado larga" };
+  if (servicios.length === 0) return { error: "Elige o escribe al menos un servicio" };
+
+  const meses = fd.getAll("pMes").map((s) => String(s).trim());
+  const montos = fd.getAll("pMonto").map(String);
+  const ivas = fd.getAll("pIva").map(String);
+  const pagos: ContratoData["pagos"] = [];
+  for (let i = 0; i < meses.length; i++) {
+    if (!meses[i] && !montos[i]?.trim()) continue; // renglón vacío
+    if (!meses[i]) return { error: "Escribe el mes de cada pago (por ejemplo Noviembre 2026)" };
+    if (meses[i].length > 40) return { error: "El nombre del mes de un pago es demasiado largo" };
+    const cents = parseMoney(montos[i] ?? "");
+    if (cents === null) return { error: `El monto de ${meses[i]} debe ser mayor a cero (por ejemplo 22500.00)` };
+    pagos.push({ mes: meses[i], cents, masIva: ivas[i] === "1" });
+  }
+  if (pagos.length === 0) return { error: "Agrega al menos un pago" };
+
+  const cfg = await getDocsConfig();
+  const falta = missingEmpresa(empresaOf(cfg));
+  if (falta.length) return { error: `Faltan datos de la empresa en Documentos › Configuración: ${falta.join(", ")}` };
+  if (!cfg.cargos.includes(d.cargo)) return { error: "Elige un cargo de la lista" };
+
+  let client;
+  try {
+    client = await ensureClient(d.clientId);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  const data: ContratoData = {
+    kind: "CONTRATO", empresa: empresaOf(cfg), fecha: d.fecha,
+    cliente: { razon: d.razon, domicilio: d.clienteDomicilio },
+    rep: { nombre: d.repNombre, domicilio: d.repDomicilio, curp: d.repCurp, ine: d.repIne, rol: d.repRol || "Representante Legal" },
+    cargoEmpresa: d.cargo, ramo: d.ramo, servicios, pagos, meses: d.meses, anios: d.anios,
+    penalidadPct: d.penalidadPct, prorrogaDias: d.prorrogaDias, emailRescision: d.emailRescision,
+    extra: d.extraTexto ? { titulo: d.extraTitulo, texto: d.extraTexto } : null,
+  };
+
+  const saved = await persist(docId, "CONTRATO", client.id, null, contratoFileName(client.companyName, d.fecha), data, user.id);
+  if ("error" in saved) return { error: saved.error };
+  if (fd.get("saveRep") === "on") {
+    await prisma.client.update({
+      where: { id: client.id },
+      data: { legalRepName: d.repNombre, legalRepAddress: d.repDomicilio, legalRepCurp: d.repCurp, legalRepIne: d.repIne, legalRepRole: d.repRol || null },
+    });
+  }
+  refresh(saved.id);
+  redirect(`/documentos/${saved.id}`);
+}
+
 // ---------- Recibo de pago ----------
 export async function saveRecibo(docId: string | null, _p: State, fd: FormData): Promise<State> {
   const user = await requireUser([...STAFF]);
@@ -194,7 +279,7 @@ export async function saveRecibo(docId: string | null, _p: State, fd: FormData):
 }
 
 /** Crea o actualiza el documento. El recibo recibe su folio (prefijo del cliente + consecutivo) al crearse y lo conserva al editarse. */
-async function persist(docId: string | null, kind: "RECIBO" | "ACUERDO", clientId: string, folio: "folio" | null, fileName: string, data: object, userId: string): Promise<{ id: string } | { error: string }> {
+async function persist(docId: string | null, kind: "RECIBO" | "ACUERDO" | "CONTRATO", clientId: string, folio: "folio" | null, fileName: string, data: object, userId: string): Promise<{ id: string } | { error: string }> {
   if (docId) {
     const cur = await prisma.document.findUnique({ where: { id: docId } });
     if (!cur) return { error: "El documento no existe" };
@@ -234,7 +319,7 @@ export async function duplicateDocument(id: string): Promise<{ error?: string }>
   } else {
     const next = { ...data, fecha: today };
     const c = await prisma.client.findUniqueOrThrow({ where: { id: src.clientId }, select: { companyName: true } });
-    created = await prisma.document.create({ data: { kind: src.kind, clientId: src.clientId, fileName: acuerdoFileName(c.companyName, today), data: JSON.stringify(next), createdById: user.id } });
+    created = await prisma.document.create({ data: { kind: src.kind, clientId: src.clientId, fileName: (src.kind === "CONTRATO" ? contratoFileName : acuerdoFileName)(c.companyName, today), data: JSON.stringify(next), createdById: user.id } });
   }
   refresh();
   redirect(`/documentos/${created.id}`);

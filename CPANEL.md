@@ -415,6 +415,11 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Primer paso obligatorio (solo ADMINISTRADOR):** *Documentos › Configuración*: captura los datos de la empresa (razón social, domicilio, RFC, representante, INE), los cargos de quien firma, las personas que «Confirman de recibido» (con su firma escaneada opcional) y la copia oculta. Se guardan en la base de datos privada; **no** van en el código ni en Git.
 - El correo usa el mismo Gmail que ya envía los reportes. Las firmas escaneadas se guardan en el almacenamiento privado (carpeta `firmas/`).
 
+### Evolutivo 14 · Etapa 2 (29 oct 2026) — Documentos: contrato de prestación de servicios
+- **Sin migración nueva:** usa las tablas de la etapa 1 (`20261028120000_evolutivo14a.sql`). Solo reemplaza la app (respaldo antes, como siempre).
+- **Documentos › Contrato de prestación de servicios:** servicios con casillas (A, B, C) más los que se escriban, calendario de pagos por renglón (total y monto en letra automáticos, con o sin IVA), ramo del cliente, duración, años de confidencialidad, penalidad %, prórroga de pago y cláusula adicional. Vista previa, PDF, Word, envío por correo y duplicar, igual que los demás.
+- **Nuevo en Configuración (ADMINISTRADOR):** «Correo para notificar la rescisión por falta de pago». Captúralo una vez; aparece en cada contrato y se puede cambiar en cada uno.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

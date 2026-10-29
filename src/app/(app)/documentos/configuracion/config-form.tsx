@@ -73,8 +73,12 @@ export function ConfigForm({ cfg }: { cfg: DocsConfig }) {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">Copia oculta de cada envío</h2>
-        <div className="max-w-md">{f("bcc", "Correo", { type: "email", maxLength: 191, placeholder: "necesito@311consultores.com" })}</div>
+        <h2 className="text-lg font-semibold tracking-tight">Correos</h2>
+        <div className="max-w-md">{f("bcc", "Copia oculta de cada envío", { type: "email", maxLength: 191, placeholder: "necesito@311consultores.com" })}</div>
+        <div className="max-w-md">
+          {f("emailRescision", "Correo para notificar la rescisión por falta de pago (contratos)", { type: "email", maxLength: 191 })}
+          <p className="mt-1 text-xs text-zinc-500">Aparece en la cláusula de rescisión del contrato; en cada contrato se puede cambiar.</p>
+        </div>
       </section>
     </ActionForm>
   );
