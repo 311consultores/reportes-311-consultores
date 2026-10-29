@@ -15,6 +15,9 @@ const ROLES = ["ADMIN", "EDITOR", "CLIENTE", "TEAM_311", "PROJECT_311"] as const
 /** Roles de equipo que también puede gestionar el Editor. */
 const isTeamRole = (r: string) => r === "TEAM_311" || r === "PROJECT_311";
 
+/** Roles que el Editor puede crear y editar: el equipo y los usuarios CLIENTE (sin cambiar su rol ni eliminarlos). */
+const editorManages = (r: string) => isTeamRole(r) || r === "CLIENTE";
+
 const nameField = z.string().trim().min(2, "Nombre requerido").max(120, "El nombre es demasiado largo");
 
 /** Proyectos que existen de verdad entre los ids recibidos. */
@@ -45,7 +48,7 @@ const photoFile = (fd: FormData) => {
   return f instanceof File && f.size > 0 ? f : null;
 };
 
-/** Alta de usuario. El Administrador crea cualquier rol; el Editor solo TEAM 311 y PROJECT 311. */
+/** Alta de usuario. El Administrador crea cualquier rol; el Editor solo CLIENTE, TEAM 311 y PROJECT 311. */
 export async function createUser(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
@@ -62,7 +65,7 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { clientId, password, birthMonth, birthDay, ...rest } = parsed.data;
 
-  if (me.role === "EDITOR" && !isTeamRole(rest.role)) return { error: "El Editor solo puede crear usuarios TEAM 311 y PROJECT 311" };
+  if (me.role === "EDITOR" && !editorManages(rest.role)) return { error: "El Editor solo puede crear usuarios CLIENTE, TEAM 311 y PROJECT 311" };
   if (rest.role === "CLIENTE" && !clientId) return { error: "Selecciona la empresa del usuario cliente" };
   if (await prisma.user.findUnique({ where: { email: rest.email } })) return { error: "Ya existe un usuario con ese correo" };
 
@@ -161,9 +164,9 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
-/** Edición de un usuario ADMIN, EDITOR o CLIENTE, con cambio de rol (solo Administrador). */
+/** Edición de un usuario ADMIN, EDITOR o CLIENTE, con cambio de rol (solo Administrador). El Editor solo edita usuarios CLIENTE, sin cambiarles el rol. */
 export async function updateUser(_p: State, fd: FormData): Promise<State> {
-  const me = await requireUser(["ADMIN"]);
+  const me = await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z
     .object({
       id: z.string().uuid(),
@@ -181,6 +184,7 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
 
   const target = await prisma.user.findUnique({ where: { id: d.id }, select: { role: true, active: true, photoUrl: true } });
   if (!target || isTeamRole(target.role)) return { error: "Usuario no encontrado" };
+  if (me.role === "EDITOR" && (target.role !== "CLIENTE" || d.role !== "CLIENTE")) return { error: "El Editor solo puede editar usuarios CLIENTE" };
   if (target.role === "ADMIN" && d.role !== "ADMIN" && target.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) return { error: "No puedes quitar el rol al único Administrador activo" };
   if (d.password && d.password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres" };
   if (d.id === me.id && d.role !== "ADMIN") return { error: "No puedes quitarte a ti mismo el rol de Administrador" };
@@ -289,13 +293,13 @@ export async function updateMyProfile(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
-/** Activar o desactivar un usuario (el Editor solo a TEAM 311 y PROJECT 311). */
+/** Activar o desactivar un usuario (el Editor solo a CLIENTE, TEAM 311 y PROJECT 311). */
 export async function toggleUserActive(userId: string) {
   const me = await requireUser(["ADMIN", "EDITOR"]);
   if (me.id === userId) return;
   const u = await prisma.user.findUnique({ where: { id: userId } });
   if (!u) return;
-  if (me.role === "EDITOR" && !isTeamRole(u.role)) return;
+  if (me.role === "EDITOR" && !editorManages(u.role)) return;
   if (u.role === "ADMIN" && u.active && (await prisma.user.count({ where: { role: "ADMIN", active: true } })) <= 1) return;
   await prisma.user.update({ where: { id: userId }, data: { active: !u.active } });
   revalidatePath("/usuarios");

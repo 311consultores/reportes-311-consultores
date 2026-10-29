@@ -4,7 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { InvoiceKind } from "@prisma/client";
 import { markInvoicePaid } from "@/app/actions/invoices";
+import { loanNotice, type LoanNotice } from "@/app/actions/loans";
 import { DateInput } from "@/components/date-input";
+import { LOAN_PROMPT_EVENT, LOAN_PROMPT_KEY } from "@/components/loan-prompt";
 import { accountsFor, STATUS_LABEL, type DisplayStatus } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 import { PILL_STYLE } from "./status-pill";
@@ -25,6 +27,7 @@ export function PayButton({
   const [date, setDate] = useState(today);
   const [error, setError] = useState<string>();
   const [busy, start] = useTransition();
+  const [notice, setNotice] = useState<LoanNotice>(null); // deuda con las cajas (solo la ve el Administrador)
   const accounts = accountsFor(kind);
 
   function confirm() {
@@ -33,6 +36,11 @@ export function PayButton({
       const r = await markInvoicePaid(id, account, date);
       if (r.error) setError(r.error);
       else {
+        if (notice) {
+          // La lista se actualiza al cobrar y esta ventana desaparece: la pregunta «¿abonar?» la muestra el diseño general
+          try { sessionStorage.setItem(LOAN_PROMPT_KEY, JSON.stringify(notice)); } catch {}
+          window.dispatchEvent(new Event(LOAN_PROMPT_EVENT));
+        }
         setOpen(false);
         router.refresh();
       }
@@ -48,6 +56,8 @@ export function PayButton({
           setAccount("");
           setDate(today);
           setError(undefined);
+          setNotice(null);
+          loanNotice().then(setNotice).catch(() => {});
           setOpen(true);
         }}
         className={cn("rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 ease-out hover:opacity-70 active:scale-[0.97]", PILL_STYLE[status])}
@@ -62,6 +72,9 @@ export function PayButton({
           onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <div className="card glass w-full max-w-md space-y-4 text-left shadow-[0_20px_60px_rgb(0,0,0,0.18)]">
+            {notice && (
+              <p className="rounded-xl bg-[#FF9500]/12 px-3 py-2 text-xs text-[#B25E00] dark:text-[#FFB340]">Hay deuda pendiente con las cajas ({notice.total}). Al terminar podrás registrar un abono.</p>
+            )}
             <div className="space-y-1">
               <h2 className="text-lg font-semibold tracking-tight">Marcar como pagada</h2>
               <p className="meta">{label ? `${label}. ` : ""}Indica en qué cuenta se recibió el dinero.</p>

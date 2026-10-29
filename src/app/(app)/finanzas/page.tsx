@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { fmtDate, formatCents } from "@/lib/finance";
 import { getBoxes, getFlow, getReceivables, parseMonthParam } from "@/lib/finance-queries";
+import { getLoans, summarizeLoans } from "@/lib/loans";
 import { balanceOf, BOXES, type BoxInfo } from "@/lib/ledger";
 import { cn } from "@/lib/utils";
 import { FinanzasTabs } from "./tabs";
@@ -25,7 +26,9 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
   await requireUser(["ADMIN"]);
   const sp = await searchParams;
   const mes = parseMonthParam(sp.mes);
-  const [flow, receivables, { balances, earned }] = await Promise.all([getFlow(mes), getReceivables(), getBoxes()]);
+  const [flow, receivables, { balances, earned }, loans] = await Promise.all([getFlow(mes), getReceivables(), getBoxes(), getLoans()]);
+  const debt = summarizeLoans(loans);
+  const debtPct = debt.total > 0 ? Math.round((debt.paid / debt.total) * 100) : 0;
 
   let cash = 0;
   let bank = 0;
@@ -60,6 +63,22 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
         <Kpi label="Balance del periodo" value={formatCents(net)} hint="Ingresos − egresos" />
         <Kpi label="Dinero en cajas hoy" value={formatCents(cash + bank)} hint={`Efectivo ${formatCents(cash)} · Banco ${formatCents(bank)}`} />
       </div>
+
+      {debt.total > 0 && (
+        <section className="card space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight">Préstamos de las cajas</h2>
+            <Link href="/finanzas/prestamos" className="btn-outline">Ver préstamos y registrar abonos</Link>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+            <span>Abonado <strong>{formatCents(debt.paid)}</strong> de {formatCents(debt.total)}</span>
+            <span className={cn("font-semibold", debt.pending > 0 ? "text-[#D70015] dark:text-[#FF453A]" : "text-[#248A3D] dark:text-[#30D158]")}>{debt.pending > 0 ? `Deuda pendiente ${formatCents(debt.pending)}` : "Sin deuda pendiente"}</span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-black/5 dark:bg-white/10" role="progressbar" aria-valuenow={debtPct} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del pago de los préstamos">
+            <div className="h-full rounded-full bg-[#34C759]" style={{ width: `${debtPct}%` }} />
+          </div>
+        </section>
+      )}
 
       <section className="card space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Facturas y pagos sin factura (acumulado)</h2>

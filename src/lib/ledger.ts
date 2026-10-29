@@ -38,6 +38,8 @@ export type NewEntry = {
   invoiceId?: string;
   expenseId?: string;
   movementId?: string;
+  loanId?: string;
+  loanPaymentId?: string;
   note?: string;
 };
 
@@ -54,6 +56,8 @@ export async function writeEntries(db: Db, entries: NewEntry[]) {
       invoiceId: e.invoiceId ?? null,
       expenseId: e.expenseId ?? null,
       movementId: e.movementId ?? null,
+      loanId: e.loanId ?? null,
+      loanPaymentId: e.loanPaymentId ?? null,
       note: e.note?.slice(0, 191) ?? null,
     })),
   });

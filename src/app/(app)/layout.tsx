@@ -13,6 +13,7 @@ import { Avatar } from "@/components/avatar";
 import { PwaRegister } from "@/components/pwa-register";
 import { NotificationBell } from "@/components/notification-bell";
 import { OverdueBanner } from "@/components/overdue-banner";
+import { LoanPrompt } from "@/components/loan-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             title: "Administración",
             items: [
               { href: "/facturas", label: "Facturas", icon: "facturas" as const, badge: overdue.count },
+              ...(isOps ? [{ href: "/documentos", label: "Documentos", icon: "documentos" as const }] : []),
               ...(isAdmin ? [{ href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }, { href: "/desempeno", label: "Desempeño", icon: "desempeno" as const }] : []),
             ],
           },
@@ -123,6 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppShell brand={brand} groups={groups} bottomGroups={bottomGroups} footer={footer}>
+      {isAdmin && <LoanPrompt />}
       {overdue.count > 0 && (
         <OverdueBanner count={overdue.count} total={formatDecimal(overdue.total ?? 0)} today={today} dismissed={bannerDismissed} />
       )}

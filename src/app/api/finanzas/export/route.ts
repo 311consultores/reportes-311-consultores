@@ -20,13 +20,14 @@ export async function GET(req: Request) {
   const { rows } = await getFlow(mes);
   const money = (c: number) => (c / 100).toFixed(2);
 
-  const lines = [["Fecha", "Tipo", "Concepto", "Detalle", "Ingreso", "Egreso", "Estado"].map(cell).join(",")];
+  const lines = [["Fecha", "Tipo", "Concepto", "Detalle", "Ingreso", "Egreso", "Traslado, préstamo o abono", "Estado"].map(cell).join(",")];
   for (const r of rows) {
     lines.push(
       [
         isoDate(r.date), r.type, r.concept, r.detail,
         r.type === "Ingreso" ? money(r.cents) : "",
         r.type === "Egreso" ? money(r.cents) : "",
+        r.type !== "Ingreso" && r.type !== "Egreso" ? money(r.cents) : "",
         r.voided ? "Anulado" : "",
       ].map(cell).join(","),
     );

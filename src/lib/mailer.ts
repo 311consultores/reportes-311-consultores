@@ -3,6 +3,7 @@ import { gmail, auth } from "@googleapis/gmail";
 export type InlineImage = { cid: string; content: Buffer; contentType: string; filename: string };
 export type Mail = {
   to: string[];
+  bcc?: string[]; // copia oculta
   subject: string;
   html: string;
   text: string;
@@ -69,6 +70,7 @@ export function buildMime(from: string, m: Mail) {
   return [
     `From: ${encHeader("311 CONSULTORES")} <${from}>`,
     `To: ${m.to.join(", ")}`,
+    ...(m.bcc?.length ? [`Bcc: ${m.bcc.join(", ")}`] : []),
     `Subject: ${encHeader(m.subject)}`,
     "MIME-Version: 1.0",
     main.header,
@@ -81,7 +83,7 @@ export async function sendMail(m: Mail): Promise<{ dryRun: boolean }> {
   // El modo de prueba tiene prioridad aunque Gmail esté configurado (nunca aplica en producción)
   if (mailDryRun()) {
     console.log(
-      `[MAIL_DRY_RUN] Para: ${m.to.join(", ")} | Asunto: ${m.subject} | Adjunto: ${m.attachment?.filename ?? "—"}\n${m.text}`,
+      `[MAIL_DRY_RUN] Para: ${m.to.join(", ")}${m.bcc?.length ? ` | CCO: ${m.bcc.join(", ")}` : ""} | Asunto: ${m.subject} | Adjunto: ${m.attachment?.filename ?? "—"}\n${m.text}`,
     );
     return { dryRun: true };
   }

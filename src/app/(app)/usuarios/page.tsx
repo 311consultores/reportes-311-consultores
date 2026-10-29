@@ -24,10 +24,10 @@ export default async function UsersPage() {
   const companies = clients.map((c) => ({ id: c.id, name: c.companyName }));
   const initialTab = (await cookies()).get("usuarios_tab")?.value ?? "TODOS";
 
-  // El Editor ve a todos, pero solo gestiona a TEAM 311 y PROJECT 311; el Administrador gestiona a todos
+  // El Editor ve a todos, pero solo gestiona a CLIENTE, TEAM 311 y PROJECT 311; el Administrador gestiona a todos
   const rows: UserRow[] = users.map((u) => {
     const isTeamType = u.role === "TEAM_311" || u.role === "PROJECT_311";
-    const manage = isAdmin || isTeamType;
+    const manage = isAdmin || isTeamType || u.role === "CLIENTE";
     return {
       id: u.id,
       role: u.role,
@@ -53,8 +53,9 @@ export default async function UsersPage() {
               {isTeamType && (
                 <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, phone: u.phone, projectIds: u.projectAccess.map((p) => p.projectId), role: u.role, areaIds: u.areas.map((x) => x.areaId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} areas={areaList} canChangeRole={isAdmin && u.id !== me.id} />
               )}
-              {isAdmin && !isTeamType && (
+              {(isAdmin ? !isTeamType : u.role === "CLIENTE") && (
                 <UserEditor
+                  canChangeRole={isAdmin}
                   user={{ id: u.id, name: u.name, email: u.email, role: u.role as "ADMIN" | "EDITOR" | "CLIENTE", clientId: u.clientAccess[0]?.clientId ?? null, photoUrl: u.photoUrl, birthday: u.birthday }}
                   companies={companies}
                   isSelf={u.id === me.id}

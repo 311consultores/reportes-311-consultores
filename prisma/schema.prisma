@@ -55,6 +55,10 @@ model User {
   ledgerEntries       LedgerEntry[]
   expensesCreated     Expense[]
   movementsCreated    Movement[]
+  loansCreated        Loan[]
+  loanPaymentsCreated LoanPayment[]
+  documentsCreated    Document[]           @relation("DocCreator")
+  documentSends       DocumentSend[]
   photoUrl            String? // Clave de la foto de perfil (TEAM 311) en el almacenamiento
   birthday            String?              @db.VarChar(5) // "MM-DD": solo día y mes
   phone               String?              @db.VarChar(20) // teléfono (solo dígitos) para abrir WhatsApp
@@ -79,16 +83,16 @@ model User {
 }
 
 model Client {
-  id          String       @id @default(uuid())
-  companyName String
-  folioPrefix String       @unique // E.g., "CEM"
-  mainEmails  String       @db.Text // Comma-separated emails
-  logoUrl     String? // Clave del archivo del logo en el almacenamiento
-  folioSeq    Int          @default(0) // Último consecutivo de folio usado (nunca se reinicia)
-  createdAt   DateTime     @default(now())
-  projects    Project[]
-  reports     Report[]
-  users       ClientUser[]
+  id           String        @id @default(uuid())
+  companyName  String
+  folioPrefix  String        @unique // E.g., "CEM"
+  mainEmails   String        @db.Text // Comma-separated emails
+  logoUrl      String? // Clave del archivo del logo en el almacenamiento
+  folioSeq     Int           @default(0) // Último consecutivo de folio usado (nunca se reinicia)
+  createdAt    DateTime      @default(now())
+  projects     Project[]
+  reports      Report[]
+  users        ClientUser[]
   metaAccounts MetaAccount[]
 
   // Datos fiscales y de contacto (solo los ven Admin y Editor)
@@ -105,6 +109,14 @@ model Client {
   contactLastName String?             @db.VarChar(150)
   contactPhone    String?             @db.VarChar(10)
   contactEmail    String?             @db.VarChar(191)
+  // Representante legal (para contratos y acuerdos; solo Admin y Editor) y consecutivo de recibos de pago
+  legalRepName    String?             @db.VarChar(150)
+  legalRepAddress String?             @db.VarChar(300)
+  legalRepCurp    String?             @db.VarChar(18)
+  legalRepIne     String?             @db.VarChar(20)
+  legalRepRole    String?             @db.VarChar(120)
+  receiptSeq      Int                 @default(0)
+  documents       Document[]
   billingName     String?             @db.VarChar(150) // Contacto de administración y facturación (nombre)
   billingLastName String?             @db.VarChar(150)
   billingPhone    String?             @db.VarChar(10)
@@ -407,6 +419,10 @@ enum LedgerKind {
   TRASLADO
   RETIRO
   ANULA_MOVIMIENTO
+  PRESTAMO // dinero que sale de una caja como préstamo
+  ABONO_PRESTAMO // dinero que regresa a una caja como abono a un préstamo
+  ANULA_PRESTAMO
+  ANULA_ABONO
 }
 
 enum MovementKind {
@@ -422,26 +438,30 @@ enum ExpenseKind {
 
 /// Libro de movimientos de las cajas: el saldo de una caja es la suma de sus renglones. Nada se borra ni se edita.
 model LedgerEntry {
-  id          String     @id @default(uuid())
-  box         Box
-  cashType    CashType
-  amount      Decimal    @db.Decimal(12, 2) // + entra, − sale
-  kind        LedgerKind
-  occurredOn  DateTime   @db.Date
-  invoiceId   String?
-  invoice     Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  expenseId   String?
-  movementId  String?
-  note        String?    @db.VarChar(191)
-  createdById String
-  createdBy   User       @relation(fields: [createdById], references: [id])
-  createdAt   DateTime   @default(now())
+  id            String     @id @default(uuid())
+  box           Box
+  cashType      CashType
+  amount        Decimal    @db.Decimal(12, 2) // + entra, − sale
+  kind          LedgerKind
+  occurredOn    DateTime   @db.Date
+  invoiceId     String?
+  invoice       Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  expenseId     String?
+  movementId    String?
+  loanId        String?
+  loanPaymentId String?
+  note          String?    @db.VarChar(191)
+  createdById   String
+  createdBy     User       @relation(fields: [createdById], references: [id])
+  createdAt     DateTime   @default(now())
 
   @@index([box, cashType])
   @@index([occurredOn])
   @@index([invoiceId])
   @@index([expenseId])
   @@index([movementId])
+  @@index([loanId])
+  @@index([loanPaymentId])
 }
 
 model Expense {
@@ -482,6 +502,105 @@ model Movement {
   @@index([occurredOn])
 }
 
+/// Préstamo: dinero que se sacó de una o varias cajas y se va devolviendo con abonos. El estado (vigente / pagado) se calcula: pagado = abonos igual al total.
+model Loan {
+  id              String        @id @default(uuid())
+  concept         String        @db.VarChar(200)
+  recipient       String        @db.VarChar(120)
+  total           Decimal       @db.Decimal(12, 2)
+  loanDate        DateTime      @db.Date
+  alreadyDeducted Boolean       @default(false) // el dinero ya había salido de las cajas antes de registrar el préstamo (no mueve saldos)
+  createdById     String
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  voidedAt        DateTime?
+  voidReason      String?       @db.VarChar(300)
+  voidedById      String?
+  origins         LoanOrigin[]
+  payments        LoanPayment[]
+
+  @@index([loanDate])
+}
+
+/// De qué caja (y de qué parte, efectivo o banco) salió el dinero del préstamo.
+model LoanOrigin {
+  id       String   @id @default(uuid())
+  loanId   String
+  loan     Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  box      Box
+  cashType CashType
+  amount   Decimal  @db.Decimal(12, 2)
+
+  @@index([loanId])
+}
+
+model LoanPayment {
+  id          String    @id @default(uuid())
+  loanId      String
+  loan        Loan      @relation(fields: [loanId], references: [id], onDelete: Restrict)
+  box         Box // caja a la que regresa el dinero
+  cashType    CashType
+  amount      Decimal   @db.Decimal(12, 2)
+  paidOn      DateTime  @db.Date
+  note        String?   @db.VarChar(191)
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  voidedAt    DateTime?
+  voidReason  String?   @db.VarChar(300)
+  voidedById  String?
+
+  @@index([loanId])
+  @@index([paidOn])
+}
+
+enum DocKind {
+  RECIBO
+  ACUERDO
+  CONTRATO
+}
+
+enum DocStatus {
+  BORRADOR
+  ENVIADO
+}
+
+/// Documento generado desde el módulo Documentos (recibo de pago, acuerdo de confidencialidad, contrato). Lo capturado queda en «data» (JSON).
+model Document {
+  id          String         @id @default(uuid())
+  kind        DocKind
+  clientId    String
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  folio       String?        @db.VarChar(40) // solo recibos
+  fileName    String         @db.VarChar(255) // nombre del archivo sin extensión
+  data        String         @db.LongText
+  status      DocStatus      @default(BORRADOR)
+  createdById String
+  createdBy   User           @relation("DocCreator", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  sentAt      DateTime?
+  sends       DocumentSend[]
+
+  @@index([clientId])
+  @@index([kind, createdAt])
+}
+
+model DocumentSend {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sentById   String
+  sentBy     User     @relation(fields: [sentById], references: [id])
+  toEmails   String   @db.Text
+  bccEmails  String?  @db.Text
+  subject    String   @db.VarChar(255)
+  body       String   @db.Text
+  sentAt     DateTime @default(now())
+
+  @@index([documentId])
+}
+
 enum TaskStatus {
   PENDIENTE
   EN_PROCESO
@@ -491,36 +610,36 @@ enum TaskStatus {
 
 // Panel de tareas (Evolutivo 7): tareas asignadas al equipo TEAM 311 por Admin o Editor
 model Task {
-  id               String           @id @default(uuid())
-  clientId         String
-  client           Client           @relation(fields: [clientId], references: [id])
-  projectId        String
-  project          Project          @relation(fields: [projectId], references: [id])
-  publishAt        DateTime? // Tarea programada: aparece para la persona asignada a partir de esta fecha y hora (vacío = de inmediato)
+  id                String           @id @default(uuid())
+  clientId          String
+  client            Client           @relation(fields: [clientId], references: [id])
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id])
+  publishAt         DateTime? // Tarea programada: aparece para la persona asignada a partir de esta fecha y hora (vacío = de inmediato)
   publishNotifiedAt DateTime? // Cuándo se avisó a las personas asignadas de una tarea programada
-  areaId           String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
-  area             Area?            @relation(fields: [areaId], references: [id])
-  title            String           @db.VarChar(191)
-  descriptionHtml  String           @db.Text
-  dueAt            DateTime // Fecha y hora de entrega
-  status           TaskStatus       @default(PENDIENTE)
-  createdById      String
-  createdBy        User             @relation("TaskCreator", fields: [createdById], references: [id])
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  readyAt          DateTime? // Cuándo el TEAM 311 la marcó «Lista»
-  acceptedAt       DateTime? // Cuándo pasó a TERMINADA
-  surprise         Boolean          @default(false) // Sorpresa de felicitación habilitada al aceptar
-  surpriseOpenedAt DateTime?
-  hiddenAt         DateTime? // «Limpiar terminadas»: se oculta del tablero pero queda en el historial
-  reminderSentAt   DateTime? // Recordatorio de «vence en menos de 12 h» ya enviado
-  assignees        TaskAssignee[]
-  resources        TaskResource[]
-  events           TaskEvent[]
-  messages         TaskMessage[]
-  subtasks         Subtask[]
-  notes            Note[]
-  attachments      TaskAttachment[]
+  areaId            String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
+  area              Area?            @relation(fields: [areaId], references: [id])
+  title             String           @db.VarChar(191)
+  descriptionHtml   String           @db.Text
+  dueAt             DateTime // Fecha y hora de entrega
+  status            TaskStatus       @default(PENDIENTE)
+  createdById       String
+  createdBy         User             @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  readyAt           DateTime? // Cuándo el TEAM 311 la marcó «Lista»
+  acceptedAt        DateTime? // Cuándo pasó a TERMINADA
+  surprise          Boolean          @default(false) // Sorpresa de felicitación habilitada al aceptar
+  surpriseOpenedAt  DateTime?
+  hiddenAt          DateTime? // «Limpiar terminadas»: se oculta del tablero pero queda en el historial
+  reminderSentAt    DateTime? // Recordatorio de «vence en menos de 12 h» ya enviado
+  assignees         TaskAssignee[]
+  resources         TaskResource[]
+  events            TaskEvent[]
+  messages          TaskMessage[]
+  subtasks          Subtask[]
+  notes             Note[]
+  attachments       TaskAttachment[]
 
   @@index([status])
   @@index([dueAt])

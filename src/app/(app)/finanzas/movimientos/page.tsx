@@ -16,6 +16,10 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const mes = parseMonthParam(sp.mes);
   const range = mes ? monthRange(mes, "date") : null;
+  const [loans, loanPayments] = await Promise.all([
+    prisma.loan.findMany({ where: range ? { loanDate: range } : {}, include: { origins: true, createdBy: { select: { name: true } } } }),
+    prisma.loanPayment.findMany({ where: range ? { paidOn: range } : {}, include: { loan: { select: { concept: true } }, createdBy: { select: { name: true } } } }),
+  ]);
   const moves = await prisma.movement.findMany({
     where: range ? { occurredOn: range } : {},
     orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
@@ -63,7 +67,27 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
                 <td className="td">{!m.voidedAt && <VoidButton id={m.id} what="movement" />}</td>
               </tr>
             ))}
-            {moves.length === 0 && <tr><td colSpan={6} className="td py-8 text-center text-zinc-500">No hay movimientos en este periodo</td></tr>}
+            {[
+              ...loans.map((l) => ({
+                key: `l-${l.id}`, date: l.loanDate, kind: "Préstamo", concept: l.concept, voided: !!l.voidedAt, voidReason: l.voidReason, by: l.createdBy.name, amount: l.total,
+                flow: `${l.origins.map((o) => `${boxLabel(o.box)} (${CASH_LABEL[o.cashType].toLowerCase()})`).join(", ")} → ${l.recipient}`,
+              })),
+              ...loanPayments.map((p) => ({
+                key: `a-${p.id}`, date: p.paidOn, kind: "Abono a préstamo", concept: p.loan.concept, voided: !!p.voidedAt, voidReason: p.voidReason, by: p.createdBy.name, amount: p.amount,
+                flow: `Préstamo → ${boxLabel(p.box)} (${CASH_LABEL[p.cashType].toLowerCase()})`,
+              })),
+            ].sort((a, b) => b.date.getTime() - a.date.getTime()).map((r) => (
+              <tr key={r.key} className={cn(r.voided && "opacity-60")}>
+                <td className="td whitespace-nowrap">{fmtDate(r.date)}</td>
+                <td className="td">{r.kind}</td>
+                <td className="td"><span className={cn("font-medium", r.voided && "line-through")}>{r.concept}</span>
+                  <span className="block text-xs text-zinc-500">{r.voided ? `Anulado: ${r.voidReason}` : `Registró ${r.by}`}</span></td>
+                <td className="td text-xs">{r.flow}</td>
+                <td className={cn("td text-right font-semibold", r.voided && "line-through")}>{formatDecimal(r.amount)}</td>
+                <td className="td"><Link href="/finanzas/prestamos" className="link text-xs">Ver</Link></td>
+              </tr>
+            ))}
+            {moves.length === 0 && loans.length === 0 && loanPayments.length === 0 && <tr><td colSpan={6} className="td py-8 text-center text-zinc-500">No hay movimientos en este periodo</td></tr>}
           </tbody>
         </table>
       </div>

@@ -4,26 +4,30 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Ban } from "lucide-react";
 import { voidExpense, voidMovement } from "@/app/actions/finance";
+import { voidLoan, voidLoanPayment } from "@/app/actions/loans";
 import { useDialogs } from "@/components/dialogs";
 
-/** Anula un gasto o movimiento: no se borra, se devuelve a las cajas y queda el motivo. */
-export function VoidButton({ id, what }: { id: string; what: "expense" | "movement" }) {
+const COPY = {
+  expense: { title: "Anular gasto", message: "El dinero regresa a las cajas y el registro se conserva marcado como anulado. Escribe el motivo.", run: voidExpense },
+  movement: { title: "Anular movimiento", message: "El dinero regresa a las cajas y el registro se conserva marcado como anulado. Escribe el motivo.", run: voidMovement },
+  loan: { title: "Anular préstamo", message: "El préstamo se conserva marcado como anulado y deja de contar en la deuda. Si el dinero salió de las cajas al registrarlo, regresa a ellas. Escribe el motivo.", run: voidLoan },
+  payment: { title: "Anular abono", message: "El dinero del abono sale otra vez de la caja a la que había regresado y la deuda vuelve a subir. El abono se conserva marcado como anulado. Escribe el motivo.", run: voidLoanPayment },
+} as const;
+
+/** Anula un gasto, movimiento, préstamo o abono: no se borra, se devuelve a las cajas y queda el motivo. */
+export function VoidButton({ id, what }: { id: string; what: keyof typeof COPY }) {
   const router = useRouter();
   const { askReason } = useDialogs();
   const [busy, start] = useTransition();
   const [error, setError] = useState<string>();
+  const copy = COPY[what];
 
   async function click() {
-    const reason = await askReason({
-      title: what === "expense" ? "Anular gasto" : "Anular movimiento",
-      message: "El dinero regresa a las cajas y el registro se conserva marcado como anulado. Escribe el motivo.",
-      confirmLabel: "Anular",
-      danger: true,
-    });
+    const reason = await askReason({ title: copy.title, message: copy.message, confirmLabel: "Anular", danger: true });
     if (reason === null) return;
     setError(undefined);
     start(async () => {
-      const r = await (what === "expense" ? voidExpense : voidMovement)(id, reason);
+      const r = await copy.run(id, reason);
       if (r.error) setError(r.error);
       else router.refresh();
     });

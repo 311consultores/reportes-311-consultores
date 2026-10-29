@@ -18,7 +18,11 @@ export function parseMoney(value: string): number | null {
 /** IVA del 16 % redondeado al centavo (la mitad sube). */
 export const vatOf = (subtotalCents: number) => Math.floor((subtotalCents * VAT_PERCENT + 50) / 100);
 
-export const centsToDecimal = (cents: number) => `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+/** Centavos a texto decimal; los negativos (salidas de dinero) llevan el signo al frente: -4500.50 */
+export const centsToDecimal = (cents: number) => {
+  const abs = Math.abs(cents);
+  return `${cents < 0 ? "-" : ""}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+};
 
 export const decimalToCents = (d: Prisma.Decimal | string | number) => Math.round(Number(d.toString()) * 100);
 

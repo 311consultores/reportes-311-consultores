@@ -400,6 +400,21 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Campañas Meta** (menú Operación; ADMINISTRADOR, EDITOR y PROJECT 311): elegir cliente/cuenta y recorrer *Campaña → Conjunto de anuncios → Anuncio* (solo lectura en esta etapa) con estados y términos traducidos, y el botón «Explícame esto» (Claude). El ADMINISTRADOR importa las cuentas, las liga a clientes y decide quién ve cuáles en *Campañas Meta › Conexión y accesos*.
 - El modo demostración (`META_DEMO`) solo funciona en desarrollo; en el servidor está desactivado aunque la variable exista.
 
+### Evolutivo 13 (27 oct 2026) — Préstamos de las cajas y el EDITOR crea y edita usuarios CLIENTE
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261027120000_evolutivo13a.sql`. Solo **agrega**: dos columnas vacías y cuatro valores nuevos de tipo en `LedgerEntry`, y las tablas nuevas `Loan`, `LoanOrigin` y `LoanPayment`. No cambia ni borra ningún dato ni saldo. Las migraciones anteriores (hasta la 12a) deben estar aplicadas.
+- **Finanzas › Préstamos** (solo ADMINISTRADOR): préstamos de una o varias cajas (efectivo o banco), abonos a mano que regresan el dinero a la caja, estado Vigente/Pagado automático, barra de avance, anulación con motivo y resumen en *Finanzas › Resumen*. Al cobrar una factura, si hay deuda, el portal pregunta si se quiere abonar.
+- **Préstamo inicial de la caja Navidad ($22,350.00 · banco · 17 oct 2026 · recibió la empresa):** en *Finanzas › Préstamos* pulsa **Cargar el préstamo de Navidad** y **Registrar préstamo**. Viene marcado «Este dinero ya salió de las cajas antes», así que **no cambia ningún saldo**: solo anota la deuda.
+- **EDITOR:** ahora puede crear usuarios CLIENTE y editarlos (nombre, correo, empresa y contraseña) y activarlos o desactivarlos; no puede cambiarles el rol ni eliminarlos.
+- Corrección: los gastos y retiros con centavos (por ejemplo $4,500.50) ahora se guardan bien en las cajas.
+
+### Evolutivo 14 · Etapa 1 (28 oct 2026) — Documentos: recibos de pago y acuerdos de confidencialidad
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261028120000_evolutivo14a.sql`. Solo **agrega**: 6 columnas vacías en `Client` (datos del representante legal y consecutivo de recibos) y las tablas nuevas `Document` y `DocumentSend`. No toca ningún dato. Las migraciones anteriores (hasta la 13a) deben estar aplicadas.
+- **Documentos** (menú Administración; ADMINISTRADOR y EDITOR): Recibo de pago y Acuerdo de confidencialidad con vista previa en PDF, descarga en PDF y Word, historial y envío por correo (PDF adjunto, copia oculta automática). El Contrato llega en la etapa 2.
+- **Primer paso obligatorio (solo ADMINISTRADOR):** *Documentos › Configuración*: captura los datos de la empresa (razón social, domicilio, RFC, representante, INE), los cargos de quien firma, las personas que «Confirman de recibido» (con su firma escaneada opcional) y la copia oculta. Se guardan en la base de datos privada; **no** van en el código ni en Git.
+- El correo usa el mismo Gmail que ya envía los reportes. Las firmas escaneadas se guardan en el almacenamiento privado (carpeta `firmas/`).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

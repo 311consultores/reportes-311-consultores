@@ -14,7 +14,7 @@ export function parseMonthParam(v: string | string[] | undefined): string {
 export type FlowRow = {
   key: string;
   date: Date;
-  type: "Ingreso" | "Egreso" | "Traslado" | "Saldo inicial";
+  type: "Ingreso" | "Egreso" | "Traslado" | "Saldo inicial" | "Préstamo" | "Abono";
   concept: string;
   detail: string;
   cents: number;
@@ -27,13 +27,15 @@ export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: n
   const range = mes ? monthRange(mes, "date") : null;
   const dateWhere = range ? { occurredOn: range } : {};
 
-  const [paid, expenses, movements] = await Promise.all([
+  const [paid, expenses, movements, loans, loanPayments] = await Promise.all([
     prisma.invoice.findMany({
       where: { status: "PAGADA", ...(range ? { collectedOn: range } : {}) },
       include: { client: { select: { companyName: true } } },
     }),
     prisma.expense.findMany({ where: dateWhere }),
     prisma.movement.findMany({ where: dateWhere }),
+    prisma.loan.findMany({ where: range ? { loanDate: range } : {}, include: { origins: true } }),
+    prisma.loanPayment.findMany({ where: range ? { paidOn: range } : {}, include: { loan: { select: { concept: true } } } }),
   ]);
 
   const rows: FlowRow[] = [];
@@ -70,6 +72,19 @@ export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: n
       key: `m-${m.id}`, date: m.occurredOn, type: m.kind === "RETIRO" ? "Egreso" : m.kind === "TRASLADO" ? "Traslado" : "Saldo inicial", cents: c,
       voided: !!m.voidedAt, href: "/finanzas/movimientos", concept: m.concept,
       detail: m.kind === "RETIRO" ? `Retiro de ${from}` : m.kind === "TRASLADO" ? `${from} → ${to}` : `Entrada a ${to}`,
+    });
+  }
+  // Préstamos y abonos: no son ingresos ni egresos de la empresa (el dinero cambia de lugar entre cajas), por eso no suman a los totales
+  for (const l of loans) {
+    rows.push({
+      key: `l-${l.id}`, date: l.loanDate, type: "Préstamo", cents: decimalToCents(l.total), voided: !!l.voidedAt, href: "/finanzas/prestamos",
+      concept: l.concept, detail: `Salió de ${l.origins.map((o) => `${boxLabel(o.box)} (${CASH_LABEL[o.cashType].toLowerCase()})`).join(", ")} · Recibió ${l.recipient}`,
+    });
+  }
+  for (const p of loanPayments) {
+    rows.push({
+      key: `a-${p.id}`, date: p.paidOn, type: "Abono", cents: decimalToCents(p.amount), voided: !!p.voidedAt, href: "/finanzas/prestamos",
+      concept: `Abono: ${p.loan.concept}`, detail: `Regresó a ${boxLabel(p.box)} (${CASH_LABEL[p.cashType].toLowerCase()})${p.note ? ` · ${p.note}` : ""}`,
     });
   }
   rows.sort((a, b) => b.date.getTime() - a.date.getTime());

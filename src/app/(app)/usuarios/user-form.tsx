@@ -9,9 +9,9 @@ import { BirthdayField } from "./birthday-field";
 
 type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
 
-/** Alta de usuario. El Editor solo puede crear TEAM 311 y PROJECT 311; el Administrador, cualquier rol. */
+/** Alta de usuario. El Editor solo puede crear CLIENTE, TEAM 311 y PROJECT 311; el Administrador, cualquier rol. */
 export function UserForm({ isAdmin, companies, assign, defaultRole }: { isAdmin: boolean; companies: { id: string; name: string }[]; assign: AssignClient[]; defaultRole?: Role }) {
-  const [role, setRole] = useState<Role>(isAdmin ? (defaultRole ?? "EDITOR") : defaultRole === "PROJECT_311" ? "PROJECT_311" : "TEAM_311");
+  const [role, setRole] = useState<Role>(isAdmin ? (defaultRole ?? "EDITOR") : defaultRole === "PROJECT_311" || defaultRole === "CLIENTE" ? defaultRole : "TEAM_311");
   const [resetKey, setResetKey] = useState(0);
 
   return (
@@ -32,6 +32,7 @@ export function UserForm({ isAdmin, companies, assign, defaultRole }: { isAdmin:
             </select>
           ) : (
             <select name="role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              <option value="CLIENTE">CLIENTE</option>
               <option value="TEAM_311">TEAM 311</option>
               <option value="PROJECT_311">PROJECT 311</option>
             </select>

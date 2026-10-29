@@ -12,8 +12,8 @@ import { BirthdayField } from "./birthday-field";
 type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
 export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null; photoUrl: string | null; birthday: string | null };
 
-/** Edición de un usuario Administrador, Editor o Cliente (solo lo ve el Administrador). */
-export function UserEditor({ user, companies, isSelf }: { user: PlainUser; companies: { id: string; name: string }[]; isSelf: boolean }) {
+/** Edición de un usuario Administrador, Editor o Cliente. El Editor solo edita Clientes y no puede cambiarles el rol. */
+export function UserEditor({ user, companies, isSelf, canChangeRole = true }: { user: PlainUser; companies: { id: string; name: string }[]; isSelf: boolean; canChangeRole?: boolean }) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>(user.role);
   return (
@@ -28,10 +28,10 @@ export function UserEditor({ user, companies, isSelf }: { user: PlainUser; compa
             <div><label className="label">Nueva contraseña (solo si quieres cambiarla)</label><input name="password" type="password" minLength={8} className="input" autoComplete="new-password" /></div>
             <div>
               <label className="label">Rol</label>
-              {isSelf ? (
+              {isSelf || !canChangeRole ? (
                 <>
-                  <input type="hidden" name="role" value="ADMIN" />
-                  <input className="input" value="ADMINISTRADOR" readOnly tabIndex={-1} />
+                  <input type="hidden" name="role" value={isSelf ? "ADMIN" : user.role} />
+                  <input className="input" value={isSelf ? "ADMINISTRADOR" : user.role} readOnly tabIndex={-1} />
                 </>
               ) : (
                 <select name="role" className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
