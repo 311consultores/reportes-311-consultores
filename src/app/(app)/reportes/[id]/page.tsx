@@ -32,6 +32,7 @@ function actionLabel(action: string) {
   if (action.startsWith("DELETED_TASK_")) return `Eliminó la actividad ${num}`;
   if (action.startsWith("UPLOADED_EVIDENCE_TASK_")) return `Subió evidencia a la actividad ${num}`;
   if (action.startsWith("REMOVED_EVIDENCE_TASK_")) return `Quitó la evidencia de la actividad ${num}`;
+  if (action === "REORDERED_TASKS") return "Reordenó las actividades";
   if (action === "CHANGED_CLIENT") return "Cambió el cliente del reporte";
   if (action === "EDIT_REQUESTED") return "Solicitó permiso de edición";
   if (action === "EDIT_REQUEST_REJECTED") return "Rechazó la solicitud de edición";

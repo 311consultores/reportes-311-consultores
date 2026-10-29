@@ -115,6 +115,23 @@ export async function addTask(reportId: string) {
   };
 }
 
+/** Reordena las actividades de un reporte editable: recibe todos los ids en el orden nuevo y los renumera 1, 2, 3… */
+export async function reorderTasks(reportId: string, orderedIds: string[]): Promise<{ error?: string }> {
+  const { user } = await editableReport(reportId);
+  const current = await prisma.reportTask.findMany({ where: { reportId }, select: { id: true, sequentialNum: true }, orderBy: { sequentialNum: "asc" } });
+  const same = orderedIds.length === current.length && new Set(orderedIds).size === current.length && current.every((t) => orderedIds.includes(t.id));
+  if (!same) return { error: "La lista de actividades cambió; recarga la página e inténtalo de nuevo" };
+  const changed = orderedIds.some((id, i) => current[i].id !== id);
+  if (!changed) return {};
+  await prisma.$transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx.reportTask.update({ where: { id: orderedIds[i] }, data: { sequentialNum: i + 1 } });
+    }
+    await tx.auditLog.create({ data: { reportId, userId: user.id, action: "REORDERED_TASKS" } });
+  });
+  return {};
+}
+
 /** Autosave: guarda el título y la descripción de una actividad. */
 export async function saveTask(taskId: string, html: string, title: string, executedAt: string | null = null) {
   const user = await requireUser(["ADMIN", "EDITOR", "TEAM_311"]);

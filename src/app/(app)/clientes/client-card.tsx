@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, FolderPlus, GitMerge, ImagePlus, Maximize2, Trash2 } from "lucide-react";
+import { FileText, FolderPlus, GitMerge, ImagePlus, Maximize2, Pencil, Trash2 } from "lucide-react";
+import { ProjectModal } from "@/components/project-modal";
 import { createProject, updateClientLogo } from "@/app/actions/admin";
 import { requestDeletion } from "@/app/actions/deletions";
 import { ActionForm } from "@/components/action-form";
@@ -23,7 +24,7 @@ export type CardClient = {
   logoUrl: string | null;
   reportCount: number;
   createdAt: string;
-  projects: { id: string; projectName: string; projectEmails: string; responsible: string }[];
+  projects: { id: string; projectName: string; projectEmails: string; responsible: string; responsibleName: string; responsibleLastName: string }[];
   values: ClientFieldValues;
   hasConstancia: boolean;
 };
@@ -35,6 +36,7 @@ export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { c
   const { askReason } = useDialogs();
   const [modal, setModal] = useState<ModalKind>(null);
   const [error, setError] = useState<string>();
+  const [editing, setEditing] = useState<string | null>(null);
   const close = () => setModal(null);
   const logo = c.logoUrl ? `/api/clients/${c.id}/logo?v=${encodeURIComponent(c.logoUrl)}` : null;
 
@@ -114,6 +116,11 @@ export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { c
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
                   <span className="font-medium">{p.projectName}<span className="meta ml-2 font-normal">{p.responsible ? `Responsable: ${p.responsible}` : "Sin responsable"}</span></span>
                   <span className="meta ml-auto truncate">{p.projectEmails ? p.projectEmails.replaceAll(",", ", ") : "Sin correos propios"}</span>
+                  {!readOnly && (
+                    <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-[#007AFF] hover:opacity-70" onClick={() => setEditing(p.id)}>
+                      <Pencil size={13} /> Editar
+                    </button>
+                  )}
                   {isAdmin && <DeleteEntity type="PROJECT" id={p.id} />}
                 </li>
               ))}
@@ -128,6 +135,15 @@ export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { c
           )}
         </div>
       </Modal>
+
+      {editing && (() => {
+        const p = c.projects.find((x) => x.id === editing);
+        return p ? (
+          <ProjectModal open onClose={() => setEditing(null)} client={{ id: c.id, companyName: c.companyName, mainEmails: c.mainEmails }}
+            project={{ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails, responsibleName: p.responsibleName, responsibleLastName: p.responsibleLastName }}
+            onSaved={() => router.refresh()} />
+        ) : null;
+      })()}
 
       <Modal open={modal === "proyecto"} onClose={close} title="Agregar proyecto" subtitle={c.companyName}>
         <ActionForm action={createProject} submitLabel="Agregar proyecto" className="space-y-4" successMessage="Proyecto agregado" onSuccess={() => setTimeout(close, 700)}>

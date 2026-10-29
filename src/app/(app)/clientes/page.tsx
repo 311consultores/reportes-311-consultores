@@ -22,7 +22,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     logoUrl: c.logoUrl,
     reportCount: c._count.reports,
     createdAt: c.createdAt.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }),
-    projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails, responsible: fullName(p.responsibleName, p.responsibleLastName) })),
+    projects: c.projects.map((p) => ({ id: p.id, projectName: p.projectName, projectEmails: p.projectEmails, responsible: fullName(p.responsibleName, p.responsibleLastName), responsibleName: p.responsibleName ?? "", responsibleLastName: p.responsibleLastName ?? "" })),
     hasConstancia: !!c.constanciaUrl,
     // El PROJECT 311 no recibe datos fiscales ni de contacto: ni siquiera viajan al navegador
     values: readOnly

@@ -420,6 +420,12 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Documentos › Contrato de prestación de servicios:** servicios con casillas (A, B, C) más los que se escriban, calendario de pagos por renglón (total y monto en letra automáticos, con o sin IVA), ramo del cliente, duración, años de confidencialidad, penalidad %, prórroga de pago y cláusula adicional. Vista previa, PDF, Word, envío por correo y duplicar, igual que los demás.
 - **Nuevo en Configuración (ADMINISTRADOR):** «Correo para notificar la rescisión por falta de pago». Captúralo una vez; aparece en cada contrato y se puede cambiar en cada uno.
 
+### Evolutivo 15 · Etapa 1 (29 oct 2026) — Proyectos desde «Nuevo reporte» y reordenar actividades
+- **Sin migración de base de datos.** Respaldo y reemplazar la app, como siempre.
+- **Nuevo reporte:** junto al selector de proyecto hay «+ Crear proyecto» (nombre y correos; el responsable es opcional) y un lápiz para editar el proyecto elegido. Admin y Editor.
+- **Clientes:** en el detalle del cliente cada proyecto tiene «Editar» (nombre, responsable y correos).
+- **Reportes:** cada actividad tiene un asa ⋮⋮ para arrastrarla (mouse o dedo) y flechas ↑ ↓. Se renumera y guarda al instante; solo en reportes En proceso o Rechazados. Queda «Reordenó las actividades» en el historial.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

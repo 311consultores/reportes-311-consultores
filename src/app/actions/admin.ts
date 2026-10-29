@@ -77,6 +77,45 @@ export async function updateClientLogo(_p: State, fd: FormData): Promise<State> 
   return { ok: true };
 }
 
+export type ProjectInfo = { id: string; projectName: string; projectEmails: string; responsibleName: string; responsibleLastName: string };
+
+/** Crea (sin id) o edita (con id) un proyecto desde «Nuevo reporte» o desde la ficha del cliente. Admin y Editor. El responsable es opcional. */
+export async function saveProject(input: {
+  id?: string; clientId: string; projectName: string; projectEmails: string; responsibleName?: string; responsibleLastName?: string;
+}): Promise<{ error?: string; project?: ProjectInfo }> {
+  await requireUser(["ADMIN", "EDITOR"]);
+  const parsed = z
+    .object({
+      id: z.string().uuid().optional(),
+      clientId: z.string().uuid(),
+      projectName: z.string().trim().min(2, "Escribe el nombre del proyecto").max(191, "El nombre del proyecto es demasiado largo"),
+      projectEmails: optionalEmailList,
+      responsibleName: z.string().trim().max(120).optional(),
+      responsibleLastName: z.string().trim().max(120).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { error: fail(parsed.error)?.error };
+  const d = parsed.data;
+
+  const same = await prisma.project.findMany({ where: { clientId: d.clientId }, select: { id: true, projectName: true } });
+  if (same.some((p) => p.id !== d.id && p.projectName.trim().toLowerCase() === d.projectName.toLowerCase())) {
+    return { error: "Este cliente ya tiene un proyecto con ese nombre" };
+  }
+  const data = { projectName: d.projectName, projectEmails: d.projectEmails, responsibleName: d.responsibleName || null, responsibleLastName: d.responsibleLastName || null };
+  let saved;
+  if (d.id) {
+    if (!same.some((p) => p.id === d.id)) return { error: "El proyecto no pertenece a este cliente" };
+    saved = await prisma.project.update({ where: { id: d.id }, data });
+  } else {
+    saved = await prisma.project.create({ data: { clientId: d.clientId, ...data } });
+  }
+  revalidatePath("/clientes");
+  revalidatePath("/reportes/nuevo");
+  return {
+    project: { id: saved.id, projectName: saved.projectName, projectEmails: saved.projectEmails, responsibleName: saved.responsibleName ?? "", responsibleLastName: saved.responsibleLastName ?? "" },
+  };
+}
+
 export async function createProject(_p: State, fd: FormData): Promise<State> {
   await requireUser(["ADMIN", "EDITOR"]);
   const parsed = z

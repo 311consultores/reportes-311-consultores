@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, ChevronDown, Italic, List, ListOrdered, Pencil, Trash2 } from "lucide-react";
+import { Bold, ChevronDown, ChevronUp, GripVertical, Italic, List, ListOrdered, Pencil, Trash2 } from "lucide-react";
 import { deleteTaskDirect, saveTask } from "@/app/actions/reports";
 import { useDialogs } from "@/components/dialogs";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ export function TaskEditor({
   onDeleted,
   open,
   onToggle,
+  reorder,
 }: {
   reportId: string;
   task: TaskData;
@@ -47,6 +48,8 @@ export function TaskEditor({
   onDeleted: () => void;
   open: boolean;
   onToggle: () => void;
+  /** Controles para reordenar (solo en reportes editables): asa de arrastre y flechas. */
+  reorder?: { onGripDown: (e: React.PointerEvent) => void; up: () => void; down: () => void; isFirst: boolean; isLast: boolean };
 }) {
   const { confirm } = useDialogs();
   const [state, setState] = useState<SaveState>("idle");
@@ -140,6 +143,23 @@ export function TaskEditor({
     <div className="card overflow-hidden p-0">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
+          {reorder && (
+            <span className="flex shrink-0 items-center gap-0.5 text-zinc-400">
+              <button
+                type="button"
+                aria-label="Arrastrar para reordenar la actividad"
+                title="Arrastra para cambiar el orden"
+                onPointerDown={reorder.onGripDown}
+                className="cursor-grab touch-none select-none rounded-lg p-1 hover:bg-black/5 active:cursor-grabbing dark:hover:bg-white/10"
+              >
+                <GripVertical size={18} />
+              </button>
+              <span className="flex flex-col">
+                <button type="button" aria-label="Subir la actividad" disabled={reorder.isFirst} onClick={reorder.up} className="rounded p-0.5 hover:bg-black/5 disabled:opacity-25 dark:hover:bg-white/10"><ChevronUp size={13} /></button>
+                <button type="button" aria-label="Bajar la actividad" disabled={reorder.isLast} onClick={reorder.down} className="rounded p-0.5 hover:bg-black/5 disabled:opacity-25 dark:hover:bg-white/10"><ChevronDown size={13} /></button>
+              </span>
+            </span>
+          )}
           <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? "Contraer actividad" : "Abrir actividad"} className="shrink-0">
             <ChevronDown size={18} className={cn("text-zinc-500 transition-transform duration-200 ease-out", !open && "-rotate-90")} />
           </button>
