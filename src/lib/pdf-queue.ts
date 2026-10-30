@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { buildReportPdf } from "@/lib/pdf";
+import { buildReportPdf, MAX_PAGE_HEIGHT } from "@/lib/pdf";
+import { getBaseUrl } from "@/lib/base-url";
+import { getDocsConfig } from "@/lib/docs/config";
 import { getLogo311Key } from "@/lib/branding";
 import { pdfStats } from "@/lib/pdf-stats";
 
@@ -53,7 +55,7 @@ function remember(id: string, e: Entry) {
 }
 
 /** Huella de todo lo que influye en el PDF: si no cambia, el PDF tampoco. */
-async function fingerprint(reportId: string): Promise<string | null> {
+async function fingerprint(reportId: string, baseUrl: string): Promise<string | null> {
   const r = await prisma.report.findUnique({
     where: { id: reportId },
     select: {
@@ -65,15 +67,17 @@ async function fingerprint(reportId: string): Promise<string | null> {
   });
   if (!r) return null;
   const logo311 = await getLogo311Key();
+  const cfg = await getDocsConfig();
   const raw = JSON.stringify([
-    r.updatedAt, r.client, r.project, logo311,
+    r.updatedAt, r.client, r.project, logo311, baseUrl, cfg.contactEmail, cfg.contactPhones,
     r.tasks.map((t) => [t.id, t.updatedAt, t.evidences.map((e) => e.id)]),
   ]);
   return createHash("sha1").update(raw).digest("hex");
 }
 
 export async function getReportPdf(reportId: string): Promise<Pdf> {
-  const fp = await fingerprint(reportId);
+  const baseUrl = await getBaseUrl(); // los enlaces de los adjuntos del PDF son direcciones completas
+  const fp = await fingerprint(reportId, baseUrl);
   if (!fp) throw new Error("Reporte no encontrado");
 
   const hit = cache.get(reportId);
@@ -93,10 +97,13 @@ export async function getReportPdf(reportId: string): Promise<Pdf> {
     pdfStats.enCola--;
     pdfStats.activos++;
     try {
-      const pdf = await buildReportPdf(reportId);
+      // Una sola hoja continua; si el reporte es tan largo que no cabe (visores con límite de tamaño), se parte en hojas grandes
+      let pdf = await buildReportPdf(reportId, baseUrl, "continua");
+      if (pdf.pageHeights.some((h) => h > MAX_PAGE_HEIGHT)) pdf = await buildReportPdf(reportId, baseUrl, "bloques");
       pdfStats.generados++;
-      remember(reportId, { ...pdf, fingerprint: fp });
-      return pdf;
+      const out = { buffer: pdf.buffer, folio: pdf.folio };
+      remember(reportId, { ...out, fingerprint: fp });
+      return out;
     } finally {
       pdfStats.activos--;
       release();

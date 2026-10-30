@@ -15,7 +15,8 @@ export async function proxy(req: NextRequest) {
     } catch {}
   }
 
-  if (!valid && !PUBLIC.has(pathname)) {
+  // Los enlaces de los iconos del PDF (/api/adjunto/<id>/<firma>) son públicos: se validan por su firma
+  if (!valid && !PUBLIC.has(pathname) && !pathname.startsWith("/api/adjunto/")) {
     // Recuerda a dónde iba (p. ej. el enlace de un reporte recibido por correo) para volver tras el login
     const url = new URL("/login", req.url);
     if (pathname !== "/") url.searchParams.set("next", pathname + search);

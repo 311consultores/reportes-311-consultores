@@ -19,7 +19,12 @@ export type DocsConfig = Empresa & {
   recibe: Persona[]; // personas autorizadas para «Confirma de recibido» (con firma escaneada opcional)
   bcc: string; // copia oculta de cada envío
   emailRescision: string; // correo al que se notifica la rescisión por falta de pago (contratos)
+  contactEmail: string; // contacto que aparece en el pie de los reportes y recibos
+  contactPhones: string; // teléfonos del pie, ya con el formato a mostrar
 };
+
+/** Lema que cierra el pie de los reportes. */
+export const FOOTER_SLOGAN = "Personas, procesos y tecnología en armonía.";
 
 export const DEFAULT_CONFIG: DocsConfig = {
   razonSocial: "", domicilio: "", rfc: "", repNombre: "", repDomicilio: "", repIne: "", ciudad: "Mérida, Yucatán, México",
@@ -27,6 +32,8 @@ export const DEFAULT_CONFIG: DocsConfig = {
   recibe: [],
   bcc: "necesito@311consultores.com",
   emailRescision: "",
+  contactEmail: "necesito@311consultores.com",
+  contactPhones: "999 136 4441 · 999 111 8063",
 };
 
 export type RepLegal = { nombre: string; domicilio: string; curp: string; ine: string; rol: string };

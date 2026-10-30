@@ -73,6 +73,17 @@ export function ConfigForm({ cfg }: { cfg: DocsConfig }) {
       </section>
 
       <section className="card space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Contacto en el pie de reportes y recibos</h2>
+          <p className="meta text-xs">Aparece al final de cada reporte en PDF y en la franja inferior de los recibos.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {f("contactEmail", "Correo de contacto", { type: "email", required: true, maxLength: 191 })}
+          {f("contactPhones", "Teléfonos (como se mostrarán)", { required: true, maxLength: 80, placeholder: "999 136 4441 · 999 111 8063" })}
+        </div>
+      </section>
+
+      <section className="card space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Correos</h2>
         <div className="max-w-md">{f("bcc", "Copia oculta de cada envío", { type: "email", maxLength: 191, placeholder: "necesito@311consultores.com" })}</div>
         <div className="max-w-md">

@@ -1,16 +1,19 @@
 import React from "react";
-import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, Link, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { getObject } from "@/lib/storage";
 import { htmlToBlocks } from "@/lib/html-blocks";
 import { parseConsultants } from "@/lib/consultants";
 import { readLogo, readLogo311, type LogoImage } from "@/lib/branding";
 import { avatarColor, initialsOf } from "@/lib/avatar-style";
+import { evidencePath } from "@/lib/evidence-link";
+import { getDocsConfig } from "@/lib/docs/config";
+import { FOOTER_SLOGAN } from "@/lib/docs/types";
 
 const ACCENT = "#007AFF"; // mismo azul del sistema
 
 const s = StyleSheet.create({
-  page: { paddingTop: 36, paddingHorizontal: 40, paddingBottom: 55, fontSize: 10, fontFamily: "Helvetica", color: "#0f172a" },
+  page: { paddingTop: 36, paddingHorizontal: 40, paddingBottom: 40, fontSize: 10, fontFamily: "Helvetica", color: "#0f172a" },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, height: 6, backgroundColor: ACCENT },
   logos: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   logo: { maxHeight: 44, maxWidth: 160, objectFit: "contain" },
@@ -41,7 +44,19 @@ const s = StyleSheet.create({
   rowText: { flex: 1, lineHeight: 1.15 },
   evidence: { flexDirection: "row", flexWrap: "wrap", marginTop: 6, marginHorizontal: -3 },
   img: { height: 150, objectFit: "contain", backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 4, margin: 3 },
-  note: { marginTop: 6, fontSize: 9, color: "#475569", backgroundColor: "#f8fafc", borderRadius: 4, paddingVertical: 4, paddingHorizontal: 8 },
+  file: { flexDirection: "row", alignItems: "center", marginTop: 6, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#dbe3ee", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 8 },
+  fileIcon: { width: 24, height: 30, borderRadius: 3, backgroundColor: "#eaf2ff", borderWidth: 1, borderColor: "#9ec3f7", alignItems: "center", justifyContent: "center", marginRight: 9 },
+  fileIconText: { fontSize: 6.5, fontFamily: "Helvetica-Bold", color: ACCENT },
+  fileName: { fontSize: 9.5, color: ACCENT, fontFamily: "Helvetica-Bold" },
+  fileHint: { fontSize: 8, color: "#64748b", marginTop: 1 },
+  endBand: { marginTop: 22, backgroundColor: "#f1f5f9", borderTopLeftRadius: 8, borderTopRightRadius: 8, paddingTop: 14, paddingBottom: 12, paddingHorizontal: 16 },
+  endTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  endLogo: { maxHeight: 24, maxWidth: 120, objectFit: "contain" },
+  endBrand: { fontSize: 11, fontFamily: "Helvetica-Bold", letterSpacing: 1.2, color: "#0f172a" },
+  endContact: { fontSize: 9, color: "#334155", textAlign: "right", lineHeight: 1.5 },
+  endRule: { borderTopWidth: 0.75, borderTopColor: "#cbd5e1", marginTop: 10, marginBottom: 8 },
+  endSlogan: { fontSize: 9.5, color: "#475569", textAlign: "center", marginBottom: 8 },
+  endMeta: { flexDirection: "row", justifyContent: "space-between", fontSize: 8, color: "#94a3b8" },
   footer: { position: "absolute", bottom: 22, left: 40, right: 40, paddingTop: 6, borderTopWidth: 0.75, borderTopColor: "#e2e8f0", fontSize: 8, color: "#94a3b8", flexDirection: "row", justifyContent: "space-between" },
 });
 
@@ -54,7 +69,15 @@ const fmt = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: 
 
 const src = (l: LogoImage) => ({ data: l.data, format: l.format });
 
-export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer; folio: string }> {
+/** Altura máxima de una página de PDF que todos los visores abren sin problema (en puntos; el límite de Acrobat es 14,400). */
+export const MAX_PAGE_HEIGHT = 14000;
+const PAGE_WIDTH = 612; // ancho carta
+
+/**
+ * PDF del reporte. «continua» = una sola hoja larga sin saltos de página (alto variable);
+ * «bloques» = hojas de MAX_PAGE_HEIGHT puntos, para reportes larguísimos que no caben en una sola hoja.
+ */
+export async function buildReportPdf(reportId: string, baseUrl: string, mode: "continua" | "bloques" = "continua"): Promise<{ buffer: Buffer; folio: string; pageHeights: number[] }> {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
     include: {
@@ -65,7 +88,7 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
     },
   });
 
-  const [logo311, logoClient] = await Promise.all([readLogo311(), readLogo(report.client.logoUrl)]);
+  const [logo311, logoClient, cfg] = await Promise.all([readLogo311(), readLogo(report.client.logoUrl), getDocsConfig()]);
 
   // Consultores con foto: los reportes nuevos guardan los ids de los usuarios TEAM 311; los anteriores, solo nombres (iniciales)
   const names = parseConsultants(report.consultants);
@@ -87,17 +110,17 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
 
   const tasks = await Promise.all(
     report.tasks.map(async (t, idx) => {
-      const images: { data: Buffer; format: "jpg" | "png" }[] = [];
-      const others: { type: string; name: string }[] = [];
+      const images: { data: Buffer; format: "jpg" | "png"; link: string }[] = [];
+      const others: { type: string; name: string; link: string }[] = [];
       for (const e of t.evidences) {
         if (e.type === "IMAGE") {
           try {
-            images.push({ data: await getObject(e.url), format: e.url.endsWith(".png") ? "png" : "jpg" });
+            images.push({ data: await getObject(e.url), format: e.url.endsWith(".png") ? "png" : "jpg", link: baseUrl + evidencePath(e.id) });
           } catch {
             // archivo no disponible: se omite en el PDF
           }
         } else {
-          others.push({ type: e.type === "PDF" ? "documento PDF" : "video", name: e.url.split("/").pop() ?? e.url });
+          others.push({ type: e.type, name: e.url.split("/").pop() ?? e.url, link: baseUrl + evidencePath(e.id) });
         }
       }
       return { ...t, num: idx + 1, images, others, blocks: htmlToBlocks(t.descriptionHtml) };
@@ -106,7 +129,7 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
 
   const doc = (
     <Document title={report.folio} author="311 CONSULTORES">
-      <Page size="LETTER" style={s.page}>
+      <Page size={mode === "continua" ? { width: PAGE_WIDTH } : [PAGE_WIDTH, MAX_PAGE_HEIGHT]} style={s.page}>
         <View style={s.topBar} fixed />
         {(logo311 || logoClient) && (
           <View style={s.logos}>
@@ -191,27 +214,55 @@ export async function buildReportPdf(reportId: string): Promise<{ buffer: Buffer
               {t.images.length > 0 && (
                 <View style={s.evidence}>
                   {t.images.map((img, i) => (
-                    // eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt
-                    <Image key={i} src={img} style={[s.img, { width: t.images.length === 1 ? "62%" : "47.5%" }]} />
+                    // Cada imagen es clickeable: abre el archivo completo en una pestaña nueva
+                    <Link key={i} src={img.link} style={{ width: t.images.length === 1 ? "62%" : "47.5%" }}>
+                      {/* eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt */}
+                      <Image src={{ data: img.data, format: img.format }} style={[s.img, { margin: 3, width: "100%" }]} />
+                    </Link>
                   ))}
                 </View>
               )}
               {t.others.map((o, i) => (
-                <Text key={i} style={s.note}>
-                  Evidencia ({o.type}) disponible en la plataforma: {o.name}
-                </Text>
+                <Link key={i} src={o.link} style={{ textDecoration: "none" }}>
+                  <View style={s.file}>
+                    <View style={s.fileIcon}><Text style={s.fileIconText}>{o.type === "PDF" ? "PDF" : "VIDEO"}</Text></View>
+                    <View>
+                      <Text style={s.fileName}>{o.type === "PDF" ? "Abrir documento PDF" : "Ver video"}</Text>
+                      <Text style={s.fileHint}>Se abre en una pestaña nueva · {o.name.replace(/^[0-9a-f-]{36}-/i, "")}</Text>
+                    </View>
+                  </View>
+                </Link>
               ))}
             </View>
           </View>
         ))}
 
-        <View style={s.footer} fixed>
-          <Text>{report.folio}</Text>
-          <Text render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
+        {/* Cierre del reporte: logo y contacto, lema, folio y periodo */}
+        <View style={s.endBand} wrap={false}>
+          <View style={s.endTop}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- el <Image> de react-pdf no admite alt */}
+            {logo311 ? <Image src={src(logo311)} style={s.endLogo} /> : <Text style={s.endBrand}>311 CONSULTORES</Text>}
+            <Text style={s.endContact}>{cfg.contactEmail}{"\n"}{cfg.contactPhones}</Text>
+          </View>
+          <View style={s.endRule} />
+          <Text style={s.endSlogan}>{FOOTER_SLOGAN}</Text>
+          <View style={s.endMeta}>
+            <Text>{report.folio}</Text>
+            <Text>{fmt(report.startDate)} – {fmt(report.endDate)}</Text>
+          </View>
         </View>
+        {mode === "continua" ? null : (
+          <View style={s.footer} fixed>
+            <Text>{report.folio}</Text>
+            <Text render={({ pageNumber, totalPages }) => `Parte ${pageNumber} de ${totalPages}`} />
+          </View>
+        )}
       </Page>
     </Document>
   );
 
-  return { buffer: await renderToBuffer(doc), folio: report.folio };
+  const buffer = await renderToBuffer(doc);
+  // Alturas de página del PDF (se leen del propio archivo para saber si el reporte cupo en una sola hoja)
+  const pageHeights = [...buffer.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0\s+0\s+[\d.]+\s+([\d.]+)\s*\]/g)].map((m) => Number(m[1]));
+  return { buffer, folio: report.folio, pageHeights };
 }

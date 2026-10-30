@@ -90,7 +90,7 @@ const Dots = () => (
   </View>
 );
 
-export function ReciboPdf({ v, logo, firma }: { v: ReciboView; logo: Img; firma: Img }) {
+export function ReciboPdf({ v, logo, firma, contacto }: { v: ReciboView; logo: Img; firma: Img; contacto: { email: string; phones: string } }) {
   return (
     <Document title={`Recibo de pago ${v.folio}`} author="311 Consultores">
       <Page size="LETTER" style={r.page}>
@@ -153,7 +153,10 @@ export function ReciboPdf({ v, logo, firma }: { v: ReciboView; logo: Img; firma:
         </View>
 
         {/* Franja inferior */}
-        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 81, backgroundColor: DARK }} />
+        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 81, backgroundColor: DARK, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 82 }}>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11, letterSpacing: 1.2, color: "#ffffff" }}>311 CONSULTORES</Text>
+          <Text style={{ fontSize: 9, color: "#e5e7eb", textAlign: "right", lineHeight: 1.5 }}>{contacto.email}{"\n"}{contacto.phones}</Text>
+        </View>
       </Page>
     </Document>
   );

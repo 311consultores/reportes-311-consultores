@@ -38,6 +38,7 @@ model User {
   passwordHash        String
   role                Role                 @default(EDITOR)
   active              Boolean              @default(true)
+  linkedUserId        String?              @unique // Cuenta vinculada (solo ADMIN): permite cambiar de perfil sin volver a iniciar sesión; el vínculo se guarda en ambas cuentas
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   reportsCreated      Report[]             @relation("ReportCreator")

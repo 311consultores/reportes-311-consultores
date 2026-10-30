@@ -41,6 +41,8 @@ export async function saveDocsConfigAction(_p: State, fd: FormData): Promise<Sta
       ciudad: txt(120, "Escribe la ciudad (por ejemplo Mérida, Yucatán, México)"),
       bcc: z.string().trim().max(191),
       emailRescision: z.string().trim().max(191),
+      contactEmail: z.string().trim().toLowerCase().email("El correo de contacto del pie no es válido").max(191),
+      contactPhones: txt(80, "Escribe los teléfonos de contacto del pie"),
     })
     .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };

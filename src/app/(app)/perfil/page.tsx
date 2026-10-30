@@ -3,11 +3,14 @@ import { ROLE_LABEL, STAFF_ROLES } from "@/lib/roles";
 import { requireUser } from "@/lib/auth";
 import { Avatar } from "@/components/avatar";
 import { BirthdayField } from "../usuarios/birthday-field";
+import { getLinkedAccount } from "@/lib/account-link";
 import { ProfileForm } from "./profile-form";
+import { LinkAccount } from "./link-account";
 
 export default async function ProfilePage() {
   const me = await requireUser(STAFF_ROLES);
   const isTeam = me.role === "TEAM_311";
+  const linked = me.role === "ADMIN" ? await getLinkedAccount(me.id, me.role) : null;
   const [row, projects] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: me.id }, select: { email: true, birthday: true, photoUrl: true, phone: true } }),
     prisma.project.findMany({
@@ -38,6 +41,13 @@ export default async function ProfilePage() {
           </div>
         </ProfileForm>
       </section>
+
+      {me.role === "ADMIN" && (
+        <section className="card space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">Cambio de perfil</h2>
+          <LinkAccount linked={linked ? { name: linked.name, roleLabel: ROLE_LABEL[linked.role] } : null} />
+        </section>
+      )}
 
       {isTeam && (
       <section className="card space-y-3">

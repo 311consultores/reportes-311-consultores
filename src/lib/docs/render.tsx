@@ -4,6 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import type { DocKind } from "@prisma/client";
 import { readLogo, readLogo311 } from "@/lib/branding";
 import { buildReciboDocx, buildTextDocx } from "@/lib/docs/docx";
+import { getDocsConfig } from "@/lib/docs/config";
 import { ReciboPdf, TextDocPdf } from "@/lib/docs/pdf-render";
 import { acuerdoDoc, contratoDoc, reciboView } from "@/lib/docs/templates";
 import { parseDocData } from "@/lib/docs/types";
@@ -38,8 +39,9 @@ export async function renderPdf(row: Row): Promise<Buffer> {
   if (d.kind === "RECIBO") {
     const [logo, firma] = await Promise.all([readLogo311(), d.firmaKey ? readLogo(d.firmaKey) : Promise.resolve(null)]);
     const view = reciboView(d, row.folio ?? "");
+    const cfg = await getDocsConfig();
     return exclusive(() =>
-      renderToBuffer(<ReciboPdf v={view} logo={logo && { data: logo.data, format: logo.format }} firma={firma && { data: firma.data, format: firma.format }} />),
+      renderToBuffer(<ReciboPdf v={view} logo={logo && { data: logo.data, format: logo.format }} firma={firma && { data: firma.data, format: firma.format }} contacto={{ email: cfg.contactEmail, phones: cfg.contactPhones }} />),
     );
   }
   const doc = textDocOf(row);

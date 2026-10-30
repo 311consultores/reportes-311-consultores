@@ -426,6 +426,18 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Clientes:** en el detalle del cliente cada proyecto tiene «Editar» (nombre, responsable y correos).
 - **Reportes:** cada actividad tiene un asa ⋮⋮ para arrastrarla (mouse o dedo) y flechas ↑ ↓. Se renumera y guarda al instante; solo en reportes En proceso o Rechazados. Queda «Reordenó las actividades» en el historial.
 
+### Evolutivo 15 · Etapa 2 (29 oct 2026) — PDF con adjuntos clickeables, hoja continua y cambio de perfil
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261029120000_evolutivo15a.sql`. Solo **agrega** una columna vacía (`linkedUserId`) y su índice en `User`. No toca ningún dato.
+- **PDF del reporte:** ahora es **una sola hoja larga** sin saltos de página. Si un reporte es larguísimo (más de ~194 pulgadas), se parte automáticamente en hojas grandes. Las imágenes siguen incrustadas como miniatura y al hacer clic abren el archivo completo; los PDF y videos salen como un icono con su nombre. Todos abren en una pestaña nueva, **sin pedir inicio de sesión** (enlace largo e imposible de adivinar, no caduca; si la evidencia se elimina, el enlace deja de funcionar). Los PDF ya enviados antes no cambian; los que se descarguen o envíen desde ahora salen con el formato nuevo.
+- **Cambio de perfil (solo ADMINISTRADOR):** en *Mi perfil › Cambio de perfil* el ADMINISTRADOR vincula **una** cuenta suya (de cualquier rol) escribiendo su correo y contraseña. Después aparece en el menú lateral el botón «Cambiar a …» para pasar de una cuenta a la otra sin iniciar sesión de nuevo (también aparece desde la otra cuenta para regresar). Se puede desvincular desde el mismo lugar. No queda bitácora de los cambios.
+
+### Evolutivo 15 · Pie de página de reportes y recibos (29 oct 2026)
+- **Sin migración.** Respaldo y reemplazar la app.
+- **Reporte en PDF:** al final lleva una franja con el logo de 311, correo y teléfonos de contacto, el lema «Personas, procesos y tecnología en armonía.», el folio y el periodo, con más espacio hasta el borde inferior.
+- **Recibo:** la franja oscura inferior lleva «311 CONSULTORES» y el contacto.
+- **Contacto editable (ADMINISTRADOR):** *Documentos › Configuración › Contacto en el pie de reportes y recibos*. Ya viene con necesito@311consultores.com y los teléfonos 999 136 4441 · 999 111 8063.
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

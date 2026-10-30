@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { LogOut, Repeat } from "lucide-react";
+import { switchAccount } from "@/app/actions/account-link";
+import { getLinkedAccount } from "@/lib/account-link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -33,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     reviewsTasks ? prisma.task.count({ where: { status: "PARA_REVISAR" } }) : Promise.resolve(0), // tareas esperando revisión
     user.role !== "CLIENTE" ? prisma.notification.count({ where: { userId: user.id, readAt: null } }) : Promise.resolve(0),
   ]);
+  const linked = await getLinkedAccount(user.id, user.role); // cuenta con la que se puede cambiar de perfil (solo si hay vínculo con un ADMINISTRADOR)
   const today = todayMx();
   const bannerDismissed = (await cookies()).get(OVERDUE_COOKIE)?.value === today;
 
@@ -110,6 +113,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
       ) : (
         <div className="px-3">{identity}</div>
+      )}
+      {linked && (
+        <form action={switchAccount} className="px-1 pb-1">
+          <button className="flex w-full items-center gap-2.5 rounded-xl bg-[#007AFF]/10 px-3 py-2.5 text-left text-sm font-medium text-[#007AFF] transition-all duration-200 ease-out hover:bg-[#007AFF]/15 active:scale-[0.98]">
+            <Repeat size={18} className="shrink-0" />
+            <span className="min-w-0 truncate">Cambiar a {linked.name} · {ROLE_LABEL[linked.role]}</span>
+          </button>
+        </form>
       )}
       <div className="flex items-center gap-1">
         <form action={logout} className="flex-1">
