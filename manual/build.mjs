@@ -9,17 +9,17 @@ const PERFILES = {
   editor: {
     contenido: "./contenido.mjs", pdf: "Manual-de-uso-311-Consultores.pdf", pill: "Guía para la asistente (rol Editor)", footer: "Manual de uso · Sistema de Reportes · 311 Consultores",
     titulo: "Manual de uso<br>Sistema de Reportes", sub: "Cómo capturar reportes, administrar clientes y enviar el trabajo terminado, paso a paso y con imágenes.",
-    leer: "las secciones 1 a 5", version: "Versión 2.0 · 20 de octubre de 2026", figH: "205mm",
+    leer: "las secciones 1 a 5", version: "Versión 3.0 · 31 de octubre de 2026", figH: "205mm",
   },
   admin: {
     contenido: "./contenido-admin.mjs", pdf: "Manual-ADMINISTRADOR.pdf", pill: "Guía para el perfil ADMINISTRADOR", footer: "Manual ADMINISTRADOR · Portal de Operaciones · 311 Consultores",
-    titulo: "Manual del perfil<br>ADMINISTRADOR", sub: "Desempeño del equipo, áreas, usuarios y roles, y autorización de solicitudes, paso a paso y con imágenes.",
-    leer: "las secciones 1 a 4", version: "Versión 1.0 · 22 de octubre de 2026", figH: "135mm",
+    titulo: "Manual del perfil<br>ADMINISTRADOR", sub: "Desempeño, áreas, usuarios, Finanzas, documentos y cambio de perfil, y autorización de solicitudes, paso a paso y con imágenes.",
+    leer: "las secciones 1 a 4", version: "Versión 2.0 · 31 de octubre de 2026", figH: "135mm",
   },
   project: {
     contenido: "./contenido-project.mjs", pdf: "Manual-PROJECT-311.pdf", pill: "Guía para el perfil PROJECT 311", footer: "Manual PROJECT 311 · Portal de Operaciones · 311 Consultores",
     titulo: "Manual del perfil<br>PROJECT 311", sub: "Cómo crear, asignar, dar seguimiento y aceptar tareas del equipo, paso a paso y con imágenes.",
-    leer: "las secciones 1 a 5", version: "Versión 1.0 · 21 de octubre de 2026", figH: "135mm",
+    leer: "las secciones 1 a 5", version: "Versión 2.0 · 31 de octubre de 2026", figH: "135mm",
   },
 };
 const PERFIL = PERFILES[process.argv[2] ?? "editor"];
