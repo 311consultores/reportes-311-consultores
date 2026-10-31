@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, Eye, FileDown, ChevronRight, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
 import { approveSlide, deleteComment, saveComment, sendAdjustments, startReview } from "@/app/actions/reviews";
 import { Modal } from "@/components/modal";
+import { PostSimulator } from "@/components/post-simulator";
 import { ReviewThumb } from "@/components/review-thumb";
+import { diffWords } from "@/lib/text-diff";
 import { artKind, assetUrl, channelLabel, fmtSec, MAX_COMMENT, parseSec, REVIEW_STATUS_LABEL, SLIDE_STATUS_LABEL, SLIDE_STATUS_STYLE } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 import type { CommentData, ReviewData, SlideData } from "./types";
@@ -30,6 +32,9 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
   const [sentModal, setSentModal] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);
+  const [showDiff, setShowDiff] = useState(false); // comparar el copy con su versión anterior
+  const [showPrev, setShowPrev] = useState(false); // ver el arte de la versión anterior
+  const [sim, setSim] = useState(false); // simulación de la publicación en redes
   const video = useRef<HTMLVideoElement>(null);
 
   // Borradores del cliente (los comentarios que todavía no se envían), por slide
@@ -48,8 +53,10 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
   const open = status === "PUBLICADA" && !intro;
   const canComment = open && (slide.status === "PENDIENTE" || slide.status === "AJUSTADO");
   const kind = artKind(slide.assets);
+  const shown = showPrev && slide.prevAssets.length ? slide.prevAssets : slide.assets;
+  const viewKind = artKind(shown);
 
-  const go = useCallback((n: number) => { setIdx(Math.max(0, Math.min(slides.length - 1, n))); setImgIdx(0); }, [slides.length]);
+  const go = useCallback((n: number) => { setIdx(Math.max(0, Math.min(slides.length - 1, n))); setImgIdx(0); setShowDiff(false); setShowPrev(false); }, [slides.length]);
 
   // Flechas del teclado para pasar de slide (sin interferir al escribir)
   useEffect(() => {
@@ -109,7 +116,7 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
     setSlides((all) => all.map((s) => {
       const mine = draftsOf(s.id);
       if (mine.length === 0) return s;
-      const sent: CommentData[] = mine.map((d) => ({ id: d.id ?? d.key, target: d.target, round: data.round, authorId: meId, authorName: "Tú", body: d.body, imageNo: d.imageNo, videoSec: parseSec(d.videoSec), sentAt: now, createdAt: now }));
+      const sent: CommentData[] = mine.map((d) => ({ id: d.id ?? d.key, target: d.target, round: data.round, authorId: meId, authorName: "Tú", body: d.body, imageNo: d.imageNo, videoSec: parseSec(d.videoSec), sentAt: now, createdAt: now, resolvedAt: null, resolvedNote: null }));
       return { ...s, status: "CAMBIOS", comments: [...s.comments.filter((c) => c.sentAt), ...sent] };
     }));
     setDrafts({});
@@ -135,7 +142,12 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
         {status === "PUBLICADA" && <button type="button" className="btn" disabled={busy || totalDrafts === 0} onClick={send}><Send size={16} /> Enviar ajustes{totalDrafts ? ` (${totalDrafts})` : ""}</button>}
       </div>
 
-      {banner && <p className="card text-sm">{banner}</p>}
+      {banner && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p>{banner}</p>
+          {status === "APROBADA" && <a href={`/api/revisiones/${data.id}/pdf`} className="btn-outline px-3.5 py-2 text-sm"><FileDown size={15} /> Descargar PDF resumen</a>}
+        </div>
+      )}
       {notice && <p className={cn("card text-sm", notice.ok ? "text-[#248A3D] dark:text-[#30D158]" : "text-destructive")}>{notice.text}</p>}
 
       <div className="flex flex-col gap-4 lg:flex-row">
@@ -168,30 +180,41 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
           </div>
           {slide.status === "APROBADO" && <p className="meta">Aprobado por {slide.approvedByName}{slide.approvedAt ? ` · ${when(slide.approvedAt)}` : ""}. Si necesitas un cambio, solicítalo en el grupo de trabajo por WhatsApp.</p>}
 
+          <button type="button" className="btn-outline px-3.5 py-2 text-sm" onClick={() => setSim(true)}><Eye size={15} /> Simular vista en {channelLabel(slide.channel)}</button>
           <div className="grid gap-3 md:grid-cols-2">
             <section className="card flex flex-col gap-3">
               <p className="label !mb-0">Copy</p>
-              <p className="flex-1 whitespace-pre-wrap text-[15px] leading-relaxed">{slide.copy}</p>
+              <p className="flex-1 whitespace-pre-wrap text-[15px] leading-relaxed">
+                {showDiff && slide.prevCopy !== null
+                  ? diffWords(slide.prevCopy, slide.copy).map((p, i) => p.op === "del" ? <del key={i} className="rounded bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF6961]">{p.text}</del> : p.op === "ins" ? <ins key={i} className="rounded bg-[#34C759]/20 no-underline">{p.text}</ins> : <span key={i}>{p.text}</span>)
+                  : slide.copy}
+              </p>
+              {slide.prevCopy !== null && slide.copyVersion > 1 && (
+                <button type="button" className="self-start text-xs font-medium text-[#007AFF]" onClick={() => setShowDiff((v) => !v)}>{showDiff ? "Ocultar los cambios" : `Ver qué cambió (versión ${slide.copyVersion - 1} → ${slide.copyVersion})`}</button>
+              )}
               {canComment && <button type="button" className="btn-outline self-start px-3 py-1.5 text-sm" onClick={() => addDraft("COPY")}><MessageSquare size={14} /> Comentar copy</button>}
             </section>
 
             <section className="card flex flex-col gap-3">
-              <p className="label !mb-0">Arte · {kind === "CAROUSEL" ? `Carrusel (${slide.assets.length} imágenes)` : kind === "VIDEO" ? "Video" : "Imagen"}</p>
+              <p className="label !mb-0">Arte · {viewKind === "CAROUSEL" ? `Carrusel (${shown.length} imágenes)` : viewKind === "VIDEO" ? "Video" : "Imagen"}{showPrev ? " · versión anterior" : ""}</p>
               <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-xl bg-black/5 dark:bg-white/10">
-                {kind === "VIDEO" ? (
-                  <video ref={video} key={slide.assets[0].id} src={assetUrl(slide.assets[0].id)} controls playsInline className="max-h-[420px] w-full rounded-xl" />
-                ) : slide.assets[imgIdx] ? (
+                {viewKind === "VIDEO" ? (
+                  <video ref={video} key={shown[0].id} src={assetUrl(shown[0].id)} controls playsInline className="max-h-[420px] w-full rounded-xl" />
+                ) : shown[imgIdx] ? (
                   // eslint-disable-next-line @next/next/no-img-element -- archivo protegido de la propia app
-                  <img src={assetUrl(slide.assets[imgIdx].id)} alt={`Arte del slide ${slide.position}`} className="max-h-[420px] w-full object-contain" />
+                  <img src={assetUrl(shown[imgIdx].id)} alt={`Arte del slide ${slide.position}`} className="max-h-[420px] w-full object-contain" />
                 ) : <span className="text-sm text-zinc-500">Sin arte</span>}
-                {kind === "CAROUSEL" && (
+                {viewKind === "CAROUSEL" && (
                   <>
                     <button type="button" aria-label="Imagen anterior" disabled={imgIdx === 0} onClick={() => setImgIdx((i) => i - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/55 p-1.5 text-white disabled:opacity-30"><ChevronLeft size={18} /></button>
-                    <button type="button" aria-label="Imagen siguiente" disabled={imgIdx === slide.assets.length - 1} onClick={() => setImgIdx((i) => i + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/55 p-1.5 text-white disabled:opacity-30"><ChevronRight size={18} /></button>
-                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-0.5 text-xs text-white">Imagen {imgIdx + 1} de {slide.assets.length}</span>
+                    <button type="button" aria-label="Imagen siguiente" disabled={imgIdx === shown.length - 1} onClick={() => setImgIdx((i) => i + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/55 p-1.5 text-white disabled:opacity-30"><ChevronRight size={18} /></button>
+                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-0.5 text-xs text-white">Imagen {imgIdx + 1} de {shown.length}</span>
                   </>
                 )}
               </div>
+              {slide.prevAssets.length > 0 && (
+                <button type="button" className="self-start text-xs font-medium text-[#007AFF]" onClick={() => { setShowPrev((v) => !v); setImgIdx(0); }}>{showPrev ? "Ver el arte actual" : "Ver el arte anterior"}</button>
+              )}
               {canComment && <button type="button" className="btn-outline self-start px-3 py-1.5 text-sm" onClick={() => addDraft("ART")}><MessageSquare size={14} /> Comentar arte</button>}
             </section>
           </div>
@@ -214,6 +237,8 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
           )}
         </aside>
       </div>
+
+      <PostSimulator open={sim} onClose={() => setSim(false)} clientId={data.clientId} clientName={data.clientName} hasLogo={data.clientHasLogo} copy={slide.copy} assets={slide.assets} channel={slide.channel} />
 
       {/* Bienvenida al iniciar la revisión */}
       <Modal open={intro} onClose={() => router.push("/revisiones")} title="¡Gracias por dedicarle tiempo a esta revisión!" subtitle={data.title}>
@@ -270,6 +295,7 @@ function SentComment({ c }: { c: CommentData }) {
     <div className="rounded-xl border border-black/5 p-2.5 text-sm dark:border-white/10">
       <p className="mb-1 text-xs text-zinc-500"><strong className="text-foreground">{c.authorName}</strong> · Ronda {c.round}{c.imageNo ? ` · imagen ${c.imageNo}` : ""}{c.videoSec != null ? ` · video ${fmtSec(c.videoSec)}` : ""} · {c.sentAt ? when(c.sentAt) : ""}</p>
       <p className="whitespace-pre-wrap">{c.body}</p>
+      {c.resolvedAt && <p className="mt-1.5 rounded-lg bg-[#34C759]/10 px-2 py-1 text-xs text-[#248A3D] dark:text-[#30D158]">✔ Resuelto por el equipo{c.resolvedNote ? `: ${c.resolvedNote}` : ""}</p>}
     </div>
   );
 }

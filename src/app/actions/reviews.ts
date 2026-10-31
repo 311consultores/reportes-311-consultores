@@ -9,11 +9,12 @@ import { deleteObject } from "@/lib/storage";
 import { getBaseUrl } from "@/lib/base-url";
 import { readLogo311 } from "@/lib/branding";
 import { sendMail } from "@/lib/mailer";
-import { reviewPublishedEmail } from "@/lib/email-templates";
+import { reviewAdjustedEmail, reviewPublishedEmail, tareaAsignadaEmail } from "@/lib/email-templates";
+import { formatMx } from "@/lib/tasks-shared";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { splitEmails, uniqueEmails, isEmail } from "@/lib/emails";
 import { fmtDate, isValidIsoDate } from "@/lib/finance";
-import { MAX_ASSETS, MAX_COMMENT, MAX_COPY, REVIEW_CREATORS, REVIEW_STAFF, reviewScope } from "@/lib/reviews";
+import { fmtSec, MAX_ASSETS, MAX_COMMENT, MAX_COPY, REVIEW_CREATORS, REVIEW_STAFF, reviewScope, reviewWhatsappMessage } from "@/lib/reviews";
 
 type Res = { error?: string; ok?: boolean };
 const isUuid = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f-]{36}$/i.test(s);
@@ -28,6 +29,18 @@ async function staffReview(id: string) {
   const review = isUuid(id) ? await prisma.review.findFirst({ where: { id, ...reviewScope(user) } }) : null;
   if (!review) throw new Error("Revisión no encontrada");
   return { user, review };
+}
+
+/** Slide al que el equipo puede cambiar copy o arte: en borrador, o con la revisión en ajustes mientras el slide esté por corregir. */
+async function adjustableSlide(slideId: string, mode: "any" | "adjust") {
+  const user = await requireUser([...REVIEW_STAFF]);
+  const slide = isUuid(slideId) ? await prisma.reviewSlide.findUnique({ where: { id: slideId }, include: { review: true, assets: true } }) : null;
+  if (!slide) return { error: "Slide no encontrado" };
+  const ok = await prisma.review.findFirst({ where: { id: slide.reviewId, ...reviewScope(user) }, select: { id: true } });
+  if (!ok) return { error: "Slide no encontrado" };
+  const inAdjust = slide.review.status === "EN_AJUSTES" && (slide.status === "CAMBIOS" || slide.status === "PENDIENTE");
+  if (mode === "adjust" ? !inAdjust : slide.review.status !== "BORRADOR" && !inAdjust) return { error: "Este slide ya no se puede cambiar ahora" };
+  return { user, slide };
 }
 
 async function draftSlide(slideId: string) {
@@ -134,11 +147,15 @@ export async function reorderSlides(reviewId: string, orderedIds: string[]): Pro
 export async function deleteAsset(assetId: string): Promise<Res> {
   const asset = isUuid(assetId) ? await prisma.reviewAsset.findUnique({ where: { id: assetId } }) : null;
   if (!asset) return { error: "Archivo no encontrado" };
-  const { slide } = await draftSlide(asset.slideId);
+  const loaded = await adjustableSlide(asset.slideId, "any");
+  if ("error" in loaded) return { error: loaded.error };
+  const { slide } = loaded;
+  if (slide.review.status !== "BORRADOR" && asset.version <= slide.artVersion) return { error: "Solo se puede quitar el arte nuevo que todavía no se aplica" };
   await prisma.reviewAsset.delete({ where: { id: asset.id } });
   await deleteObject(asset.key).catch(() => {});
-  const rest = await prisma.reviewAsset.findMany({ where: { slideId: slide.id }, orderBy: { position: "asc" } });
+  const rest = await prisma.reviewAsset.findMany({ where: { slideId: slide.id, version: asset.version }, orderBy: { position: "asc" } });
   await prisma.$transaction(rest.map((a, i) => prisma.reviewAsset.update({ where: { id: a.id }, data: { position: i + 1 } })));
+  refresh(slide.reviewId);
   return { ok: true };
 }
 
@@ -310,10 +327,167 @@ export async function sendAdjustments(reviewId: string): Promise<Res & { count?:
 
   const copyN = drafts.filter((d) => d.target === "COPY").length;
   const artN = drafts.filter((d) => d.target === "ART").length;
-  await notifyUsers(await teamRecipients(review), {
+  const owners = await createAdjustmentTask(review, drafts, slides);
+  // Quien atiende los ajustes ya recibe el aviso de su tarea; aquí solo se avisa a quienes gestionan
+  await notifyUsers((await teamRecipients(review)).filter((id) => !owners.includes(id)), {
     actorId: user.id, kind: "REVIEW_SENT", title: `${user.name} envió ajustes: ${review.title}`,
     body: `${copyN} de copy · ${artN} de arte (ronda ${review.round})`, link: `/revisiones/${reviewId}`,
   });
   refresh(reviewId);
   return { ok: true, count: drafts.length };
+}
+
+// ---------- Tarea de ajustes (una por ronda, con una subtarea por comentario) ----------
+type ReviewRow = NonNullable<Awaited<ReturnType<typeof prisma.review.findFirst>>>;
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const snippet = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/** Crea la tarea del equipo por los ajustes del cliente. Devuelve a quién se asignó. */
+async function createAdjustmentTask(
+  review: ReviewRow,
+  comments: { id: string; slideId: string; target: "COPY" | "ART"; body: string; imageNo: number | null; videoSec: number | null; createdAt: Date }[],
+  slides: { id: string; position: number }[],
+): Promise<string[]> {
+  const area = await prisma.area.upsert({ where: { name: "REDES Y ADS" }, create: { name: "REDES Y ADS", color: "#AF52DE" }, update: {} });
+  const pos = new Map(slides.map((s) => [s.id, s.position]));
+  const sorted = [...comments].sort((a, b) => (pos.get(a.slideId)! - pos.get(b.slideId)!) || (a.target === b.target ? a.createdAt.getTime() - b.createdAt.getTime() : a.target === "COPY" ? -1 : 1));
+  const ownerOf = (t: "COPY" | "ART") => (t === "COPY" ? review.copyUserId : review.artUserId);
+  const owners = [...new Set(sorted.map((c) => ownerOf(c.target)).filter((x): x is string => !!x))];
+  const assignees = owners.length ? owners : [review.createdById];
+  const title = `Ajustes · ${review.title} · Ronda ${review.round}`.slice(0, 191);
+  const due = new Date(Date.now() + 48 * 3600_000);
+  const link = `${await getBaseUrl()}/revisiones/${review.id}`;
+
+  const task = await prisma.task.create({
+    data: {
+      clientId: review.clientId, projectId: review.projectId, areaId: area.id, title,
+      descriptionHtml: `<p>El cliente envió ajustes en la revisión <strong>${esc(review.title)}</strong> (ronda ${review.round}). Cada subtarea abre el slide que hay que corregir.</p><p>${esc(link)}</p>`,
+      dueAt: due, createdById: review.createdById, reviewId: review.id, reviewRound: review.round,
+      assignees: { create: assignees.map((userId) => ({ userId })) },
+      subtasks: {
+        create: sorted.map((c, i) => ({
+          title: `Slide ${pos.get(c.slideId)} · ${c.target === "COPY" ? "COPY" : "ARTE"}${c.imageNo ? ` (imagen ${c.imageNo})` : ""}${c.videoSec != null ? ` (video ${fmtSec(c.videoSec)})` : ""} — ${snippet(c.body.replace(/\s+/g, " "), 120)}`.slice(0, 191),
+          assigneeId: ownerOf(c.target), position: i, reviewSlideId: c.slideId, reviewCommentId: c.id,
+        })),
+      },
+      events: { create: { userId: review.createdById, kind: "CREATED", note: "Generada por los ajustes que envió el cliente" } },
+    },
+    include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true, name: true } } } } },
+  });
+
+  await notifyUsers(assignees, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
+  try {
+    const logo = await readLogo311();
+    const taskUrl = `${await getBaseUrl()}/tareas?tarea=${task.id}`;
+    await sendMail({
+      to: task.assignees.map((a) => a.user.email),
+      ...tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: "Revisiones", link: taskUrl, withLogo: !!logo }),
+      inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined,
+    });
+  } catch (e) {
+    console.error("[revisiones] no se pudo avisar de la tarea:", e);
+  }
+  revalidatePath("/tareas");
+  return assignees;
+}
+
+/** Ajustes de la ronda en curso: cuántos faltan por hacer y qué tipo son. */
+async function roundStatus(review: { id: string; round: number }) {
+  const list = await prisma.reviewComment.findMany({ where: { reviewId: review.id, round: review.round, sentAt: { not: null } }, include: { slide: { select: { position: true } } }, orderBy: { createdAt: "asc" } });
+  return { list, pending: list.filter((c) => !c.resolvedAt).length, copy: list.some((c) => c.target === "COPY"), art: list.some((c) => c.target === "ART") };
+}
+
+/** Marca (o desmarca) un ajuste como hecho; se refleja en la subtarea de la tarea. */
+export async function resolveComment(commentId: string, done: boolean, note?: string): Promise<Res & { pending?: number }> {
+  const user = await requireUser([...REVIEW_STAFF]);
+  const c = isUuid(commentId) ? await prisma.reviewComment.findUnique({ where: { id: commentId } }) : null;
+  const review = c ? await prisma.review.findFirst({ where: { id: c.reviewId, ...reviewScope(user) } }) : null;
+  if (!c || !review) return { error: "Comentario no encontrado" };
+  if (review.status !== "EN_AJUSTES" || !c.sentAt || c.round !== review.round) return { error: "Este ajuste ya no se puede cambiar" };
+  const cleanNote = note?.trim().slice(0, 500) || null;
+  await prisma.$transaction([
+    prisma.reviewComment.update({ where: { id: c.id }, data: { resolvedAt: done ? new Date() : null, resolvedById: done ? user.id : null, resolvedNote: done ? cleanNote : null } }),
+    prisma.subtask.updateMany({ where: { reviewCommentId: c.id }, data: { done, doneAt: done ? new Date() : null, doneById: done ? user.id : null } }),
+  ]);
+  refresh(review.id);
+  revalidatePath("/tareas");
+  return { ok: true, pending: (await roundStatus(review)).pending };
+}
+
+/** Guarda una versión nueva del copy (la anterior queda en el historial). */
+export async function saveSlideCopy(slideId: string, text: string): Promise<Res> {
+  const loaded = await adjustableSlide(slideId, "adjust");
+  if ("error" in loaded) return { error: loaded.error };
+  const { slide } = loaded;
+  const next = text.trim();
+  if (!next) return { error: "El copy no puede quedar vacío" };
+  if (next.length > MAX_COPY) return { error: `El copy no puede pasar de ${MAX_COPY} caracteres` };
+  if (next === slide.copy.trim()) return { ok: true };
+  await prisma.$transaction([
+    prisma.reviewCopyVersion.create({ data: { slideId: slide.id, version: slide.copyVersion, text: slide.copy } }),
+    prisma.reviewSlide.update({ where: { id: slide.id }, data: { copy: next, copyVersion: slide.copyVersion + 1 } }),
+  ]);
+  refresh(slide.reviewId);
+  return { ok: true };
+}
+
+/** El arte nuevo (ya subido) pasa a ser el que ve el cliente; el anterior queda en el historial. */
+export async function applyNewArt(slideId: string): Promise<Res> {
+  const loaded = await adjustableSlide(slideId, "adjust");
+  if ("error" in loaded) return { error: loaded.error };
+  const { slide } = loaded;
+  if (!slide.assets.some((a) => a.version === slide.artVersion + 1)) return { error: "Primero sube el arte nuevo" };
+  await prisma.reviewSlide.update({ where: { id: slide.id }, data: { artVersion: slide.artVersion + 1 } });
+  refresh(slide.reviewId);
+  return { ok: true };
+}
+
+/** Descarta el arte nuevo que todavía no se aplica. */
+export async function discardNewArt(slideId: string): Promise<Res> {
+  const loaded = await adjustableSlide(slideId, "adjust");
+  if ("error" in loaded) return { error: loaded.error };
+  const { slide } = loaded;
+  const pending = slide.assets.filter((a) => a.version > slide.artVersion);
+  await prisma.reviewAsset.deleteMany({ where: { id: { in: pending.map((a) => a.id) } } });
+  await Promise.all(pending.map((a) => deleteObject(a.key).catch(() => {})));
+  refresh(slide.reviewId);
+  return { ok: true };
+}
+
+/** Datos para avisar al cliente (botón «Enviar al cliente» y mensaje de WhatsApp). */
+export async function getSendInfo(reviewId: string): Promise<{ error: string } | { pending: number; message: string; title: string }> {
+  const { review } = await staffReview(reviewId);
+  const full = await prisma.review.findUniqueOrThrow({ where: { id: reviewId }, include: { client: { select: { companyName: true } } } });
+  const st = await roundStatus(review);
+  const link = `${await getBaseUrl()}/revisiones/${review.id}`;
+  return { pending: st.pending, title: review.title, message: reviewWhatsappMessage(full.client.companyName, { copy: st.copy, art: st.art }, review.title, link) };
+}
+
+/** El equipo devuelve los ajustes al cliente: los slides corregidos pasan a «Ajustado» y empieza una ronda nueva. */
+export async function sendToClient(reviewId: string): Promise<Res & { dryRun?: boolean }> {
+  const { review } = await staffReview(reviewId);
+  if (review.status !== "EN_AJUSTES") return { error: "Esta revisión no tiene ajustes pendientes de enviar" };
+  const st = await roundStatus(review);
+  if (st.pending > 0) return { error: `Todavía faltan ${st.pending} ajuste(s) por marcar como hechos` };
+  const full = await prisma.review.findUniqueOrThrow({ where: { id: reviewId }, include: { client: { select: { companyName: true } } } });
+
+  await prisma.$transaction([
+    prisma.reviewSlide.updateMany({ where: { reviewId, status: "CAMBIOS" }, data: { status: "AJUSTADO" } }),
+    prisma.review.update({ where: { id: reviewId }, data: { status: "PUBLICADA", round: review.round + 1 } }),
+  ]);
+  refresh(reviewId);
+
+  try {
+    const logo = await readLogo311();
+    const mail = reviewAdjustedEmail({
+      clientName: full.client.companyName, title: review.title, round: review.round,
+      items: st.list.map((c) => `Slide ${c.slide.position} · ${c.target === "COPY" ? "Copy" : "Arte"}: ${snippet(c.body.replace(/\s+/g, " "), 100)}`),
+      link: `${await getBaseUrl()}/revisiones/${review.id}`, withLogo: !!logo,
+    });
+    const r = await sendMail({ to: splitEmails(review.notifyEmails), ...mail, inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined });
+    return { ok: true, dryRun: !!r.dryRun };
+  } catch (e) {
+    console.error("[revisiones] no se pudo avisar al cliente:", e);
+    return { ok: true, error: "Los ajustes quedaron enviados al cliente en el portal, pero no se pudo mandar el correo. Avísale por WhatsApp." };
+  }
 }

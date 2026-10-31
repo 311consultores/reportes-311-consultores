@@ -3,12 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getSetting, readLogo311, setSetting } from "@/lib/branding";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendMail } from "@/lib/mailer";
-import { desempenoSemanalEmail, notaRecordatorioEmail, tareaAsignadaEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
+import { desempenoSemanalEmail, notaRecordatorioEmail, reviewReminderEmail, tareaAsignadaEmail, tareaPorVencerEmail, tareasVencidasEmail, type TareaVencida } from "@/lib/email-templates";
 import { htmlToText } from "@/lib/sanitize";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { formatMx } from "@/lib/tasks-shared";
 import { publishedWhere } from "@/lib/task-visibility";
-import { todayMx } from "@/lib/finance";
+import { addDaysIso, dateOnly, fmtDate, todayMx } from "@/lib/finance";
 import { computeDashboard, fmtPct, getMeasuredFrom, getThresholds, mxWeekStart, lightFor } from "@/lib/metrics";
 import { dayKey } from "@/lib/tasks-shared";
 
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
   const base = await getBaseUrl();
   const logo = await readLogo311();
   const inline = logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined;
-  const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false };
+  const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false, recordatoriosRevision: 0 };
 
   // 0) Tareas programadas que ya aparecieron: se avisa a las personas asignadas (campanita, navegador y correo)
   const published = await prisma.task.findMany({
@@ -190,5 +190,32 @@ export async function GET(req: Request) {
       console.error("[cron tareas] resumen semanal:", e);
     }
   }
+  // 4) Revisiones de parrillas: recordatorio al cliente un día antes de su fecha límite (a partir de las 8:00, una sola vez por revisión)
+  if (hourMx >= 8) {
+    const due = await prisma.review.findMany({
+      where: { status: "PUBLICADA", respondBy: dateOnly(addDaysIso(today, 1)), reminderSentAt: null },
+      include: { client: { select: { companyName: true } }, slides: { select: { status: true } } },
+    });
+    for (const r of due) {
+      try {
+        const emails = r.notifyEmails.split(/[,;s]+/).filter(Boolean);
+        if (emails.length) {
+          await sendMail({
+            to: emails,
+            ...reviewReminderEmail({
+              clientName: r.client.companyName, title: r.title, respondBy: fmtDate(r.respondBy!), pending: r.slides.filter((s) => s.status !== "APROBADO").length,
+              link: `${base}/revisiones/${r.id}`, withLogo: !!logo,
+            }),
+            inline,
+          });
+        }
+        await prisma.review.update({ where: { id: r.id }, data: { reminderSentAt: now } });
+        result.recordatoriosRevision++;
+      } catch (e) {
+        console.error("[cron tareas] recordatorio de revisión:", e);
+      }
+    }
+  }
+
   return Response.json({ ok: true, ...result });
 }

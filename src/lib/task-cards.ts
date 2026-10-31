@@ -40,8 +40,9 @@ export function toCard(t: TaskRow): TaskCard {
     events: t.events.map((e) => ({ id: e.id, kind: e.kind, note: e.note, userName: e.user.name, createdAt: e.createdAt.toISOString() })),
     subtasks: t.subtasks.map((s) => ({
       id: s.id, title: s.title, assigneeId: s.assigneeId, assigneeName: s.assignee?.name ?? null, dueAt: s.dueAt?.toISOString() ?? null,
-      done: s.done, doneAt: s.doneAt?.toISOString() ?? null, doneByName: s.doneBy?.name ?? null,
+      done: s.done, doneAt: s.doneAt?.toISOString() ?? null, doneByName: s.doneBy?.name ?? null, reviewSlideId: s.reviewSlideId,
     })),
+    reviewId: t.reviewId,
     acceptedAt: t.acceptedAt?.toISOString() ?? null,
     surprise: t.surprise,
     surpriseOpened: !!t.surpriseOpenedAt,

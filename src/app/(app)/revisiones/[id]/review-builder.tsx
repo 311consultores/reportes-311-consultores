@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Plus, Send, Trash2, Upload, X } from "lucide-react";
 import { addSlide, deleteAsset, deleteSlide, moveAsset, publishReview, reorderSlides, saveSlide, updateReviewMeta } from "@/app/actions/reviews";
 import { DateInput } from "@/components/date-input";
+import { PostSimulator } from "@/components/post-simulator";
 import { useDialogs } from "@/components/dialogs";
 import { EmailPills } from "@/components/email-pills";
 import { ReviewThumb } from "@/components/review-thumb";
@@ -105,7 +106,7 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
   function add() {
     startAdd(async () => {
       const s = await addSlide(data.id);
-      const slide: SlideData = { ...s, status: "PENDIENTE", approvedByName: null, approvedAt: null, reopenedReason: null, comments: [] };
+      const slide: SlideData = { ...s, status: "PENDIENTE", approvedByName: null, approvedAt: null, reopenedReason: null, copyVersion: 1, prevCopy: null, artVersion: 1, prevAssets: [], pendingAssets: [], comments: [] };
       setSlides((prev) => [...prev, slide]);
       setOpenId(slide.id);
     });
@@ -193,7 +194,7 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
         {slides.map((s, i) => (
           <div key={s.id} ref={(el) => { if (el) cards.current.set(s.id, el); else cards.current.delete(s.id); }} className={dragId === s.id ? "relative z-10 rounded-2xl opacity-90 shadow-[0_8px_30px_rgb(0,0,0,0.2)] ring-2 ring-[#007AFF]" : undefined}>
             <SlideCard
-              reviewId={data.id} slide={s} number={i + 1} open={dragId ? false : openId === s.id}
+              reviewId={data.id} client={{ id: data.clientId, name: data.clientName, hasLogo: data.clientHasLogo }} slide={s} number={i + 1} open={dragId ? false : openId === s.id}
               onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
               onDeleted={() => setSlides((prev) => prev.filter((x) => x.id !== s.id))}
               reorder={slides.length > 1 ? { onGripDown: (e) => startDrag(s.id, e), up: () => step(s.id, -1), down: () => step(s.id, 1), isFirst: i === 0, isLast: i === slides.length - 1 } : undefined}
@@ -208,8 +209,8 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
 
 type Reorder = { onGripDown: (e: React.PointerEvent) => void; up: () => void; down: () => void; isFirst: boolean; isLast: boolean };
 
-function SlideCard({ reviewId, slide, number, open, onToggle, onDeleted, reorder }: {
-  reviewId: string; slide: SlideData; number: number; open: boolean; onToggle: () => void; onDeleted: () => void; reorder?: Reorder;
+function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted, reorder }: {
+  reviewId: string; client: { id: string; name: string; hasLogo: boolean }; slide: SlideData; number: number; open: boolean; onToggle: () => void; onDeleted: () => void; reorder?: Reorder;
 }) {
   const { confirm } = useDialogs();
   const [copy, setCopy] = useState(slide.copy);
@@ -219,6 +220,7 @@ function SlideCard({ reviewId, slide, number, open, onToggle, onDeleted, reorder
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [err, setErr] = useState<string>();
   const [progress, setProgress] = useState<string>();
+  const [sim, setSim] = useState(false);
   const first = useRef(true);
   const kind = artKind(assets);
 
@@ -346,7 +348,9 @@ function SlideCard({ reviewId, slide, number, open, onToggle, onDeleted, reorder
           <p className="mt-2 text-xs text-zinc-500">Imágenes JPG o PNG (hasta 8 MB cada una; varias forman un carrusel de hasta {MAX_ASSETS}) o un video MP4, WEBM o MOV (hasta 100 MB).</p>
           {progress && <p className="mt-1 text-sm text-zinc-500">{progress}</p>}
         </div>
+        {assets.length > 0 && <button type="button" className="btn-outline px-3.5 py-2 text-sm" onClick={() => setSim(true)}>Simular vista en redes</button>}
         {err && <p className="text-sm text-destructive">{err}</p>}
+        <PostSimulator open={sim} onClose={() => setSim(false)} clientId={client.id} clientName={client.name} hasLogo={client.hasLogo} copy={copy} assets={assets} channel={channel} />
       </div>
     </div>
   );

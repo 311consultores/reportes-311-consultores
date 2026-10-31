@@ -18,6 +18,7 @@ import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDE
 import { cn } from "@/lib/utils";
 import { addTaskAssignees, removeTaskAssignee, toggleSubtask } from "@/app/actions/tasks";
 import { TaskChat } from "./task-chat";
+import { SendToClientModal } from "../revisiones/send-to-client-modal";
 import type { TaskCard } from "./task-types";
 
 const eventNote = (kind: string, note: string | null) =>
@@ -95,11 +96,15 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
   const doneCount = subs.filter((s) => s.done).length;
   const allDone = subs.length > 0 && doneCount === subs.length;
   const canCheck = isOps || (mine && !locked);
+  const [sendReview, setSendReview] = useState(false); // ventana «Enviar al cliente» de una tarea de revisión
   async function checkSub(id: string, done: boolean) {
     setLocal((l) => ({ ...l, [id]: done }));
     const r = await toggleSubtask(id, done);
     if (r.error) setLocal((l) => { const { [id]: _x, ...rest } = l; void _x; return rest; });
-    else router.refresh();
+    else {
+      router.refresh();
+      if (r.reviewId) setSendReview(true);
+    }
   }
 
   return (
@@ -171,6 +176,7 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
                   <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#34C759]" checked={s.done} disabled={!canCheck} aria-label={s.title} onChange={(e) => checkSub(s.id, e.target.checked)} />
                   <span className="min-w-0 flex-1">
                     <span className={cn(s.done && "text-zinc-400 line-through")}>{s.title}</span>
+                    {task.reviewId && s.reviewSlideId && <Link href={`/revisiones/${task.reviewId}?slide=${s.reviewSlideId}`} className="link ml-2 inline-flex items-center gap-0.5 text-xs font-medium"><ExternalLink size={11} /> Abrir slide</Link>}
                     <span className="block text-xs text-zinc-500">
                       {s.assigneeName ?? "Sin responsable"}{s.dueAt ? ` · entrega ${formatMx(s.dueAt)}` : ""}
                       {s.done && s.doneByName ? ` · ✔ ${s.doneByName}` : ""}
@@ -186,6 +192,11 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
               </div>
             )}
           </div>
+        )}
+
+        {task.reviewId && <SendToClientModal reviewId={task.reviewId} open={sendReview} onClose={() => setSendReview(false)} />}
+        {task.reviewId && (
+          <p className="text-sm"><Link href={`/revisiones/${task.reviewId}`} className="link font-medium">Abrir la revisión completa</Link></p>
         )}
 
         {notes.length > 0 && (

@@ -31,17 +31,21 @@ export async function POST(req: Request, routeCtx: Ctx) {
   if (!slide) return json({ error: "Slide no encontrado" }, 404);
   const visible = await prisma.review.findFirst({ where: { id, ...reviewScope(user) }, select: { id: true } });
   if (!visible) return json({ error: "Slide no encontrado" }, 404);
-  if (slide.review.status !== "BORRADOR") return json({ error: "La revisión ya está publicada" }, 409);
+  // En borrador se arma el arte del slide; con la revisión en ajustes se sube un arte nuevo (versión siguiente) para reemplazar el actual
+  const inAdjust = slide.review.status === "EN_AJUSTES" && (slide.status === "CAMBIOS" || slide.status === "PENDIENTE");
+  if (slide.review.status !== "BORRADOR" && !inAdjust) return json({ error: "Este slide ya no se puede cambiar ahora" }, 409);
+  const version = slide.review.status === "BORRADOR" ? slide.artVersion : slide.artVersion + 1;
+  const mine = slide.assets.filter((a) => a.version === version);
 
   const mime = (req.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   const rule = ASSET_TYPES[mime];
   if (!rule) return json({ error: "Tipo de archivo no permitido (JPG, PNG, MP4, WEBM, MOV)" }, 400);
 
   // Un video va solo; las imágenes forman el carrusel (máximo 10)
-  const hasVideo = slide.assets.some((a) => a.type === "VIDEO");
-  if (rule.type === "VIDEO" && slide.assets.length > 0) return json({ error: "Un video va solo: quita primero el arte que ya tiene el slide" }, 400);
+  const hasVideo = mine.some((a) => a.type === "VIDEO");
+  if (rule.type === "VIDEO" && mine.length > 0) return json({ error: "Un video va solo: quita primero el arte que ya tiene el slide" }, 400);
   if (rule.type === "IMAGE" && hasVideo) return json({ error: "Este slide ya tiene un video: quítalo para subir imágenes" }, 400);
-  if (rule.type === "IMAGE" && slide.assets.length >= MAX_ASSETS) return json({ error: `Un carrusel admite hasta ${MAX_ASSETS} imágenes` }, 400);
+  if (rule.type === "IMAGE" && mine.length >= MAX_ASSETS) return json({ error: `Un carrusel admite hasta ${MAX_ASSETS} imágenes` }, 400);
 
   const tooBig = () => json({ error: `El archivo excede ${rule.max / MB} MB` }, 413);
   if (Number(req.headers.get("content-length") ?? 0) > rule.max) return tooBig();
@@ -87,6 +91,6 @@ export async function POST(req: Request, routeCtx: Ctx) {
   } catch {
     // nombre no válido: se usa el genérico
   }
-  const asset = await prisma.reviewAsset.create({ data: { slideId: slide.id, key, type: rule.type, name, position: slide.assets.length + 1 } });
+  const asset = await prisma.reviewAsset.create({ data: { slideId: slide.id, key, type: rule.type, name, position: mine.length + 1, version } });
   return json({ id: asset.id, type: asset.type, name: asset.name });
 }

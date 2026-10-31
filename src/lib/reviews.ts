@@ -61,7 +61,8 @@ export const REVIEW_CREATORS: Role[] = ["ADMIN", "EDITOR", "PROJECT_311"];
 /** Revisiones que puede ver cada persona: el cliente, solo las publicadas de su empresa; el TEAM 311, las de sus proyectos. */
 export function reviewScope(user: CurrentUser): Prisma.ReviewWhereInput {
   if (user.role === "CLIENTE") return { clientId: { in: user.clientAccess.map((c) => c.clientId) }, status: { not: "BORRADOR" } };
-  if (user.role === "TEAM_311") return { projectId: { in: user.projectAccess.map((p) => p.projectId) } };
+  // El TEAM 311 ve las revisiones de sus proyectos y las que le tocan atender (copy o arte)
+  if (user.role === "TEAM_311") return { OR: [{ projectId: { in: user.projectAccess.map((p) => p.projectId) } }, { copyUserId: user.id }, { artUserId: user.id }] };
   return {};
 }
 
@@ -90,4 +91,10 @@ export function clientView(r: { status: ReviewStatus; round: number; startedAt: 
   if (r.round > 1) return { label: "Ajustado · por revisar", style: SLIDE_STATUS_STYLE.AJUSTADO, button: "Revisar ajustes" };
   if (r.startedAt) return { label: "Revisión en curso", style: REVIEW_STATUS_STYLE.PUBLICADA, button: "Continuar revisión" };
   return { label: "Pendiente de revisión", style: SLIDE_STATUS_STYLE.PENDIENTE, button: "Iniciar revisión" };
+}
+
+/** Mensaje de WhatsApp para avisar al grupo del cliente que los ajustes están listos. */
+export function reviewWhatsappMessage(clientName: string, types: { copy: boolean; art: boolean }, title: string, link: string) {
+  const what = types.copy && types.art ? "COPY y ARTE" : types.copy ? "COPY" : "ARTE";
+  return `¡Hola Equipo ${clientName}! Los ajustes de ${what} de ${title} están listos, puede revisarlo en el siguiente link: ${link}`;
 }

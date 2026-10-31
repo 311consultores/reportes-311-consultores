@@ -438,3 +438,72 @@ export function reviewPublishedEmail(p: { clientName: string; title: string; sli
   );
   return { subject, text, html };
 }
+
+/** Aviso al cliente: el equipo ya hizo los ajustes que pidió y puede revisarlos. */
+export function reviewAdjustedEmail(p: { clientName: string; title: string; round: number; items: string[]; link: string; withLogo: boolean }) {
+  const subject = `Tus ajustes están listos para revisar: ${p.title}`;
+  const text = [
+    `Hola Equipo ${p.clientName},`,
+    "",
+    `Ya realizamos los ${p.items.length} ajuste(s) que nos pidieron en «${p.title}» (ronda ${p.round}):`,
+    ...p.items.map((i) => `• ${i}`),
+    "",
+    "Pueden revisarlos aquí:",
+    p.link,
+    "",
+    "Saludos cordiales.",
+    "Atentamente Equipo 311.",
+    "",
+    AVISO_PRIVACIDAD,
+    "",
+    AVISO_CONFIDENCIALIDAD,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Hola Equipo <strong>${esc(p.clientName)}</strong>,</p>
+<p style="margin:0 0 12px;">Ya realizamos los <strong>${p.items.length}</strong> ajuste(s) que nos pidieron en <strong>«${esc(p.title)}»</strong> (ronda ${p.round}):</p>
+<ul style="margin:0 0 20px;padding-left:20px;">${p.items.map((i) => `<li style="margin:0 0 4px;">${esc(i)}</li>`).join("")}</ul>
+<p style="margin:0 0 24px;">${button(p.link, "Revisar mis ajustes")}</p>
+<p style="margin:0 0 4px;">Saludos cordiales.</p>
+<p style="margin:0 0 20px;"><strong>Atentamente Equipo 311.</strong></p>
+<hr style="border:none;border-top:1px solid #e5e5ea;margin:0 0 16px;">
+<p style="margin:0 0 10px;font-size:12px;color:#86868b;">${esc(AVISO_PRIVACIDAD)}</p>
+<p style="margin:0;font-size:12px;color:#86868b;">${esc(AVISO_CONFIDENCIALIDAD)}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}
+
+/** Recordatorio al cliente: su revisión vence mañana. */
+export function reviewReminderEmail(p: { clientName: string; title: string; respondBy: string; pending: number; link: string; withLogo: boolean }) {
+  const subject = `Recordatorio: tu revisión vence mañana (${p.title})`;
+  const text = [
+    `Hola Equipo ${p.clientName},`,
+    "",
+    `Les recordamos que la revisión «${p.title}» tiene como fecha límite mañana, ${p.respondBy}. Aún faltan ${p.pending} ${p.pending === 1 ? "publicación" : "publicaciones"} por aprobar.`,
+    "",
+    "Pueden continuar la revisión aquí:",
+    p.link,
+    "",
+    "Responder a tiempo nos ayuda a publicar su contenido en la fecha prevista.",
+    "",
+    "Saludos cordiales.",
+    "Atentamente Equipo 311.",
+    "",
+    AVISO_PRIVACIDAD,
+    "",
+    AVISO_CONFIDENCIALIDAD,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Hola Equipo <strong>${esc(p.clientName)}</strong>,</p>
+<p style="margin:0 0 16px;">Les recordamos que la revisión <strong>«${esc(p.title)}»</strong> tiene como fecha límite <strong>mañana, ${esc(p.respondBy)}</strong>. Aún faltan <strong>${p.pending}</strong> ${p.pending === 1 ? "publicación" : "publicaciones"} por aprobar.</p>
+<p style="margin:0 0 24px;">${button(p.link, "Continuar la revisión")}</p>
+<p style="margin:0 0 16px;">Responder a tiempo nos ayuda a publicar su contenido en la fecha prevista.</p>
+<p style="margin:0 0 4px;">Saludos cordiales.</p>
+<p style="margin:0 0 20px;"><strong>Atentamente Equipo 311.</strong></p>
+<hr style="border:none;border-top:1px solid #e5e5ea;margin:0 0 16px;">
+<p style="margin:0 0 10px;font-size:12px;color:#86868b;">${esc(AVISO_PRIVACIDAD)}</p>
+<p style="margin:0;font-size:12px;color:#86868b;">${esc(AVISO_CONFIDENCIALIDAD)}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

@@ -13,6 +13,8 @@ export type CommentData = {
   videoSec: number | null;
   sentAt: string | null;
   createdAt: string;
+  resolvedAt: string | null;
+  resolvedNote: string | null;
 };
 
 export type SlideData = {
@@ -25,7 +27,12 @@ export type SlideData = {
   approvedByName: string | null;
   approvedAt: string | null;
   reopenedReason: string | null;
-  assets: AssetData[];
+  copyVersion: number;
+  prevCopy: string | null; // la versión anterior del copy (para comparar)
+  artVersion: number;
+  assets: AssetData[]; // arte actual (el que ve el cliente)
+  prevAssets: AssetData[]; // arte de la versión anterior
+  pendingAssets: AssetData[]; // arte nuevo que el equipo prepara y todavía no aplica (solo equipo)
   comments: CommentData[];
 };
 
@@ -36,7 +43,9 @@ export type ReviewData = {
   round: number;
   startedAt: string | null;
   respondBy: string | null; // AAAA-MM-DD
+  clientId: string;
   clientName: string;
+  clientHasLogo: boolean;
   projectName: string;
   approvedByName: string | null;
   approvedAt: string | null;

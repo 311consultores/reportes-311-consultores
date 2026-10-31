@@ -13,7 +13,7 @@ import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES, TASK_MANAGER_ROLES } from
 import { isPublished } from "@/lib/task-visibility";
 import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
 
-type Result = { error?: string; ok?: boolean; taskId?: string };
+type Result = { error?: string; ok?: boolean; taskId?: string; reviewId?: string };
 
 /** Quien gestiona tareas: Admin, Editor y PROJECT 311. */
 const isOps = (u: CurrentUser) => isTaskManager(u.role);
@@ -298,8 +298,17 @@ export async function toggleSubtask(subtaskId: string, done: boolean): Promise<R
   await prisma.$transaction([
     prisma.subtask.update({ where: { id: subtaskId }, data: { done, doneAt: done ? new Date() : null, doneById: done ? user.id : null } }),
     prisma.taskEvent.create({ data: { taskId: sub.taskId, userId: user.id, kind: "SUBTASK", note: `${done ? "✔ Marcó" : "↩ Desmarcó"}: ${sub.title}` } }),
+    // Si es el ajuste de una revisión, el comentario del cliente queda resuelto (o vuelve a pendiente)
+    ...(sub.reviewCommentId
+      ? [prisma.reviewComment.updateMany({ where: { id: sub.reviewCommentId }, data: { resolvedAt: done ? new Date() : null, resolvedById: done ? user.id : null, ...(done ? {} : { resolvedNote: null }) } })]
+      : []),
   ]);
   revalidatePath("/tareas");
+  if (sub.task.reviewId) revalidatePath(`/revisiones/${sub.task.reviewId}`);
+  // Al marcar la última subtarea de una tarea de revisión se avisa para que se envíen los ajustes al cliente
+  if (done && sub.task.reviewId && (await prisma.subtask.count({ where: { taskId: sub.taskId, done: false } })) === 0) {
+    return { ok: true, taskId: sub.taskId, reviewId: sub.task.reviewId };
+  }
   return { ok: true, taskId: sub.taskId };
 }
 

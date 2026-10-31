@@ -27,7 +27,8 @@ export type TaskCard = {
   assignees: { id: string; name: string; photoUrl: string | null; phone: string | null }[];
   resources: { id: string; title: string; url: string }[];
   events: { id: string; kind: string; note: string | null; userName: string; createdAt: string }[];
-  subtasks: { id: string; title: string; assigneeId: string | null; assigneeName: string | null; dueAt: string | null; done: boolean; doneAt: string | null; doneByName: string | null }[];
+  subtasks: { id: string; title: string; assigneeId: string | null; assigneeName: string | null; dueAt: string | null; done: boolean; doneAt: string | null; doneByName: string | null; reviewSlideId: string | null }[];
+  reviewId: string | null; // tarea de ajustes de una revisión de parrilla
   acceptedAt: string | null;
   surprise: boolean;
   surpriseOpened: boolean;

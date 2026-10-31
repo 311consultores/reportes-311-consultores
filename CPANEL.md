@@ -454,6 +454,21 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Cliente:** *Revisiones › Iniciar revisión* abre el visor con miniaturas, copy y arte, comentarios por separado para copy y arte (en carrusel «sobre la imagen N», en video «en el segundo M:SS»), guardado automático, **Aprobar slide** (con aviso de que ya no podrá pedir ajustes) y **Enviar ajustes**. Al terminar, el equipo recibe aviso en la campanita y en el navegador. Si todos los slides quedan aprobados, la revisión se cierra con registro de quién aprobó y cuándo.
 - Los archivos de la subida pesada pasan por una ruta que no está limitada a 10 MB (igual que las evidencias de reportes).
 - **Falta (siguientes etapas):** tarea con subtareas, versiones y envío de ajustes al cliente (etapa 2); simulación Facebook/Instagram, PDF resumen y recordatorio (etapa 3).
+### Evolutivo 17 · Etapa 2 (31 oct 2026) — Revisiones: tarea de ajustes, versiones y regreso al cliente
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (después de la de la etapa 1):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261031150000_evolutivo17b.sql`. Solo **agrega** columnas vacías (en `Task`, `Subtask`, `ReviewSlide` y `ReviewComment`) y la tabla nueva `ReviewCopyVersion`. No toca ningún dato.
+- **Tarea automática:** cuando el cliente pulsa «Enviar ajustes» se crea UNA tarea «Ajustes · (revisión) · Ronda N» en el área **REDES Y ADS** (si no existe, se crea), con entrega a 48 horas, asignada a quien atiende copy y/o arte, y una subtarea por comentario (con enlace «Abrir slide»). Llega campanita, aviso del navegador y correo a quien la recibe.
+- **Atender un ajuste:** en el slide el equipo guarda una **versión nueva del copy** (la anterior queda para comparar), sube un **arte nuevo** y lo aplica (el cliente sigue viendo el actual hasta entonces) y marca el ajuste como hecho (con nota opcional). Marcarlo en la revisión o en la subtarea es lo mismo.
+- **Al marcar la última subtarea** aparece una ventana que sugiere «Enviar al cliente» y tiene el botón «Enviar por WhatsApp» (solo copia el mensaje: «¡Hola Equipo (cliente)! Los ajustes de COPY/ARTE de (título) están listos, puede revisarlo en el siguiente link: …»). «Enviar al cliente» pasa la revisión a la ronda siguiente y le manda un correo con la lista de ajustes.
+- **Cliente (ronda 2 en adelante):** ve «Ver qué cambió» en el copy (lo quitado y lo agregado resaltado), «Ver el arte anterior», y cada comentario suyo con la marca «Resuelto por el equipo» y su nota.
+- El TEAM 311 que atiende los ajustes puede abrir la revisión aunque no tenga el proyecto asignado.
+- **Falta (etapa 3):** simulación de Facebook/Instagram, PDF resumen al aprobar y recordatorio un día antes de la fecha límite.
+### Evolutivo 17 · Etapa 3 (31 oct 2026) — Revisiones: simulación de redes, PDF resumen y recordatorio
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261031180000_evolutivo17c.sql` (después de la 17a y la 17b). Solo **agrega** una columna vacía (`reminderSentAt`) en `Review`. No toca ningún dato.
+- **Simular vista:** en cada slide hay «Simular vista en Facebook» (cliente) y «Simular vista en redes» (equipo, al armar y en el seguimiento). Se puede cambiar entre Facebook e Instagram y entre formato cuadrado 1:1, vertical 4:5 e historia 9:16; muestra el logo y nombre del cliente, el copy con «Ver más», el carrusel que se desliza y el video con reproducción.
+- **PDF resumen:** cuando la revisión queda **aprobada**, el cliente y el equipo ven «Descargar PDF resumen» (también en la tarjeta de la lista): cada slide con su copy, miniaturas del arte (hasta 4 imágenes; el video solo se menciona), todos los comentarios por ronda con quién los hizo y cuándo, y su resolución, más quién aprobó y cuándo.
+- **Recordatorio:** un día antes de la fecha límite (a partir de las 8:00, hora de México) el cliente recibe un correo con lo que falta por aprobar. Lo envía la **misma tarea programada de cada hora** (`/api/cron/tareas`): **no hay cron nuevo**. Se manda una sola vez por revisión.
 
 ## 10. Respaldos
 

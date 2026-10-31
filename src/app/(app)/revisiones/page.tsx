@@ -116,7 +116,10 @@ async function ClientList({ user, tab }: { user: Awaited<ReturnType<typeof requi
               </div>
               <div className="mt-auto flex items-center justify-between gap-3">
                 <span className="meta">{r.status === "PUBLICADA" && r.respondBy ? <>Responder antes del <strong className="text-foreground">{fmtDate(r.respondBy)}</strong></> : ""}</span>
-                <Link href={`/revisiones/${r.id}`} className={cn("px-3.5 py-2 text-sm", r.status === "PUBLICADA" ? "btn" : "btn-outline")}>{v.button}</Link>
+                <span className="flex gap-2">
+                  {r.status === "APROBADA" && <a href={`/api/revisiones/${r.id}/pdf`} className="btn-outline px-3.5 py-2 text-sm">PDF</a>}
+                  <Link href={`/revisiones/${r.id}`} className={cn("px-3.5 py-2 text-sm", r.status === "PUBLICADA" ? "btn" : "btn-outline")}>{v.button}</Link>
+                </span>
               </div>
             </article>
           );

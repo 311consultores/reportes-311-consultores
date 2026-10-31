@@ -639,6 +639,8 @@ model Task {
   surprise          Boolean          @default(false) // Sorpresa de felicitación habilitada al aceptar
   surpriseOpenedAt  DateTime?
   hiddenAt          DateTime? // «Limpiar terminadas»: se oculta del tablero pero queda en el historial
+  reviewId          String?          @db.VarChar(191) // Tarea de ajustes de una revisión de parrilla (Evolutivo 17)
+  reviewRound       Int?
   reminderSentAt    DateTime? // Recordatorio de «vence en menos de 12 h» ya enviado
   assignees         TaskAssignee[]
   resources         TaskResource[]
@@ -802,18 +804,20 @@ model Notification {
 
 // Renglón de lista de verificación dentro de una tarea (Evolutivo 8)
 model Subtask {
-  id         String    @id @default(uuid())
-  taskId     String
-  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  title      String    @db.VarChar(191)
-  assigneeId String?
-  assignee   User?     @relation("SubtaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  dueAt      DateTime?
-  done       Boolean   @default(false)
-  doneAt     DateTime?
-  doneById   String?
-  doneBy     User?     @relation("SubtaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
-  position   Int       @default(0)
+  id              String    @id @default(uuid())
+  taskId          String
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title           String    @db.VarChar(191)
+  assigneeId      String?
+  assignee        User?     @relation("SubtaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueAt           DateTime?
+  done            Boolean   @default(false)
+  doneAt          DateTime?
+  doneById        String?
+  doneBy          User?     @relation("SubtaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+  position        Int       @default(0)
+  reviewSlideId   String?   @db.VarChar(191) // Subtarea de un ajuste de revisión: slide al que lleva su enlace
+  reviewCommentId String?   @db.VarChar(191) // y comentario del cliente que origina el ajuste
 
   @@index([taskId])
 }
@@ -948,6 +952,7 @@ model Review {
   updatedAt      DateTime        @updatedAt
   publishedAt    DateTime?
   startedAt      DateTime? // la primera vez que el cliente pulsó «Iniciar revisión»
+  reminderSentAt DateTime? // recordatorio de «vence mañana» ya enviado al cliente
   approvedAt     DateTime?
   approvedByName String?         @db.VarChar(191)
   slides         ReviewSlide[]
@@ -959,17 +964,20 @@ model Review {
 }
 
 model ReviewSlide {
-  id             String          @id @default(uuid())
+  id             String              @id @default(uuid())
   reviewId       String
-  review         Review          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  review         Review              @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   position       Int
-  channel        String          @default("FACEBOOK") @db.VarChar(12) // FACEBOOK | INSTAGRAM
-  publishOn      DateTime?       @db.Date
-  copy           String          @db.Text
-  status         SlideStatus     @default(PENDIENTE)
+  channel        String              @default("FACEBOOK") @db.VarChar(12) // FACEBOOK | INSTAGRAM
+  publishOn      DateTime?           @db.Date
+  copy           String              @db.Text
+  status         SlideStatus         @default(PENDIENTE)
   approvedAt     DateTime?
-  approvedByName String?         @db.VarChar(191)
-  reopenedReason String?         @db.Text
+  approvedByName String?             @db.VarChar(191)
+  reopenedReason String?             @db.Text
+  copyVersion    Int                 @default(1)
+  artVersion     Int                 @default(1) // los archivos con esta versión son los que ve el cliente
+  copyVersions   ReviewCopyVersion[]
   assets         ReviewAsset[]
   comments       ReviewComment[]
 
@@ -991,22 +999,37 @@ model ReviewAsset {
 }
 
 model ReviewComment {
-  id        String        @id @default(uuid())
-  reviewId  String
-  review    Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  slideId   String
-  slide     ReviewSlide   @relation(fields: [slideId], references: [id], onDelete: Cascade)
-  target    CommentTarget
-  round     Int
-  authorId  String
-  author    User          @relation(fields: [authorId], references: [id])
-  body      String        @db.Text
-  imageNo   Int? // en un carrusel, a qué imagen se refiere (1, 2, 3…)
-  videoSec  Int? // en un video, el segundo al que se refiere
-  sentAt    DateTime? // vacío = borrador (guardado automático); se llena al enviar los ajustes
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id           String        @id @default(uuid())
+  reviewId     String
+  review       Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  slideId      String
+  slide        ReviewSlide   @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  target       CommentTarget
+  round        Int
+  authorId     String
+  author       User          @relation(fields: [authorId], references: [id])
+  body         String        @db.Text
+  imageNo      Int? // en un carrusel, a qué imagen se refiere (1, 2, 3…)
+  videoSec     Int? // en un video, el segundo al que se refiere
+  sentAt       DateTime? // vacío = borrador (guardado automático); se llena al enviar los ajustes
+  resolvedAt   DateTime? // el equipo ya atendió este ajuste
+  resolvedById String?       @db.VarChar(191)
+  resolvedNote String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([reviewId])
+  @@index([slideId])
+}
+
+// Versiones anteriores del copy de un slide (la actual vive en ReviewSlide.copy)
+model ReviewCopyVersion {
+  id        String      @id @default(uuid())
+  slideId   String
+  slide     ReviewSlide @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  version   Int
+  text      String      @db.Text
+  createdAt DateTime    @default(now())
+
   @@index([slideId])
 }
