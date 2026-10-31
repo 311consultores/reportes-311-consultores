@@ -31,5 +31,5 @@ export const config = {
   // quedan fuera: su ruta valida la sesión por su cuenta.
   // La subida de evidencias queda fuera del proxy: Next limita a 10 MB el cuerpo de las peticiones que pasan por él,
   // y esa ruta ya valida la sesión por su cuenta (responde 403 si no hay).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/|api/reports/[^/]+/tasks/[^/]+/evidence|api/tasks/[^/]+/attachments).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/|api/reports/[^/]+/tasks/[^/]+/evidence|api/tasks/[^/]+/attachments|api/revisiones/[^/]+/slides/[^/]+/assets).*)"],
 };

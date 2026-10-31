@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { fmtDate, formatCents } from "@/lib/finance";
-import { getBoxes, getFlow, getReceivables, parseMonthParam } from "@/lib/finance-queries";
+import { getBoxes, getDevPayments, getFlow, getReceivables, parseMonthParam } from "@/lib/finance-queries";
 import { getLoans, summarizeLoans } from "@/lib/loans";
 import { balanceOf, BOXES, type BoxInfo } from "@/lib/ledger";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ const Kpi = ({ label, value, hint, tone }: { label: string; value: string; hint?
 );
 
 const GROUPS: { id: BoxInfo["group"]; title: string }[] = [
-  { id: "operativa", title: "Cajas de la empresa" },
+  { id: "operativa", title: "Detalle de las cajas de la empresa" },
   { id: "iva", title: "Cajas del IVA" },
   { id: "socio", title: "Utilidad individual de los socios" },
 ];
@@ -26,13 +26,14 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
   await requireUser(["ADMIN"]);
   const sp = await searchParams;
   const mes = parseMonthParam(sp.mes);
-  const [flow, receivables, { balances, earned }, loans] = await Promise.all([getFlow(mes), getReceivables(), getBoxes(), getLoans()]);
+  const [flow, receivables, { balances, earned }, loans, dev] = await Promise.all([getFlow(mes), getReceivables(), getBoxes(), getLoans(), getDevPayments(mes)]);
   const debt = summarizeLoans(loans);
   const debtPct = debt.total > 0 ? Math.round((debt.paid / debt.total) * 100) : 0;
 
   let cash = 0;
   let bank = 0;
   for (const b of BOXES) {
+    if (b.value === "DEV") continue; // DEV es el pago al desarrollador, no dinero de la empresa
     cash += balanceOf(balances, b.value, "EFECTIVO");
     bank += balanceOf(balances, b.value, "BANCO");
   }
@@ -63,6 +64,23 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
         <Kpi label="Balance del periodo" value={formatCents(net)} hint="Ingresos − egresos" />
         <Kpi label="Dinero en cajas hoy" value={formatCents(cash + bank)} hint={`Efectivo ${formatCents(cash)} · Banco ${formatCents(bank)}`} />
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Cajas de la empresa</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {BOXES.filter((b) => b.group === "operativa" && b.value !== "DEV").map((b) => {
+            const e = balanceOf(balances, b.value, "EFECTIVO");
+            const k = balanceOf(balances, b.value, "BANCO");
+            return (
+              <Link key={b.value} href={`/finanzas/caja/${b.value}`} className="card block space-y-1 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md" aria-label={`Ver el historial de la caja ${b.label}`}>
+                <p className="meta">{b.label}</p>
+                <p className={cn("text-2xl font-semibold tracking-tight", e + k < 0 && "text-[#D70015] dark:text-[#FF453A]")}>{formatCents(e + k)}</p>
+                <p className="text-xs text-zinc-500">Efectivo {formatCents(e)} · Banco {formatCents(k)}</p>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       {debt.total > 0 && (
         <section className="card space-y-3">
@@ -99,6 +117,31 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
         </div>
       </section>
 
+      <section className="card space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">Desarrollo (DEV) · pagado en el periodo</h2>
+          <p className="text-2xl font-semibold tracking-tight">{formatCents(dev.total)}</p>
+        </div>
+        <p className="meta">Es lo que se ha separado para el desarrollador de los cobros de proyectos de desarrollo ({period}). No es una caja de la empresa y no suma a «Dinero en cajas hoy».</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr><th className="th">Fecha</th><th className="th">Cobro</th><th className="th">Cliente</th><th className="th text-right">Ingreso neto</th><th className="th text-right">DEV</th></tr></thead>
+            <tbody className="divide-y divide-black/5 dark:divide-white/10">
+              {dev.rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="td whitespace-nowrap">{fmtDate(r.date)}</td>
+                  <td className="td"><Link href={`/facturas/${r.id}`} className="font-medium">{r.label}</Link></td>
+                  <td className="td">{r.client}</td>
+                  <td className="td text-right">{formatCents(r.net)}</td>
+                  <td className="td text-right font-semibold">{formatCents(r.dev)}</td>
+                </tr>
+              ))}
+              {dev.rows.length === 0 && <tr><td colSpan={5} className="td py-6 text-center text-zinc-500">No hay cobros de proyectos de desarrollo en este periodo</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {GROUPS.map((g) => (
         <section key={g.id} className="card space-y-3">
           <h2 className="text-lg font-semibold tracking-tight">{g.title}</h2>
@@ -114,7 +157,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5 dark:divide-white/10">
-                {BOXES.filter((b) => b.group === g.id).map((b) => {
+                {BOXES.filter((b) => b.group === g.id && b.value !== "DEV").map((b) => {
                   const e = balanceOf(balances, b.value, "EFECTIVO");
                   const k = balanceOf(balances, b.value, "BANCO");
                   return (

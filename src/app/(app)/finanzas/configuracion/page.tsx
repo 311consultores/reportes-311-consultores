@@ -22,8 +22,9 @@ export default async function SplitConfigPage() {
           <h2 className="text-lg font-semibold tracking-tight">Porcentajes del reparto</h2>
           <p className="meta">
             Cuando una factura o recibo se marca como pagado, su ingreso neto (el subtotal, sin IVA) se reparte con estos porcentajes.
-            Lo que queda es la utilidad, de la que cada socio recibe su parte. El IVA se divide aparte. Cada cobro guarda los porcentajes
-            que tenía al momento: cambiarlos aquí no altera los cobros anteriores.
+            En los proyectos de desarrollo primero se descuenta el pago de DEV y lo que queda es el nuevo 100 % al que se le aplican Nómina,
+            Ahorro, Navidad y Gastos. Lo que sobra es la utilidad, de la que cada socio recibe su parte. El IVA se divide aparte. Cada cobro
+            guarda los porcentajes que tenía al momento: cambiarlos aquí no altera los cobros anteriores.
           </p>
         </div>
         <SplitForm config={config} />

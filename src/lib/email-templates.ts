@@ -404,3 +404,37 @@ export function notaRecordatorioEmail(p: { title: string; snippet: string; link:
   );
   return { subject, text, html };
 }
+
+/** Aviso al cliente: hay una revisión nueva de copys y artes esperando su respuesta. */
+export function reviewPublishedEmail(p: { clientName: string; title: string; slideCount: number; respondBy: string | null; link: string; withLogo: boolean }) {
+  const subject = `Tienes una revisión pendiente: ${p.title}`;
+  const deadline = p.respondBy ? ` Te pedimos responder a más tardar el ${p.respondBy}.` : "";
+  const text = [
+    `Hola Equipo ${p.clientName},`,
+    "",
+    `Preparamos la revisión «${p.title}» con ${p.slideCount} ${p.slideCount === 1 ? "publicación" : "publicaciones"} para que revises los copys y artes.${deadline}`,
+    "",
+    "Entra aquí para iniciar la revisión, aprobar lo que esté bien y dejar tus comentarios:",
+    p.link,
+    "",
+    "Saludos cordiales.",
+    "Atentamente Equipo 311.",
+    "",
+    AVISO_PRIVACIDAD,
+    "",
+    AVISO_CONFIDENCIALIDAD,
+  ].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;">Hola Equipo <strong>${esc(p.clientName)}</strong>,</p>
+<p style="margin:0 0 16px;">Preparamos la revisión <strong>«${esc(p.title)}»</strong> con <strong>${p.slideCount}</strong> ${p.slideCount === 1 ? "publicación" : "publicaciones"} para que revises los copys y artes.${esc(deadline)}</p>
+<p style="margin:0 0 20px;">Entra al panel para iniciar la revisión, aprobar lo que esté bien y dejar tus comentarios:</p>
+<p style="margin:0 0 24px;">${button(p.link, "Iniciar revisión")}</p>
+<p style="margin:0 0 4px;">Saludos cordiales.</p>
+<p style="margin:0 0 20px;"><strong>Atentamente Equipo 311.</strong></p>
+<hr style="border:none;border-top:1px solid #e5e5ea;margin:0 0 16px;">
+<p style="margin:0 0 10px;font-size:12px;color:#86868b;">${esc(AVISO_PRIVACIDAD)}</p>
+<p style="margin:0;font-size:12px;color:#86868b;">${esc(AVISO_CONFIDENCIALIDAD)}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

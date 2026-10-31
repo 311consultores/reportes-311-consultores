@@ -10,7 +10,7 @@ export const BOXES: BoxInfo[] = [
   { value: "NAVIDAD", label: "Navidad", group: "operativa", hint: "" },
   { value: "GASTOS", label: "Gastos (caja chica)", group: "operativa", hint: "Gastos generales" },
   { value: "UTILIDAD", label: "Utilidad", group: "operativa", hint: "Remanente después de repartir a los socios" },
-  { value: "DEV", label: "Desarrollo (DEV)", group: "operativa", hint: "30 % de proyectos de software" },
+  { value: "DEV", label: "Desarrollo (DEV)", group: "operativa", hint: "Pago al desarrollador (no es una caja de la empresa)" },
   { value: "IMPUESTOS", label: "Impuestos", group: "iva", hint: "Parte del IVA para impuestos" },
   { value: "MARKETING", label: "Marketing", group: "iva", hint: "Parte del IVA para marketing" },
   { value: "GANANCIA_INTERNA", label: "Ganancia interna", group: "iva", hint: "Parte del IVA que se queda aparte" },
@@ -29,7 +29,7 @@ export type SplitConfig = {
   ahorro: number;
   navidad: number;
   gastos: number;
-  dev: number; // solo proyectos de software
+  dev: number; // solo proyectos de desarrollo: se descuenta primero y los demás porcentajes se aplican a lo que queda
   ivaImpuestos: number;
   ivaMarketing: number;
   ivaGanancia: number;
@@ -40,12 +40,17 @@ export const DEFAULT_SPLIT: SplitConfig = {
   nomina: 4500, ahorro: 300, navidad: 200, gastos: 1000, dev: 3000, ivaImpuestos: 5000, ivaMarketing: 2500, ivaGanancia: 2500, socio: 5000,
 };
 
+export const SPLIT_NET_GROUP = "Sobre el ingreso neto (en proyectos de desarrollo, primero se descuenta DEV y estos porcentajes se aplican a lo que queda)";
+
+/** Utilidad general en puntos base: lo que queda de la base después de Nómina, Ahorro, Navidad y Gastos. */
+export const utilityBps = (c: Pick<SplitConfig, "nomina" | "ahorro" | "navidad" | "gastos">) => 10000 - (c.nomina + c.ahorro + c.navidad + c.gastos);
+
 export const SPLIT_FIELDS: { key: keyof SplitConfig; label: string; group: string }[] = [
-  { key: "nomina", label: "Nómina", group: "Sobre el ingreso neto" },
-  { key: "ahorro", label: "Ahorro", group: "Sobre el ingreso neto" },
-  { key: "navidad", label: "Navidad", group: "Sobre el ingreso neto" },
-  { key: "gastos", label: "Gastos (caja chica)", group: "Sobre el ingreso neto" },
-  { key: "dev", label: "DEV (solo proyectos de software)", group: "Sobre el ingreso neto" },
+  { key: "nomina", label: "Nómina", group: SPLIT_NET_GROUP },
+  { key: "ahorro", label: "Ahorro", group: SPLIT_NET_GROUP },
+  { key: "navidad", label: "Navidad", group: SPLIT_NET_GROUP },
+  { key: "gastos", label: "Gastos (caja chica)", group: SPLIT_NET_GROUP },
+  { key: "dev", label: "DEV (solo proyectos de desarrollo)", group: SPLIT_NET_GROUP },
   { key: "ivaImpuestos", label: "Impuestos", group: "División del IVA (debe sumar 100 %)" },
   { key: "ivaGanancia", label: "Ganancia interna", group: "División del IVA (debe sumar 100 %)" },
   { key: "ivaMarketing", label: "Marketing", group: "División del IVA (debe sumar 100 %)" },
@@ -56,7 +61,7 @@ export function validateSplit(c: SplitConfig): string | null {
   for (const k of Object.keys(DEFAULT_SPLIT) as (keyof SplitConfig)[]) {
     if (!Number.isInteger(c[k]) || c[k] < 0 || c[k] > 10000) return "Cada porcentaje debe estar entre 0 y 100";
   }
-  if (c.nomina + c.ahorro + c.navidad + c.gastos + c.dev > 10000) return "Nómina, ahorro, navidad, gastos y DEV no pueden sumar más de 100 %";
+  if (c.nomina + c.ahorro + c.navidad + c.gastos > 10000) return "Nómina, ahorro, navidad y gastos no pueden sumar más de 100 %";
   if (c.ivaImpuestos + c.ivaMarketing + c.ivaGanancia !== 10000) return "La división del IVA debe sumar exactamente 100 %";
   if (c.socio * 2 > 10000) return "Entre los dos socios no pueden recibir más del 100 % de la utilidad";
   return null;
@@ -77,18 +82,20 @@ export type Line = { box: Box; cents: number };
 const pct = (base: number, bps: number) => Math.floor((base * bps) / 10000);
 
 /**
- * Reparte un cobro. Los porcentajes se calculan sobre el ingreso neto (subtotal). Lo que queda es la utilidad,
- * de la que cada socio recibe su parte; el sobrante de redondeo se queda en la caja Utilidad. El IVA se divide
- * aparte. La suma de las líneas es siempre exactamente igual al total cobrado.
+ * Reparte un cobro. El IVA se divide aparte. Del ingreso neto (subtotal), en los proyectos de desarrollo se descuenta primero
+ * el pago de DEV y lo que queda se convierte en la nueva base (100 %); en los proyectos normales la base es el ingreso neto completo.
+ * Sobre la base se calculan Nómina, Ahorro, Navidad y Gastos; lo que queda es la utilidad, de la que cada socio recibe su parte
+ * (el sobrante de redondeo se queda en la caja Utilidad). La suma de las líneas es siempre exactamente igual al total cobrado.
  */
 export function computeDistribution(p: { subtotal: number; vat: number; isSoftware: boolean }, cfg: SplitConfig): Line[] {
   const net = p.subtotal;
   const dev = p.isSoftware ? pct(net, cfg.dev) : 0;
-  const nomina = pct(net, cfg.nomina);
-  const ahorro = pct(net, cfg.ahorro);
-  const navidad = pct(net, cfg.navidad);
-  const gastos = pct(net, cfg.gastos);
-  const utilidad = net - dev - nomina - ahorro - navidad - gastos;
+  const base = net - dev; // nuevo 100 % tras el pago de DEV (en proyectos normales dev = 0)
+  const nomina = pct(base, cfg.nomina);
+  const ahorro = pct(base, cfg.ahorro);
+  const navidad = pct(base, cfg.navidad);
+  const gastos = pct(base, cfg.gastos);
+  const utilidad = base - nomina - ahorro - navidad - gastos;
   if (utilidad < 0) throw new Error("Los porcentajes configurados superan el ingreso neto");
   const socio = pct(utilidad, cfg.socio);
   const impuestos = pct(p.vat, cfg.ivaImpuestos);

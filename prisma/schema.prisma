@@ -59,6 +59,10 @@ model User {
   loansCreated        Loan[]
   loanPaymentsCreated LoanPayment[]
   documentsCreated    Document[]           @relation("DocCreator")
+  reviewsCreated      Review[]             @relation("ReviewCreator")
+  reviewsCopy         Review[]             @relation("ReviewCopyOwner")
+  reviewsArt          Review[]             @relation("ReviewArtOwner")
+  reviewComments      ReviewComment[]
   documentSends       DocumentSend[]
   photoUrl            String? // Clave de la foto de perfil (TEAM 311) en el almacenamiento
   birthday            String?              @db.VarChar(5) // "MM-DD": solo día y mes
@@ -118,6 +122,7 @@ model Client {
   legalRepRole    String?             @db.VarChar(120)
   receiptSeq      Int                 @default(0)
   documents       Document[]
+  reviews         Review[]
   billingName     String?             @db.VarChar(150) // Contacto de administración y facturación (nombre)
   billingLastName String?             @db.VarChar(150)
   billingPhone    String?             @db.VarChar(10)
@@ -182,6 +187,7 @@ model Project {
   createdAt           DateTime      @default(now())
   reports             Report[]
   teamMembers         UserProject[]
+  reviews             Review[]
   tasks               Task[]
   notes               Note[]
 
@@ -899,4 +905,108 @@ model NoteShare {
 
   @@id([noteId, userId])
   @@index([userId])
+}
+
+// ---------- Revisiones de parrillas para redes sociales (Evolutivo 17) ----------
+enum ReviewStatus {
+  BORRADOR // solo la ve el equipo
+  PUBLICADA // esperando la revisión del cliente
+  EN_AJUSTES // el cliente envió ajustes y el equipo los está atendiendo
+  APROBADA // todos los slides aprobados
+}
+
+enum SlideStatus {
+  PENDIENTE
+  CAMBIOS // el cliente pidió cambios
+  AJUSTADO // el equipo hizo los cambios; el cliente debe revisarlos
+  APROBADO
+}
+
+enum CommentTarget {
+  COPY
+  ART
+}
+
+model Review {
+  id             String          @id @default(uuid())
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id])
+  projectId      String
+  project        Project         @relation(fields: [projectId], references: [id])
+  title          String          @db.VarChar(191)
+  status         ReviewStatus    @default(BORRADOR)
+  round          Int             @default(1)
+  notifyEmails   String          @db.Text // correos a los que se avisa al publicar y al enviar ajustes (separados por coma)
+  copyUserId     String? // TEAM 311 que atiende los ajustes de copy
+  copyUser       User?           @relation("ReviewCopyOwner", fields: [copyUserId], references: [id], onDelete: SetNull)
+  artUserId      String? // TEAM 311 que atiende los ajustes de arte
+  artUser        User?           @relation("ReviewArtOwner", fields: [artUserId], references: [id], onDelete: SetNull)
+  respondBy      DateTime?       @db.Date // fecha límite para que el cliente responda
+  createdById    String
+  createdBy      User            @relation("ReviewCreator", fields: [createdById], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  publishedAt    DateTime?
+  startedAt      DateTime? // la primera vez que el cliente pulsó «Iniciar revisión»
+  approvedAt     DateTime?
+  approvedByName String?         @db.VarChar(191)
+  slides         ReviewSlide[]
+  comments       ReviewComment[]
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model ReviewSlide {
+  id             String          @id @default(uuid())
+  reviewId       String
+  review         Review          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  position       Int
+  channel        String          @default("FACEBOOK") @db.VarChar(12) // FACEBOOK | INSTAGRAM
+  publishOn      DateTime?       @db.Date
+  copy           String          @db.Text
+  status         SlideStatus     @default(PENDIENTE)
+  approvedAt     DateTime?
+  approvedByName String?         @db.VarChar(191)
+  reopenedReason String?         @db.Text
+  assets         ReviewAsset[]
+  comments       ReviewComment[]
+
+  @@index([reviewId])
+}
+
+model ReviewAsset {
+  id        String      @id @default(uuid())
+  slideId   String
+  slide     ReviewSlide @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  key       String      @db.VarChar(300) // clave del archivo en el almacenamiento
+  type      String      @db.VarChar(10) // IMAGE | VIDEO
+  name      String      @db.VarChar(191)
+  position  Int
+  version   Int         @default(1)
+  createdAt DateTime    @default(now())
+
+  @@index([slideId])
+}
+
+model ReviewComment {
+  id        String        @id @default(uuid())
+  reviewId  String
+  review    Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  slideId   String
+  slide     ReviewSlide   @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  target    CommentTarget
+  round     Int
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id])
+  body      String        @db.Text
+  imageNo   Int? // en un carrusel, a qué imagen se refiere (1, 2, 3…)
+  videoSec  Int? // en un video, el segundo al que se refiere
+  sentAt    DateTime? // vacío = borrador (guardado automático); se llena al enviar los ajustes
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([reviewId])
+  @@index([slideId])
 }

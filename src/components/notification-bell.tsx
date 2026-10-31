@@ -10,7 +10,7 @@ import { usePush } from "@/lib/use-push";
 import { formatMx } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 
-const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_UNASSIGNED: "🚫", GAME_BEATEN: "🏆", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬", TASK_SOON: "⏰", TASK_OVERDUE: "⚠️", EDIT_REQUEST: "✏️", REGISTRATION: "🏢", INVOICE_OVERDUE: "💸", NOTE_SHARED: "📒", NOTE_REMINDER: "⏰" };
+const ICON: Record<string, string> = { TASK_ASSIGNED: "📝", TASK_UNASSIGNED: "🚫", GAME_BEATEN: "🏆", TASK_READY: "🔍", TASK_RETURNED: "↩️", TASK_ACCEPTED: "🎉", TASK_MESSAGE: "💬", TASK_SOON: "⏰", TASK_OVERDUE: "⚠️", EDIT_REQUEST: "✏️", REGISTRATION: "🏢", INVOICE_OVERDUE: "💸", NOTE_SHARED: "📒", NOTE_REMINDER: "⏰", REVIEW_SENT: "💬", REVIEW_APPROVED: "✅" };
 
 /** Campanita con globo rojo y lista de avisos del portal. */
 export function NotificationBell({ initialUnread }: { initialUnread: number }) {

@@ -438,6 +438,23 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **Recibo:** la franja oscura inferior lleva «311 CONSULTORES» y el contacto.
 - **Contacto editable (ADMINISTRADOR):** *Documentos › Configuración › Contacto en el pie de reportes y recibos*. Ya viene con necesito@311consultores.com y los teléfonos 999 136 4441 · 999 111 8063.
 
+### Evolutivo 16 (30 oct 2026) — Finanzas: cards de cajas, DEV como indicador y nueva regla del reparto
+- **Sin migración.** Respaldo y reemplazar la app.
+- **Finanzas:** debajo de las 4 cards de resumen hay una card por caja de la empresa (Nómina, Ahorro, Navidad, Gastos y Utilidad); al tocarla se abre el historial de esa caja (`/finanzas/caja/<caja>`). Las tablas de cajas se conservan, ahora como «Detalle».
+- **DEV ya no es caja** en pantalla: tiene su propia tabla «Desarrollo (DEV) · pagado en el periodo» (una fila por cobro de proyecto de desarrollo con su DEV) y **no suma** a «Dinero en cajas hoy». Sigue disponible en Movimientos.
+- **Regla nueva del reparto (solo cobros que se registren desde ahora):** en proyectos de desarrollo primero se descuenta el 30 % de DEV y lo que queda es el nuevo 100 % para Nómina, Ahorro, Navidad y Gastos; lo que sobra es la utilidad. Los cobros ya registrados conservan su reparto guardado.
+- **Configuración de porcentajes:** renglón «Utilidad general» (calculado solo, de solo lectura) junto a DEV, y bajo «Para cada socio» cuánto representa sobre el ingreso neto.
+- Los cobros pagados **antes** de existir las cajas y que se repartan después (botón «Cobros anteriores sin repartir») también usan la regla nueva.
+
+### Evolutivo 17 · Etapa 1 (31 oct 2026) — Revisiones de parrillas (equipo y cliente)
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración (antes de reemplazar la app):** en phpMyAdmin, pestaña *SQL*, ejecuta `database/migraciones/20261031120000_evolutivo17a.sql`. Solo **agrega** 4 tablas nuevas (`Review`, `ReviewSlide`, `ReviewAsset`, `ReviewComment`). No toca ningún dato.
+- **Menú «Revisiones»** (Operación) para todos los roles. El CLIENTE ve un globo con las revisiones que esperan su respuesta; el equipo, las que tienen ajustes por hacer.
+- **Equipo** (ADMIN, EDITOR y PROJECT 311 crean; TEAM 311 edita los borradores de sus proyectos): *Revisiones › Nueva revisión* (cliente, proyecto, título, quién atiende los ajustes de copy y de arte —personas del TEAM 311—, fecha límite y correos del aviso) → agregar slides con copy (máx. 2,200 caracteres), canal, fecha de publicación y arte (imagen, carrusel de hasta 10 imágenes o un video; 8 MB por imagen y 100 MB por video), ordenarlos arrastrando → **Publicar al cliente** (llega un correo).
+- **Cliente:** *Revisiones › Iniciar revisión* abre el visor con miniaturas, copy y arte, comentarios por separado para copy y arte (en carrusel «sobre la imagen N», en video «en el segundo M:SS»), guardado automático, **Aprobar slide** (con aviso de que ya no podrá pedir ajustes) y **Enviar ajustes**. Al terminar, el equipo recibe aviso en la campanita y en el navegador. Si todos los slides quedan aprobados, la revisión se cierra con registro de quién aprobó y cuándo.
+- Los archivos de la subida pesada pasan por una ruta que no está limitada a 10 MB (igual que las evidencias de reportes).
+- **Falta (siguientes etapas):** tarea con subtareas, versiones y envío de ajustes al cliente (etapa 2); simulación Facebook/Instagram, PDF resumen y recordatorio (etapa 3).
+
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

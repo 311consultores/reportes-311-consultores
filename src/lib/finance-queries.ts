@@ -1,7 +1,7 @@
 import type { Box, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, dateOnly, decimalToCents, KIND_LABEL, monthRange, todayMx } from "@/lib/finance";
-import { boxLabel, CASH_LABEL, getBalances } from "@/lib/ledger";
+import { boxLabel, CASH_LABEL, getBalances, parseSnapshot } from "@/lib/ledger";
 
 /** Mes del filtro: sin parámetro = mes actual; "todos" = sin límite. Devuelve el texto "AAAA-MM" o "". */
 export function parseMonthParam(v: string | string[] | undefined): string {
@@ -101,6 +101,31 @@ export async function getReceivables() {
     overdue: await sum({ kind, status: "ENVIADA", dueDate: { lt: today } }),
   });
   return { FACTURA: await row("FACTURA"), RECIBO: await row("RECIBO") };
+}
+
+export type DevRow = { id: string; date: Date; label: string; client: string; net: number; dev: number };
+
+/**
+ * Pagos a desarrollo (DEV) del periodo: el DEV que se separó de cada cobro de proyectos de desarrollo, tomado del reparto guardado
+ * en el cobro. Los pagos que se deshicieron no cuentan porque pierden su reparto.
+ */
+export async function getDevPayments(mes: string): Promise<{ rows: DevRow[]; total: number }> {
+  const range = mes ? monthRange(mes, "date") : null;
+  const paid = await prisma.invoice.findMany({
+    where: { status: "PAGADA", isSoftware: true, distribution: { not: null }, ...(range ? { collectedOn: range } : {}) },
+    include: { client: { select: { companyName: true } } },
+  });
+  const rows: DevRow[] = [];
+  for (const i of paid) {
+    const dev = parseSnapshot(i.distribution)?.lines.find((l) => l.box === "DEV")?.cents ?? 0;
+    if (dev <= 0) continue;
+    rows.push({
+      id: i.id, date: i.collectedOn ?? i.paidAt ?? i.sentAt, label: `${KIND_LABEL[i.kind]}${i.number ? ` ${i.number}` : ""}`,
+      client: i.client.companyName, net: decimalToCents(i.subtotal), dev,
+    });
+  }
+  rows.sort((a, b) => b.date.getTime() - a.date.getTime());
+  return { rows, total: rows.reduce((s, r) => s + r.dev, 0) };
 }
 
 /** Saldos por caja y lo ganado acumulado (reparto menos reversas) por caja. */
