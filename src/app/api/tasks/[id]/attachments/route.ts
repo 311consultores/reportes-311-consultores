@@ -44,8 +44,8 @@ function matchesSignature(mime: string, b: Buffer) {
 async function load(taskId: string) {
   const user = await getCurrentUser();
   if (!user || !STAFF_ROLES.includes(user.role)) return { error: json({ error: "No autorizado" }, 403) };
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, publishAt: true, assignees: { select: { userId: true } } } });
-  const allowed = task && (isTaskManager(user.role) || (task.assignees.some((a) => a.userId === user.id) && isPublished(task)));
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, publishAt: true, status: true, assignees: { select: { userId: true } } } });
+  const allowed = task && (isTaskManager(user.role) || (task.assignees.some((a) => a.userId === user.id) && isPublished(task) && task.status !== "BORRADOR"));
   if (!task || !allowed) return { error: json({ error: "Tarea no encontrada" }, 404) };
   return { user, task };
 }

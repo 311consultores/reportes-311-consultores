@@ -40,19 +40,19 @@ export const parseBreakdown = (raw: string): BreakdownRow[] => {
 
 /**
  * Crea las semanas que faltan (cada sábado desde el 7/nov/2026 hasta el próximo sábado) y mantiene al día el desglose de las que siguen
- * PROGRAMADAS con los sueldos vigentes. El desglose de una semana PAGADA no se vuelve a tocar.
+ * PROGRAMADAS con los sueldos vigentes. El desglose de una semana PAGADA, o editada a mano, no se vuelve a tocar.
  */
 export async function ensurePayrollWeeks(): Promise<void> {
   const cfg = await currentPayConfig();
   const base = cfg.reduce((s, r) => s + r.cents, 0);
   const last = saturdayOnOrAfter(todayMx());
-  const existing = await prisma.payrollWeek.findMany({ select: { id: true, year: true, week: true, status: true } });
+  const existing = await prisma.payrollWeek.findMany({ select: { id: true, year: true, week: true, status: true, edited: true } });
   const have = new Map(existing.map((w) => [`${w.year}-${w.week}`, w]));
   for (let pay = FIRST_PAY_DATE; pay <= last; pay = addDaysIso(pay, 7)) {
     const { year, week } = isoWeekOf(pay);
     const w = have.get(`${year}-${week}`);
     const data = { baseTotal: centsToDecimal(base), breakdown: JSON.stringify(cfg) };
     if (!w) await prisma.payrollWeek.create({ data: { year, week, payDate: dateOnly(pay), ...data } }).catch(() => null); // si otra visita la creó a la vez, se ignora
-    else if (w.status === "PROGRAMADA") await prisma.payrollWeek.update({ where: { id: w.id }, data });
+    else if (w.status === "PROGRAMADA" && !w.edited) await prisma.payrollWeek.update({ where: { id: w.id }, data });
   }
 }

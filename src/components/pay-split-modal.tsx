@@ -26,7 +26,7 @@ const seg = (active: boolean) =>
  * Modal para pagar un monto: se elige la caja (o ya viene fija) y cómo se divide entre efectivo y banco.
  * Lo usan los reembolsos y los pagos de nómina. `onPay` recibe la caja y los montos escritos.
  */
-export function PaySplitModal({ open, onClose, title, subtitle, totalCents, fixedBox, boxes, balances, confirmLabel = "Registrar pago", adjustable = false, onPay }: {
+export function PaySplitModal({ open, onClose, title, subtitle, totalCents, fixedBox, boxes, balances, confirmLabel = "Registrar pago", adjustable = false, initialAdjustment = "", initialNote = "", onPay }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -37,6 +37,8 @@ export function PaySplitModal({ open, onClose, title, subtitle, totalCents, fixe
   balances: BalanceMap;
   confirmLabel?: string;
   adjustable?: boolean; // permite sumar o restar un ajuste al monto (bono o descuento) con su motivo
+  initialAdjustment?: string; // ajuste ya capturado al editar la semana (por ejemplo «500.00» o «-250.00»)
+  initialNote?: string;
   onPay: (v: { box: Box; cash: string; bank: string; adjustment: string; note: string }) => Promise<{ error?: string }>;
 }) {
   const options = BOXES.filter((b) => (boxes ? boxes.includes(b.value) : b.group === "operativa" && b.value !== "DEV"));
@@ -44,8 +46,8 @@ export function PaySplitModal({ open, onClose, title, subtitle, totalCents, fixe
   const [method, setMethod] = useState<"EFECTIVO" | "BANCO" | "COMBINADO">("EFECTIVO");
   const [cash, setCash] = useState("");
   const [bank, setBank] = useState("");
-  const [adj, setAdj] = useState("");
-  const [note, setNote] = useState("");
+  const [adj, setAdj] = useState(initialAdjustment);
+  const [note, setNote] = useState(initialNote);
   const [error, setError] = useState<string>();
   const [busy, start] = useTransition();
 

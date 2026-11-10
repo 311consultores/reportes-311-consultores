@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Link2, Plus, X } from "lucide-react";
+import type { TaskStatus } from "@prisma/client";
 import { createTask, updateTask } from "@/app/actions/tasks";
 import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { RichTextEditor } from "@/components/rich-text";
@@ -13,16 +14,19 @@ import type { AreaOption, ChainFrom, TaskCard, TaskPrefill } from "./task-types"
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
 
 /** Formulario para crear o editar una tarea (Admin y Editor). */
-export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDone, onCancel }: {
-  clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; task?: TaskCard; prefill?: TaskPrefill; chainFrom?: ChainFrom; onDone: (taskId: string, chain?: ChainFrom) => void; onCancel: () => void;
+export function TaskForm({ clients, team, areas, task, prefill, chainFrom, initialStatus, onDone, onCancel }: {
+  clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; task?: TaskCard; prefill?: TaskPrefill; chainFrom?: ChainFrom; initialStatus?: TaskStatus; onDone: (taskId: string, chain?: ChainFrom) => void; onCancel: () => void;
 }) {
+  // Borrador: solo el nombre es obligatorio (se completa después). «initialStatus» viene del «+» de cada columna.
+  const draft = task ? task.status === "BORRADOR" : initialStatus === "BORRADOR";
+  const newStatus: TaskStatus = initialStatus ?? "PENDIENTE";
   const [clientId, setClientId] = useState(task?.clientId ?? chainFrom?.clientId ?? prefill?.clientId ?? "");
   const [projectId, setProjectId] = useState(task?.projectId ?? chainFrom?.projectId ?? prefill?.projectId ?? "");
   // Tarea encadenada: no lleva fecha fija, sino un plazo en días y horas que cuenta desde que se apruebe la anterior
   const showWait = !!chainFrom || !!task?.waiting;
   const [waitDays, setWaitDays] = useState(String(task?.waiting ? task.waitDays ?? 0 : 2));
   const [waitHours, setWaitHours] = useState(String(task?.waiting ? task.waitHours ?? 0 : 0));
-  const [dueAt, setDueAt] = useState(() => toMxInput(task ? new Date(task.dueAt) : defaultDue()));
+  const [dueAt, setDueAt] = useState(() => (task ? (task.dueAt ? toMxInput(new Date(task.dueAt)) : "") : draft ? "" : toMxInput(defaultDue())));
   const [resources, setResources] = useState<{ key: number; title: string; url: string }[]>(() =>
     task?.resources.length ? task.resources.map((r, i) => ({ key: i, title: r.title, url: r.url })) : [],
   );
@@ -44,7 +48,11 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDon
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const chainNext = ((e.nativeEvent as SubmitEvent).submitter as HTMLElement | null)?.dataset.chain === "1"; // «Asignar y encadenar otra tarea»
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLElement | null;
+    const chainNext = submitter?.dataset.chain === "1"; // «Asignar y encadenar otra tarea»
+    // Estado con el que se guarda: al crear, el de la columna; al editar un borrador, el botón elegido («Guardar borrador» o «Enviar al equipo»)
+    if (!task) fd.set("status", newStatus);
+    else if (draft) fd.set("status", submitter?.dataset.status ?? "BORRADOR");
     const titleNow = String(fd.get("title") ?? "");
     setError(undefined);
     start(async () => {
@@ -62,14 +70,17 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDon
           <p className="rounded-xl bg-[#FF9500]/10 px-3 py-2 text-sm text-[#8A4B00] dark:text-[#FFB340]">🔗 Esta tarea quedará <strong>en espera</strong> hasta que se apruebe «{chainFrom.title}». Entonces se activa y se avisa a quien la recibe.</p>
         </>
       )}
+      {draft && (
+        <p className="rounded-xl bg-[#AF52DE]/10 px-3 py-2 text-sm text-[#8944AB] dark:text-[#DA8FFF]">✏️ Es un <strong>borrador</strong>: solo el nombre es obligatorio y el equipo no lo ve. Cuando esté completo, mándalo al equipo.</p>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="label" htmlFor="t-client">Cliente</label>
-          <ComboSelect name="clientId" ariaLabel="Cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={clientId} onChange={(v) => { setClientId(v); setProjectId(""); }} placeholder="Escribe para buscar un cliente…" required />
+          <ComboSelect name="clientId" ariaLabel="Cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={clientId} onChange={(v) => { setClientId(v); setProjectId(""); }} placeholder="Escribe para buscar un cliente…" required={!draft} />
         </div>
         <div>
           <label className="label" htmlFor="t-project">Proyecto</label>
-          <select id="t-project" name="projectId" className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} required disabled={!clientId}>
+          <select id="t-project" name="projectId" className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} required={!draft} disabled={!clientId}>
             <option value="">{clientId ? "Elige un proyecto…" : "Primero elige el cliente"}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -78,7 +89,7 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDon
 
       <div>
         <label className="label" htmlFor="t-area">Área</label>
-        <select id="t-area" name="areaId" className="input" value={areaId} onChange={(e) => setAreaId(e.target.value)} required>
+        <select id="t-area" name="areaId" className="input" value={areaId} onChange={(e) => setAreaId(e.target.value)} required={!draft}>
           <option value="">Elige el área…</option>
           {areas.filter((a) => a.active || a.id === task?.areaId).map((a) => <option key={a.id} value={a.id}>{a.name}{a.active ? "" : " (desactivada)"}</option>)}
         </select>
@@ -107,12 +118,12 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDon
           ) : (
             <>
               <label className="label" htmlFor="t-due">Fecha y hora de entrega</label>
-              <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
-              {!task && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
+              <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required={!draft} />
+              {!task && !draft && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
             </>
           )}
         </div>
-        {canSchedule && !showWait && (
+        {canSchedule && !showWait && !draft && (
           <div className="md:col-span-2">
             <label className="label" htmlFor="t-publish">Programar aparición (opcional)</label>
             <input id="t-publish" name="publishAt" type="datetime-local" className="input md:!w-64" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} />
@@ -163,8 +174,9 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDon
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-outline" onClick={onCancel}>Cancelar</button>
-        {!task && <button type="submit" data-chain="1" className="btn-outline" disabled={busy}><Link2 size={15} /> {chainFrom ? "Crear y encadenar otra" : "Asignar y encadenar otra tarea"}</button>}
-        <button type="submit" className="btn" disabled={busy}>{busy ? "Guardando…" : task ? "Guardar cambios" : chainFrom ? "Crear tarea encadenada" : "Asignar tarea"}</button>
+        {!task && !draft && <button type="submit" data-chain="1" className="btn-outline" disabled={busy}><Link2 size={15} /> {chainFrom ? "Crear y encadenar otra" : "Asignar y encadenar otra tarea"}</button>}
+        {draft && task && <button type="submit" data-status="PENDIENTE" className="btn-outline" disabled={busy}>Enviar al equipo (Pendiente)</button>}
+        <button type="submit" data-status="BORRADOR" className="btn" disabled={busy}>{busy ? "Guardando…" : draft ? (task ? "Guardar borrador" : "Crear borrador") : task ? "Guardar cambios" : chainFrom ? "Crear tarea encadenada" : "Asignar tarea"}</button>
       </div>
     </form>
   );

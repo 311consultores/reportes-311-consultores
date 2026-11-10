@@ -31,7 +31,7 @@ export default async function ReimbursementsPage({ searchParams }: { searchParam
   const list: ReimbRow[] = rows.map((r) => ({
     id: r.id, who: r.requestedBy.name, concept: r.concept, cents: decimalToCents(r.amount), spentOn: isoDate(r.spentOn), urgency: r.urgency,
     client: r.clientId ? cName.get(r.clientId) ?? null : null, project: r.projectId ? pName.get(r.projectId) ?? null : null,
-    status: r.status as ReimbRow["status"], rejectReason: r.rejectReason, receiptName: r.receiptName, receiptType: r.receiptType,
+    status: r.status as ReimbRow["status"], rejectReason: r.rejectReason, hasReceipt: !!r.receiptKey,
     createdAt: r.createdAt.toISOString(), paidAt: r.paidAt?.toISOString() ?? null,
   }));
 
@@ -41,7 +41,7 @@ export default async function ReimbursementsPage({ searchParams }: { searchParam
     <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="page-title">Reembolsos</h1>
-        <p className="meta">{isAdmin ? "Dinero que el equipo puso de su bolsillo para la empresa. Aprueba o rechaza y, al pagar, elige la caja y cómo se divide." : "Si pagaste algo de tu bolsillo para la empresa, regístralo aquí con su comprobante para que te lo devuelvan."}</p>
+        <p className="meta">{isAdmin ? "Dinero que el equipo puso de su bolsillo para la empresa. Al aprobar, eliges la caja y cómo se divide entre efectivo y banco: el pago queda como un egreso." : "Si pagaste algo de tu bolsillo para la empresa, regístralo aquí (con su comprobante, si lo tienes) para que te lo devuelvan."}</p>
       </div>
       {!isAdmin && (
         <section className="card space-y-3">

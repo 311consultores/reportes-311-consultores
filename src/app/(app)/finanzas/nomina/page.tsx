@@ -21,7 +21,7 @@ export default async function PayrollPage() {
     id: w.id, year: w.year, week: w.week, payDate: isoDate(w.payDate), status: w.status as "PROGRAMADA" | "PAGADA",
     baseCents: decimalToCents(w.baseTotal), breakdown: parseBreakdown(w.breakdown),
     adjustmentCents: decimalToCents(w.adjustment), adjustmentNote: w.adjustmentNote, paidCents: w.paidTotal ? decimalToCents(w.paidTotal) : null,
-    paidAt: w.paidAt?.toISOString() ?? null, voidReason: w.voidReason,
+    paidAt: w.paidAt?.toISOString() ?? null, voidReason: w.voidReason, edited: w.edited,
   }));
   const config: PayConfigRow[] = people.map((p) => ({ userId: p.id, name: p.name, amount: p.weeklyPay ? p.weeklyPay.toString() : "" }));
 

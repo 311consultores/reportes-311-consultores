@@ -6,7 +6,14 @@ const MX_OFFSET = "-06:00"; // México ya no tiene horario de verano
 
 export const STATUS_ORDER: TaskStatus[] = ["PENDIENTE", "EN_PROCESO", "PARA_REVISAR", "TERMINADA"];
 
+/** Columnas del tablero para quien administra las tareas: incluye BORRADORES a la izquierda. El TEAM 311 nunca los ve. */
+export const BOARD_ORDER_OPS: TaskStatus[] = ["BORRADOR", ...STATUS_ORDER];
+
+/** Columnas donde el «+» crea una tarea directamente. */
+export const QUICK_ADD: TaskStatus[] = ["BORRADOR", "PENDIENTE", "EN_PROCESO", "PARA_REVISAR"];
+
 export const STATUS_INFO: Record<TaskStatus, { label: string; emoji: string; hint: string; dot: string }> = {
+  BORRADOR: { label: "BORRADORES", emoji: "✏️", hint: "Incompletas, sin asignar al equipo", dot: "#AF52DE" },
   PENDIENTE: { label: "PENDIENTE", emoji: "📝", hint: "Aquí nacen las tareas", dot: "#8E8E93" },
   EN_PROCESO: { label: "EN PROCESO", emoji: "🚀", hint: "Ya se está trabajando", dot: "#007AFF" },
   PARA_REVISAR: { label: "PARA REVISAR", emoji: "🔍", hint: "Esperando revisión", dot: "#FF9500" },
@@ -74,6 +81,7 @@ export function dueState(status: TaskStatus, due: Date | string, now: Date): "ov
 /** ¿Puede este usuario mover una tarea entre estas fases? (el servidor vuelve a comprobarlo) */
 export function canMove(role: Role, isAssignee: boolean, from: TaskStatus, to: TaskStatus): boolean {
   if (from === to) return false;
+  if (from === "BORRADOR" || to === "BORRADOR") return role === "ADMIN" || role === "EDITOR" || role === "PROJECT_311"; // el TEAM 311 no ve ni mueve borradores
   if (role === "ADMIN" || role === "EDITOR" || role === "PROJECT_311") return true;
   if (role !== "TEAM_311" || !isAssignee) return false;
   if (from === "PENDIENTE") return to === "EN_PROCESO" || to === "PARA_REVISAR";

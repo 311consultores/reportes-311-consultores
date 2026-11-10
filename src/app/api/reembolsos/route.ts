@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
-/** El TEAM 311 solicita un reembolso: concepto, monto, fecha, urgencia y comprobante (foto o PDF, obligatorio). */
+/** El TEAM 311 solicita un reembolso: concepto, monto, fecha, urgencia y comprobante (foto o PDF, opcional). */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user || user.role !== "TEAM_311") return json({ error: "No autorizado" }, 403);
@@ -38,14 +38,18 @@ export async function POST(req: Request) {
   if (cents === null) return json({ error: "El monto debe ser mayor a cero (por ejemplo 350.00)" }, 400);
   if (!isValidIsoDate(spentOn) || spentOn > todayMx()) return json({ error: "Indica la fecha en que hiciste el gasto (no puede ser futura)" }, 400);
   if (!isUrgency(urgency)) return json({ error: "Elige cuándo necesitas que se te devuelva" }, 400);
-  if (!(file instanceof File) || file.size === 0) return json({ error: "El comprobante (foto o PDF) es obligatorio" }, 400);
-  if (file.size > MAX_RECEIPT) return json({ error: "El comprobante pesa más de 10 MB" }, 400);
-
-  const mime = (file.type || "").toLowerCase();
-  const ext = SLOT_INFO.COMPROBANTE.mimes[mime];
-  if (!ext) return json({ error: "El comprobante debe ser una foto JPG o PNG, o un PDF" }, 400);
-  const buf = Buffer.from(await file.arrayBuffer());
-  if (!matchesSignature("COMPROBANTE", mime, buf)) return json({ error: "El contenido no coincide con el tipo de archivo" }, 400);
+  // El comprobante es opcional; si se adjunta debe ser válido
+  const receipt = file instanceof File && file.size > 0 ? file : null;
+  let receiptInfo: { buf: Buffer; mime: string; ext: string; name: string } | null = null;
+  if (receipt) {
+    if (receipt.size > MAX_RECEIPT) return json({ error: "El comprobante pesa más de 10 MB" }, 400);
+    const mime = (receipt.type || "").toLowerCase();
+    const ext = SLOT_INFO.COMPROBANTE.mimes[mime];
+    if (!ext) return json({ error: "El comprobante debe ser una foto JPG o PNG, o un PDF" }, 400);
+    const buf = Buffer.from(await receipt.arrayBuffer());
+    if (!matchesSignature("COMPROBANTE", mime, buf)) return json({ error: "El contenido no coincide con el tipo de archivo" }, 400);
+    receiptInfo = { buf, mime, ext, name: (receipt.name || `comprobante.${ext}`).slice(0, 190) };
+  }
 
   // Cliente y proyecto son opcionales; si se eligen deben ser consistentes
   let cId: string | null = null;
@@ -59,12 +63,15 @@ export async function POST(req: Request) {
     }
   }
 
-  const key = `reembolsos/${user.id}/${randomUUID()}.${ext}`;
-  await putObject(key, buf, mime);
+  let key: string | null = null;
+  if (receiptInfo) {
+    key = `reembolsos/${user.id}/${randomUUID()}.${receiptInfo.ext}`;
+    await putObject(key, receiptInfo.buf, receiptInfo.mime);
+  }
   const r = await prisma.reimbursement.create({
     data: {
       requestedById: user.id, concept, amount: centsToDecimal(cents), spentOn: dateOnly(spentOn), urgency, clientId: cId, projectId: pId,
-      receiptKey: key, receiptName: (file.name || `comprobante.${ext}`).slice(0, 190), receiptType: mime,
+      receiptKey: key, receiptName: receiptInfo?.name ?? null, receiptType: receiptInfo?.mime ?? null,
     },
   });
 
@@ -73,7 +80,7 @@ export async function POST(req: Request) {
     const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true }, select: { id: true, email: true } });
     await notifyUsers(admins.map((a) => a.id), {
       actorId: user.id, kind: "REIMB_REQUESTED", title: `Reembolso solicitado: ${concept}`,
-      body: `${user.name} — ${formatCents(cents)} · ${urgencyLabel(urgency)}`, link: `/reembolsos?reembolso=${r.id}`,
+      body: `${user.name} — ${formatCents(cents)} · ${urgencyLabel(urgency)}${receiptInfo ? "" : " · sin comprobante"}`, link: `/reembolsos?reembolso=${r.id}`,
     });
     const logo = await readLogo311();
     const mail = reembolsoSolicitadoEmail({ who: user.name, concept, amount: formatCents(cents), urgency: urgencyLabel(urgency), link: `${await getBaseUrl()}/reembolsos`, withLogo: !!logo });

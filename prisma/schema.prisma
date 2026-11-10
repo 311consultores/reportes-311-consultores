@@ -58,6 +58,7 @@ model User {
   ledgerEntries       LedgerEntry[]
   expensesCreated     Expense[]
   movementsCreated    Movement[]
+  directIncomes       DirectIncome[]
   loansCreated        Loan[]
   loanPaymentsCreated LoanPayment[]
   documentsCreated    Document[]           @relation("DocCreator")
@@ -433,6 +434,8 @@ enum LedgerKind {
   ABONO_PRESTAMO // dinero que regresa a una caja como abono a un préstamo
   ANULA_PRESTAMO
   ANULA_ABONO
+  INGRESO_DIRECTO // Evolutivo 20: ingreso que suma directo a una caja, sin pasar por el reparto
+  ANULA_INGRESO
 }
 
 enum MovementKind {
@@ -460,12 +463,14 @@ model LedgerEntry {
   movementId    String?
   loanId        String?
   loanPaymentId String?
+  incomeId      String?    @db.VarChar(191)
   note          String?    @db.VarChar(191)
   createdById   String
   createdBy     User       @relation(fields: [createdById], references: [id])
   createdAt     DateTime   @default(now())
 
   @@index([box, cashType])
+  @@index([incomeId])
   @@index([occurredOn])
   @@index([invoiceId])
   @@index([expenseId])
@@ -490,6 +495,30 @@ model Expense {
   voidReason  String?     @db.VarChar(300)
   voidedById  String?
 
+  @@index([occurredOn])
+}
+
+/// Ingreso directo a una caja (Evolutivo 20): suma tal cual a la caja, sin el reparto de un cobro.
+model DirectIncome {
+  id          String    @id @default(uuid())
+  box         Box
+  cashType    CashType
+  amount      Decimal   @db.Decimal(12, 2)
+  concept     String    @db.VarChar(200)
+  reason      String    @db.VarChar(300) // motivo del ingreso
+  origin      String    @default("CLIENTE") @db.VarChar(10) // CLIENTE (cliente y proyecto opcionales) | OTRO (se indica la procedencia)
+  originNote  String?   @db.VarChar(200)
+  clientId    String?   @db.VarChar(191)
+  projectId   String?   @db.VarChar(191)
+  occurredOn  DateTime  @db.Date
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  voidedAt    DateTime?
+  voidReason  String?   @db.VarChar(300)
+  voidedById  String?
+
+  @@index([box])
   @@index([occurredOn])
 }
 
@@ -613,6 +642,7 @@ model DocumentSend {
 }
 
 enum TaskStatus {
+  BORRADOR // Evolutivo 20: tarea incompleta que ADMIN, EDITOR y PROJECT guardan antes de asignarla al TEAM 311
   PENDIENTE
   EN_PROCESO
   PARA_REVISAR
@@ -622,17 +652,17 @@ enum TaskStatus {
 // Panel de tareas (Evolutivo 7): tareas asignadas al equipo TEAM 311 por Admin o Editor
 model Task {
   id                String           @id @default(uuid())
-  clientId          String
-  client            Client           @relation(fields: [clientId], references: [id])
-  projectId         String
-  project           Project          @relation(fields: [projectId], references: [id])
+  clientId          String? // vacío solo en un BORRADOR
+  client            Client?          @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  projectId         String? // vacío solo en un BORRADOR
+  project           Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   publishAt         DateTime? // Tarea programada: aparece para la persona asignada a partir de esta fecha y hora (vacío = de inmediato)
   publishNotifiedAt DateTime? // Cuándo se avisó a las personas asignadas de una tarea programada
   areaId            String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
   area              Area?            @relation(fields: [areaId], references: [id])
   title             String           @db.VarChar(191)
   descriptionHtml   String           @db.Text
-  dueAt             DateTime // Fecha y hora de entrega
+  dueAt             DateTime? // Fecha y hora de entrega (vacío solo en un BORRADOR)
   status            TaskStatus       @default(PENDIENTE)
   createdById       String
   createdBy         User             @relation("TaskCreator", fields: [createdById], references: [id])
@@ -1076,9 +1106,9 @@ model Reimbursement {
   urgency       String    @db.VarChar(12) // URGE | SABADO
   clientId      String?   @db.VarChar(191)
   projectId     String?   @db.VarChar(191)
-  receiptKey    String    @db.VarChar(300)
-  receiptName   String    @db.VarChar(191)
-  receiptType   String    @db.VarChar(60)
+  receiptKey    String?   @db.VarChar(300) // Evolutivo 20: el comprobante es opcional
+  receiptName   String?   @db.VarChar(191)
+  receiptType   String?   @db.VarChar(60)
   status        String    @default("SOLICITADO") @db.VarChar(12) // SOLICITADO | APROBADO | RECHAZADO | PAGADO
   reviewedById  String?   @db.VarChar(191)
   reviewedAt    DateTime?
@@ -1109,6 +1139,7 @@ model PayrollWeek {
   paidById       String?   @db.VarChar(191)
   voidReason     String?   @db.VarChar(300) // motivo de la última anulación
   reminderSentAt DateTime?
+  edited         Boolean   @default(false) // Evolutivo 20: editada a mano; ya no se reescribe con los sueldos vigentes
   createdAt      DateTime  @default(now())
 
   @@unique([year, week])

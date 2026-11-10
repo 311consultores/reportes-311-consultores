@@ -30,7 +30,7 @@ async function describeTarget(type: TargetType, id: string): Promise<string | nu
   }
   if (type === "WORKTASK") {
     const t = await prisma.task.findUnique({ where: { id }, select: { title: true, client: { select: { companyName: true } } } });
-    return t ? `Tarea «${t.title}» (${t.client.companyName})` : null;
+    return t ? `Tarea «${t.title}» ${t.client ? `(${t.client.companyName})` : "(borrador)"}` : null;
   }
   if (type === "TASK") {
     const t = await prisma.reportTask.findUnique({

@@ -388,13 +388,13 @@ async function createAdjustmentTask(
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true, name: true } } } } },
   });
 
-  await notifyUsers(assignees, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
+  await notifyUsers(assignees, { kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client?.companyName ?? ""} · ${task.project?.projectName ?? ""} — entrega ${task.dueAt ? formatMx(task.dueAt) : ""}`, link: `/tareas?tarea=${task.id}` });
   try {
     const logo = await readLogo311();
     const taskUrl = `${await getBaseUrl()}/tareas?tarea=${task.id}`;
     await sendMail({
       to: task.assignees.map((a) => a.user.email),
-      ...tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: "Revisiones", link: taskUrl, withLogo: !!logo }),
+      ...tareaAsignadaEmail({ title: task.title, clientName: task.client?.companyName ?? "", projectName: task.project?.projectName ?? "", due: task.dueAt ? formatMx(task.dueAt) : "", byName: "Revisiones", link: taskUrl, withLogo: !!logo }),
       inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined,
     });
   } catch (e) {

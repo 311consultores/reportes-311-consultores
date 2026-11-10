@@ -8,7 +8,7 @@ import { MAX_RECEIPT } from "@/lib/reimbursements";
 
 type ClientOpt = { id: string; name: string; projects: { id: string; name: string }[] };
 
-/** Solicitud de reembolso del TEAM 311: concepto, monto, fecha, urgencia, comprobante obligatorio y cliente/proyecto opcionales. */
+/** Solicitud de reembolso del TEAM 311: concepto, monto, fecha, urgencia, comprobante opcional y cliente/proyecto opcionales. */
 export function ReimbursementForm({ today, clients }: { today: string; clients: ClientOpt[] }) {
   const router = useRouter();
   const [clientId, setClientId] = useState("");
@@ -24,8 +24,8 @@ export function ReimbursementForm({ today, clients }: { today: string; clients: 
     const file = fd.get("receipt");
     setError(undefined);
     setDone(false);
-    if (!(file instanceof File) || file.size === 0) return setError("El comprobante (foto o PDF) es obligatorio");
-    if (file.size > MAX_RECEIPT) return setError("El comprobante pesa más de 10 MB");
+    // El comprobante es opcional; si se adjunta, no debe pesar más de 10 MB
+    if (file instanceof File && file.size > MAX_RECEIPT) return setError("El comprobante pesa más de 10 MB");
     setBusy(true);
     try {
       const res = await fetch("/api/reembolsos", { method: "POST", body: fd });
@@ -83,9 +83,9 @@ export function ReimbursementForm({ today, clients }: { today: string; clients: 
         </div>
       </div>
       <div>
-        <label className="label" htmlFor="r-file">Comprobante (foto del ticket o PDF) — obligatorio</label>
-        <input id="r-file" name="receipt" type="file" accept="image/jpeg,image/png,application/pdf" className="input !py-1.5 text-sm" required />
-        <p className="mt-1 text-xs text-zinc-500">JPG, PNG o PDF de hasta 10 MB.</p>
+        <label className="label" htmlFor="r-file">Comprobante (foto del ticket o PDF) — opcional</label>
+        <input id="r-file" name="receipt" type="file" accept="image/jpeg,image/png,application/pdf" className="input !py-1.5 text-sm" />
+        <p className="mt-1 text-xs text-zinc-500">JPG, PNG o PDF de hasta 10 MB. Si no tienes comprobante, puedes enviar la solicitud sin él: el Administrador verá que va sin comprobante.</p>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {done && <p role="status" className="text-sm text-[#248A3D]">✔ Solicitud enviada. Se avisó al Administrador.</p>}

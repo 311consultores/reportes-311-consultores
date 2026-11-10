@@ -40,12 +40,13 @@ export async function rejectReimbursement(id: string, reason: string): Promise<R
   return { ok: true };
 }
 
+type PayInput = { box: string; cash: string; bank: string };
+
 /**
- * El ADMINISTRADOR paga un reembolso aprobado: elige la caja y cómo se divide (efectivo/banco).
- * Queda como un gasto (egreso) de esa caja; no se paga de una caja sin saldo.
+ * Registra el egreso de un reembolso: descuenta de la caja elegida (efectivo y/o banco) como un gasto y lo deja PAGADO.
+ * El monto es el solicitado y no se modifica. No se paga de una caja sin saldo. `from` indica el estado en que debe estar.
  */
-export async function payReimbursement(id: string, input: { box: string; cash: string; bank: string }): Promise<Res> {
-  const admin = await requireUser(["ADMIN"]);
+async function settle(id: string, adminId: string, from: "SOLICITADO" | "APROBADO", input: PayInput): Promise<Res> {
   if (!isBox(input.box)) return { error: "Elige la caja de la que saldrá el pago" };
   const box: Box = input.box;
   const cash = input.cash.trim() ? parseMoney(input.cash) : 0;
@@ -54,7 +55,7 @@ export async function payReimbursement(id: string, input: { box: string; cash: s
   try {
     await prisma.$transaction(async (tx) => {
       const r = await tx.reimbursement.findUnique({ where: { id } });
-      if (!r || r.status !== "APROBADO") throw new Error("Solo se pueden pagar reembolsos aprobados");
+      if (!r || r.status !== from) throw new Error(from === "SOLICITADO" ? "El reembolso ya no está en «Solicitado»" : "Solo se pueden pagar reembolsos aprobados");
       const total = decimalToCents(r.amount);
       if (cash + bank !== total) throw new Error(`Efectivo (${formatCents(cash)}) + banco (${formatCents(bank)}) debe sumar ${formatCents(total)}`);
       const balances = await getBalances(tx);
@@ -67,19 +68,38 @@ export async function payReimbursement(id: string, input: { box: string; cash: s
       const who = (await tx.user.findUnique({ where: { id: r.requestedById }, select: { name: true } }))?.name ?? "";
       const concept = `Reembolso a ${who}: ${r.concept}`.slice(0, 200);
       const e = await tx.expense.create({
-        data: { concept, kind: "OTRO", box, cashAmount: centsToDecimal(cash), bankAmount: centsToDecimal(bank), total: centsToDecimal(total), occurredOn: on, createdById: admin.id },
+        data: { concept, kind: "OTRO", box, cashAmount: centsToDecimal(cash), bankAmount: centsToDecimal(bank), total: centsToDecimal(total), occurredOn: on, createdById: adminId },
       });
       await writeEntries(tx, [
-        ...(cash > 0 ? [{ box, cashType: "EFECTIVO" as const, cents: -cash, kind: "GASTO" as const, occurredOn: on, createdById: admin.id, expenseId: e.id, note: concept }] : []),
-        ...(bank > 0 ? [{ box, cashType: "BANCO" as const, cents: -bank, kind: "GASTO" as const, occurredOn: on, createdById: admin.id, expenseId: e.id, note: concept }] : []),
+        ...(cash > 0 ? [{ box, cashType: "EFECTIVO" as const, cents: -cash, kind: "GASTO" as const, occurredOn: on, createdById: adminId, expenseId: e.id, note: concept }] : []),
+        ...(bank > 0 ? [{ box, cashType: "BANCO" as const, cents: -bank, kind: "GASTO" as const, occurredOn: on, createdById: adminId, expenseId: e.id, note: concept }] : []),
       ]);
-      await tx.reimbursement.update({ where: { id }, data: { status: "PAGADO", paidById: admin.id, paidAt: new Date(), expenseId: e.id } });
+      const now = new Date();
+      await tx.reimbursement.update({
+        where: { id },
+        data: { status: "PAGADO", paidById: adminId, paidAt: now, expenseId: e.id, ...(from === "SOLICITADO" ? { reviewedById: adminId, reviewedAt: now, rejectReason: null } : {}) },
+      });
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo registrar el pago" };
   }
   const row = await prisma.reimbursement.findUniqueOrThrow({ where: { id } });
-  await notifyUsers([row.requestedById], { actorId: admin.id, kind: "REIMB_RESULT", title: `¡Te pagaron tu reembolso!: ${row.concept}`, body: formatCents(decimalToCents(row.amount)), link: "/reembolsos" });
+  await notifyUsers([row.requestedById], { actorId: adminId, kind: "REIMB_RESULT", title: `¡Te pagaron tu reembolso!: ${row.concept}`, body: formatCents(decimalToCents(row.amount)), link: "/reembolsos" });
   refresh();
   return { ok: true };
+}
+
+/**
+ * Aprueba y paga un reembolso solicitado en un solo paso: el ADMINISTRADOR elige la caja y cómo se divide entre efectivo y banco.
+ * Queda como un egreso de esa caja y el reembolso pasa a PAGADO.
+ */
+export async function approveAndPayReimbursement(id: string, input: PayInput): Promise<Res> {
+  const admin = await requireUser(["ADMIN"]);
+  return settle(id, admin.id, "SOLICITADO", input);
+}
+
+/** Paga un reembolso que ya había quedado APROBADO (de cuando aprobar y pagar eran dos pasos). */
+export async function payReimbursement(id: string, input: PayInput): Promise<Res> {
+  const admin = await requireUser(["ADMIN"]);
+  return settle(id, admin.id, "APROBADO", input);
 }

@@ -18,7 +18,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const history = historial === "1";
 
   // El TEAM 311 solo ve las tareas que le asignaron; Admin, Editor y PROJECT 311 ven todas
-  const mine: Prisma.TaskWhereInput = isOps ? {} : { AND: [{ assignees: { some: { userId: user.id } } }, publishedWhere()] }; // una tarea programada no aparece hasta su fecha
+  const mine: Prisma.TaskWhereInput = isOps ? {} : { AND: [{ assignees: { some: { userId: user.id } } }, publishedWhere(), { status: { not: "BORRADOR" } }] }; // una tarea programada no aparece hasta su fecha
   const cutoff = finishedCutoff();
   const where: Prisma.TaskWhereInput = history
     ? { ...mine, status: "TERMINADA", OR: [{ hiddenAt: { not: null } }, { acceptedAt: { lt: cutoff } }] }
@@ -34,7 +34,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const [rows, clients, team, areaRows] = await Promise.all([
     prisma.task.findMany({
       where,
-      orderBy: history ? { acceptedAt: "desc" } : { dueAt: "asc" },
+      orderBy: history ? { acceptedAt: "desc" } : [{ dueAt: { sort: "asc", nulls: "last" } }],
       take: history ? 200 : 500,
       include: taskInclude,
     }),

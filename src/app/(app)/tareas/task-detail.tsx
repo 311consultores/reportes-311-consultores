@@ -14,7 +14,7 @@ import { ConsultantPicker, type TeamOption } from "@/components/consultant-picke
 import { isPublishedIso } from "@/lib/task-schedule";
 import { taskAssignMessage } from "@/lib/whatsapp";
 import { randomTaskPhrase } from "@/lib/task-phrases";
-import { canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
+import { BOARD_ORDER_OPS, canMove, EVENT_LABEL, formatMx, remainingText, STATUS_INFO, STATUS_ORDER } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 import { addTaskAssignees, removeTaskAssignee, toggleSubtask } from "@/app/actions/tasks";
 import { TaskChat } from "./task-chat";
@@ -40,10 +40,10 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
   const isOps = isTaskManager(role);
   const mine = task.assignees.some((a) => a.id === meId);
   const info = STATUS_INFO[task.status];
-  const rem = remainingText(task.dueAt, now);
+  const rem = task.dueAt ? remainingText(task.dueAt, now) : { text: "Sin fecha de entrega", overdue: false };
   const active = task.status === "PENDIENTE" || task.status === "EN_PROCESO";
   const waiting = task.waiting; // en espera: se consulta y se chatea, pero no se mueve ni se marcan subtareas
-  const targets = waiting ? [] : STATUS_ORDER.filter((s) => canMove(role, mine, task.status, s));
+  const targets = waiting ? [] : (isOps ? BOARD_ORDER_OPS : STATUS_ORDER).filter((s) => canMove(role, mine, task.status, s));
   const canReady = !waiting && role === "TEAM_311" && mine && active;
   const locked = task.status === "TERMINADA" && !isOps; // el TEAM 311 solo consulta
   // Enlace de la tarea para copiar y mandar por WhatsApp (solo quien gestiona tareas)
@@ -252,8 +252,8 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
         </div>
         <div>
           <p className="text-xs text-zinc-500">Fecha de entrega</p>
-          {waiting ? <p>{waitLabel(task.waitDays, task.waitHours)} después de que se apruebe la anterior</p> : <p>{formatMx(task.dueAt)}</p>}
-          {!waiting && task.status !== "PARA_REVISAR" && task.status !== "TERMINADA" && (
+          {waiting ? <p>{waitLabel(task.waitDays, task.waitHours)} después de que se apruebe la anterior</p> : <p>{task.dueAt ? formatMx(task.dueAt) : "Sin fecha de entrega"}</p>}
+          {!waiting && !!task.dueAt && task.status !== "PARA_REVISAR" && task.status !== "TERMINADA" && task.status !== "BORRADOR" && (
             <p className={cn("mt-1 flex items-center gap-1.5 font-semibold", rem.overdue ? "text-[#FF3B30]" : "text-[#007AFF]")}>
               <CalendarClock size={15} /> {rem.text}
             </p>

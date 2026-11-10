@@ -4,12 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Ban } from "lucide-react";
 import { voidExpense, voidMovement } from "@/app/actions/finance";
+import { voidDirectIncome } from "@/app/actions/income";
 import { voidLoan, voidLoanPayment } from "@/app/actions/loans";
 import { useDialogs } from "@/components/dialogs";
 
 const COPY = {
   expense: { title: "Anular gasto", message: "El dinero regresa a las cajas y el registro se conserva marcado como anulado. Escribe el motivo.", run: voidExpense },
   movement: { title: "Anular movimiento", message: "El dinero regresa a las cajas y el registro se conserva marcado como anulado. Escribe el motivo.", run: voidMovement },
+  income: { title: "Anular ingreso directo", message: "El dinero sale otra vez de la caja y el registro se conserva marcado como anulado. Escribe el motivo.", run: voidDirectIncome },
   loan: { title: "Anular préstamo", message: "El préstamo se conserva marcado como anulado y deja de contar en la deuda. Si el dinero salió de las cajas al registrarlo, regresa a ellas. Escribe el motivo.", run: voidLoan },
   payment: { title: "Anular abono", message: "El dinero del abono sale otra vez de la caja a la que había regresado y la deuda vuelve a subir. El abono se conserva marcado como anulado. Escribe el motivo.", run: voidLoanPayment },
 } as const;

@@ -18,6 +18,10 @@ export const BOXES: BoxInfo[] = [
   { value: "UTILIDAD_YISUS", label: "Utilidad individual · Yisus", group: "socio", hint: "" },
 ];
 
+/** Cajas que aceptan un ingreso directo (suma directo a la caja, sin pasar por el reparto de un cobro). */
+export const DIRECT_INCOME_BOXES: Box[] = ["AHORRO", "NAVIDAD", "GASTOS", "UTILIDAD", "IMPUESTOS"];
+export const acceptsDirectIncome = (b: Box) => DIRECT_INCOME_BOXES.includes(b);
+
 export const boxLabel = (b: Box) => BOXES.find((x) => x.value === b)?.label ?? b;
 export const CASH_LABEL: Record<CashType, string> = { EFECTIVO: "Efectivo", BANCO: "Banco" };
 export const isBox = (v: string): v is Box => BOXES.some((b) => b.value === v);

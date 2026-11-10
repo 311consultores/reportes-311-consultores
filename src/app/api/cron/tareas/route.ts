@@ -1,3 +1,4 @@
+import { onlyComplete } from "@/lib/task-complete";
 import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { getSetting, readLogo311, setSetting } from "@/lib/branding";
@@ -47,13 +48,14 @@ export async function GET(req: Request) {
   const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false, recordatoriosRevision: 0, nominaAviso: 0 };
 
   // 0) Tareas programadas que ya aparecieron: se avisa a las personas asignadas (campanita, navegador y correo)
-  const published = await prisma.task.findMany({
-    where: { publishAt: { not: null, lte: now }, publishNotifiedAt: null },
+  const publishedAll = await prisma.task.findMany({
+    where: { status: { not: "BORRADOR" }, publishAt: { not: null, lte: now }, publishNotifiedAt: null },
     include: {
       client: { select: { companyName: true } }, project: { select: { projectName: true } }, createdBy: { select: { name: true } },
       assignees: { include: { user: { select: { id: true, email: true, active: true } } } },
     },
   });
+  const published = onlyComplete(publishedAll);
   for (const t of published) {
     try {
       const people = t.assignees.map((a) => a.user).filter((u) => u.active);
@@ -69,10 +71,11 @@ export async function GET(req: Request) {
   }
 
   // 1) Por vencer (menos de 12 horas)
-  const soon = await prisma.task.findMany({
+  const soonAll = await prisma.task.findMany({
     where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { gt: now, lte: new Date(now.getTime() + 12 * 3600_000) }, reminderSentAt: null, ...publishedWhere(now), ...notWaitingWhere() },
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, email: true, active: true } } } } },
   });
+  const soon = onlyComplete(soonAll);
   for (const t of soon) {
     const people = t.assignees.map((a) => a.user).filter((u) => u.active);
     try {
@@ -112,11 +115,12 @@ export async function GET(req: Request) {
   const today = todayMx();
   const force = url.searchParams.get("force") === "1";
   if (force || (hourMx >= 8 && (await getSetting(LAST_KEY)) !== today)) {
-    const overdue = await prisma.task.findMany({
+    const overdueAll = await prisma.task.findMany({
       where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { lt: now }, ...publishedWhere(now), ...notWaitingWhere() },
       orderBy: { dueAt: "asc" },
       include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, name: true, email: true, active: true } } } } },
     });
+    const overdue = onlyComplete(overdueAll);
     if (overdue.length > 0) {
       const item = (t: (typeof overdue)[number]): TareaVencida => ({
         title: t.title, clientName: t.client.companyName, projectName: t.project.projectName, due: formatMx(t.dueAt),

@@ -12,7 +12,7 @@ import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES, TASK_MANAGER_ROLES } from "@/lib/roles";
 import { isPublished, isWaiting } from "@/lib/task-visibility";
 import { activateDependents, waitMs } from "@/lib/task-chain";
-import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
+import { BOARD_ORDER_OPS, canMove, formatMx, parseMxInput, toMxInput } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string; reviewId?: string };
 
@@ -40,37 +40,60 @@ async function notify(to: string[], build: (withLogo: boolean) => { subject: str
 
 const taskLink = async (id: string) => `${await getBaseUrl()}/tareas?tarea=${id}`;
 
-/** Lee y valida los campos del formulario de tarea (crear y editar). */
-async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promise<{ error: string } | {
-  clientId: string; projectId: string; areaId: string; title: string; descriptionHtml: string; dueAt: Date; publishAt: Date | null; assigneeIds: string[];
+type TaskFormData = {
+  clientId: string | null; projectId: string | null; areaId: string | null; title: string; descriptionHtml: string; dueAt: Date | null; publishAt: Date | null; assigneeIds: string[];
   resources: { title: string; url: string }[];
   subtasks: { id: string | null; title: string; assigneeId: string | null; dueAt: Date | null }[];
-}> {
-  const clientId = String(fd.get("clientId") ?? "");
-  const projectId = String(fd.get("projectId") ?? "");
-  const areaId = String(fd.get("areaId") ?? "");
+};
+/** Datos de una tarea completa (todo lo obligatorio está presente). */
+type FullTaskForm = TaskFormData & { clientId: string; projectId: string; areaId: string; dueAt: Date };
+const isFull = (d: TaskFormData): d is FullTaskForm => !!d.clientId && !!d.projectId && !!d.areaId && !!d.dueAt && d.assigneeIds.length > 0;
+
+/** Estados en los que se puede crear una tarea desde el «+» de cada columna. */
+const CREATE_STATUSES: TaskStatus[] = ["BORRADOR", "PENDIENTE", "EN_PROCESO", "PARA_REVISAR"];
+const COMPLETE_MSG = "Para mandarla al equipo completa el cliente, el proyecto, el área, la fecha de entrega y al menos una persona";
+
+/**
+ * Lee y valida los campos del formulario de tarea (crear y editar).
+ * Un BORRADOR solo exige el nombre: todo lo demás puede quedar vacío hasta que se asigne al TEAM 311.
+ */
+async function parseTaskForm(fd: FormData, currentAreaId?: string | null, draft = false): Promise<{ error: string } | TaskFormData> {
+  const rawClient = String(fd.get("clientId") ?? "");
+  const rawProject = String(fd.get("projectId") ?? "");
+  const rawArea = String(fd.get("areaId") ?? "");
+  const clientId = /^[0-9a-f-]{36}$/i.test(rawClient) ? rawClient : null;
+  const projectId = /^[0-9a-f-]{36}$/i.test(rawProject) ? rawProject : null;
+  const areaId = /^[0-9a-f-]{36}$/i.test(rawArea) ? rawArea : null;
   const title = String(fd.get("title") ?? "").trim().slice(0, 191);
   const descriptionHtml = String(fd.get("descriptionHtml") ?? "");
-  const dueAt = parseMxInput(String(fd.get("dueAt") ?? ""));
+  const dueRaw = String(fd.get("dueAt") ?? "").trim();
+  const dueAt = parseMxInput(dueRaw);
 
-  if (!/^[0-9a-f-]{36}$/i.test(clientId)) return { error: "Selecciona un cliente" };
-  if (!/^[0-9a-f-]{36}$/i.test(projectId)) return { error: "Selecciona un proyecto" };
-  if (!/^[0-9a-f-]{36}$/i.test(areaId)) return { error: "Selecciona el área de la tarea" };
-  // Solo áreas activas (la tarea puede conservar su área actual aunque ya esté desactivada)
-  if (!(await prisma.area.findFirst({ where: { id: areaId, OR: [{ active: true }, ...(currentAreaId === areaId ? [{ id: areaId }] : [])] }, select: { id: true } }))) return { error: "El área elegida no está disponible" };
   if (title.length < 2) return { error: "Escribe el nombre de la tarea" };
-  if (!dueAt) return { error: "Indica la fecha y hora de entrega" };
-  // Programar aparición (opcional): una fecha pasada o inmediata equivale a «aparece ya»
-  const pubRaw = String(fd.get("publishAt") ?? "").trim();
+  if (!draft) {
+    if (!clientId) return { error: "Selecciona un cliente" };
+    if (!projectId) return { error: "Selecciona un proyecto" };
+    if (!areaId) return { error: "Selecciona el área de la tarea" };
+    if (!dueAt) return { error: "Indica la fecha y hora de entrega" };
+  } else if (dueRaw && !dueAt) {
+    return { error: "La fecha de entrega no es válida" };
+  }
+  // Solo áreas activas (la tarea puede conservar su área actual aunque ya esté desactivada)
+  if (areaId && !(await prisma.area.findFirst({ where: { id: areaId, OR: [{ active: true }, ...(currentAreaId === areaId ? [{ id: areaId }] : [])] }, select: { id: true } }))) return { error: "El área elegida no está disponible" };
+  if (projectId && !clientId) return { error: "Elige primero el cliente del proyecto" };
+  if (clientId && projectId && !(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
+  if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) return { error: "El cliente no existe" };
+
+  // Programar aparición (opcional; no aplica a un borrador): una fecha pasada o inmediata equivale a «aparece ya»
+  const pubRaw = draft ? "" : String(fd.get("publishAt") ?? "").trim();
   const pub = pubRaw ? parseMxInput(pubRaw) : null;
   if (pubRaw && !pub) return { error: "La fecha de aparición no es válida" };
   const publishAt = pub && pub.getTime() > Date.now() + 60_000 ? pub : null;
-  if (publishAt && publishAt >= dueAt) return { error: "La tarea debe aparecer antes de su fecha de entrega" };
-  if (!(await prisma.project.findFirst({ where: { id: projectId, clientId }, select: { id: true } }))) return { error: "El proyecto no pertenece al cliente" };
+  if (publishAt && dueAt && publishAt >= dueAt) return { error: "La tarea debe aparecer antes de su fecha de entrega" };
 
   const wanted = [...new Set(fd.getAll("consultantIds").map(String).filter((s) => /^[0-9a-f-]{36}$/i.test(s)))];
   const team = await prisma.user.findMany({ where: { id: { in: wanted }, role: { in: ASSIGNABLE_ROLES }, active: true }, select: { id: true } });
-  if (team.length === 0) return { error: "Asigna la tarea al menos a una persona" };
+  if (!draft && team.length === 0) return { error: "Asigna la tarea al menos a una persona" };
 
   // Recursos: pares título + link (los renglones vacíos se ignoran)
   const titles = fd.getAll("resourceTitle").map(String);
@@ -101,27 +124,46 @@ async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promi
   return { clientId, projectId, areaId, title, descriptionHtml, dueAt, publishAt, assigneeIds, resources, subtasks };
 }
 
-/** Crea una tarea (Admin, Editor y PROJECT 311). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
+/** Aviso a quienes reciben una tarea (campanita, notificación del navegador y correo). */
+async function announceTask(task: { id: string; title: string; clientName: string; projectName: string; dueAt: Date }, userIds: string[], byId: string, byName: string) {
+  if (userIds.length === 0) return;
+  const people = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { email: true } });
+  await notifyUsers(userIds, { actorId: byId, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.clientName} · ${task.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
+  const link = await taskLink(task.id);
+  await notify(people.map((p) => p.email), (withLogo) =>
+    tareaAsignadaEmail({ title: task.title, clientName: task.clientName, projectName: task.projectName, due: formatMx(task.dueAt), byName, link, withLogo }),
+  );
+}
+
+/**
+ * Crea una tarea (Admin, Editor y PROJECT 311). Por defecto nace en PENDIENTE; el «+» de cada columna la crea ya en esa fase
+ * (campo «status»: BORRADOR, PENDIENTE, EN_PROCESO o PARA_REVISAR). Un BORRADOR solo pide el nombre y no avisa a nadie.
+ */
 export async function createTask(fd: FormData): Promise<Result> {
   const user = await requireUser(TASK_MANAGER_ROLES);
+  const wantedStatus = String(fd.get("status") ?? "PENDIENTE") as TaskStatus;
+  const status: TaskStatus = CREATE_STATUSES.includes(wantedStatus) ? wantedStatus : "PENDIENTE";
+  const draft = status === "BORRADOR";
 
   // Tarea encadenada (Evolutivo 19): espera a que otra se apruebe; su plazo se da en días y horas desde esa aprobación
   const prevId = String(fd.get("prevTaskId") ?? "");
   let chain: { prevId: string; prevTitle: string; days: number; hours: number; prevDone: boolean } | null = null;
   if (prevId) {
+    if (draft) return { error: "Un borrador no se puede encadenar: complétalo primero" };
     const prev = /^[0-9a-f-]{36}$/i.test(prevId) ? await prisma.task.findUnique({ where: { id: prevId }, select: { id: true, title: true, status: true, dueAt: true } }) : null;
     if (!prev) return { error: "La tarea anterior no existe" };
+    if (prev.status === "BORRADOR") return { error: "La tarea anterior sigue en borradores" };
     const days = Math.floor(Number(fd.get("waitDays") ?? 0));
     const hours = Math.floor(Number(fd.get("waitHours") ?? 0));
     if (!Number.isFinite(days) || !Number.isFinite(hours) || days < 0 || days > 365 || hours < 0 || hours > 23) return { error: "El plazo no es válido (días de 0 a 365 y horas de 0 a 23)" };
     if (days === 0 && hours === 0) return { error: "Indica el plazo en días y/o horas para entregar la tarea encadenada" };
     const prevDone = prev.status === "TERMINADA";
     // Mientras espera, la fecha de entrega es solo una estimación (se recalcula al activarse)
-    fd.set("dueAt", toMxInput(new Date(Math.max(prev.dueAt.getTime(), Date.now()) + waitMs(days, hours))));
+    fd.set("dueAt", toMxInput(new Date(Math.max(prev.dueAt?.getTime() ?? 0, Date.now()) + waitMs(days, hours))));
     fd.delete("publishAt");
     chain = { prevId: prev.id, prevTitle: prev.title, days, hours, prevDone };
   }
-  const d = await parseTaskForm(fd);
+  const d = await parseTaskForm(fd, undefined, draft);
   if ("error" in d) return { error: d.error };
   const waiting = !!chain && !chain.prevDone;
   const dueAt = chain?.prevDone ? new Date(Date.now() + waitMs(chain.days, chain.hours)) : d.dueAt; // si la anterior ya estaba aprobada, el plazo cuenta desde ahora
@@ -129,32 +171,37 @@ export async function createTask(fd: FormData): Promise<Result> {
   const task = await prisma.task.create({
     data: {
       clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt, publishAt: d.publishAt, createdById: user.id,
+      status, ...(status === "PARA_REVISAR" ? { readyAt: new Date() } : {}),
       ...(chain ? { prevTaskId: chain.prevId, waitDays: chain.days, waitHours: chain.hours, activatedAt: waiting ? null : new Date() } : {}),
       assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
       resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
       subtasks: { create: d.subtasks.map((s, position) => ({ title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position })) },
-      events: { create: { userId: user.id, kind: "CREATED", note: chain ? (waiting ? `Encadenada: en espera de «${chain.prevTitle}»` : `Encadenada a «${chain.prevTitle}» (ya estaba aprobada)`) : null } },
+      events: { create: { userId: user.id, kind: "CREATED", note: draft ? "Guardada como borrador" : chain ? (waiting ? `Encadenada: en espera de «${chain.prevTitle}»` : `Encadenada a «${chain.prevTitle}» (ya estaba aprobada)`) : status !== "PENDIENTE" ? `Creada en ${status}` : null } },
     },
-    include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
+    include: { client: { select: { companyName: true } }, project: { select: { projectName: true } } },
   });
 
-  // Una tarea programada no avisa ahora (sale cuando aparece) y una encadenada en espera avisa cuando se activa
-  if (!d.publishAt && !waiting) {
-    await notifyUsers(d.assigneeIds, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
-    const link = await taskLink(task.id);
-    await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
-      tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
-    );
+  // Un borrador no avisa a nadie; una tarea programada no avisa ahora (sale cuando aparece) y una encadenada en espera avisa cuando se activa
+  if (!draft && !d.publishAt && !waiting && task.dueAt) {
+    await announceTask({ id: task.id, title: task.title, clientName: task.client?.companyName ?? "", projectName: task.project?.projectName ?? "", dueAt: task.dueAt }, d.assigneeIds, user.id, user.name);
   }
   revalidatePath("/tareas");
   return { ok: true, taskId: task.id };
 }
 
-/** Edita una tarea (solo Admin y Editor): nombre, fecha, descripción, personas y recursos. */
+/**
+ * Edita una tarea (Admin, Editor y PROJECT 311): nombre, fecha, descripción, personas y recursos.
+ * Un borrador se guarda incompleto («status» = BORRADOR) o se manda al equipo con «status» = PENDIENTE (entonces todo es obligatorio y se avisa a las personas).
+ */
 export async function updateTask(taskId: string, fd: FormData): Promise<Result> {
   const user = await requireUser(TASK_MANAGER_ROLES);
   const current = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: true } });
   if (!current) return { error: "La tarea no existe" };
+  const wasDraft = current.status === "BORRADOR";
+  const wantedStatus = String(fd.get("status") ?? "BORRADOR") as TaskStatus;
+  const promoteTo: TaskStatus | null = wasDraft && wantedStatus !== "BORRADOR" && CREATE_STATUSES.includes(wantedStatus) ? wantedStatus : null;
+  const stayDraft = wasDraft && !promoteTo;
+
   // Una tarea en espera se edita con su plazo (días y horas) en lugar de una fecha fija
   let waitPatch: { waitDays: number; waitHours: number } | null = null;
   if (isWaiting(current)) {
@@ -162,44 +209,62 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
     const hours = Math.floor(Number(fd.get("waitHours") ?? current.waitHours ?? 0));
     if (!Number.isFinite(days) || !Number.isFinite(hours) || days < 0 || days > 365 || hours < 0 || hours > 23 || (days === 0 && hours === 0)) return { error: "El plazo no es válido (días de 0 a 365 y horas de 0 a 23; al menos uno mayor a 0)" };
     waitPatch = { waitDays: days, waitHours: hours };
-    fd.set("dueAt", toMxInput(new Date(current.dueAt.getTime() - waitMs(current.waitDays, current.waitHours) + waitMs(days, hours))));
+    fd.set("dueAt", toMxInput(new Date((current.dueAt ?? new Date()).getTime() - waitMs(current.waitDays, current.waitHours) + waitMs(days, hours))));
     fd.delete("publishAt");
   }
-  const d = await parseTaskForm(fd, current.areaId);
+  const d = await parseTaskForm(fd, current.areaId, stayDraft);
   if ("error" in d) return { error: d.error };
 
   const existingSubtasks = await prisma.subtask.findMany({ where: { taskId }, select: { id: true } });
+
+  // Borrador que sigue siendo borrador: se guarda tal cual, sin avisos
+  if (stayDraft) {
+    await prisma.$transaction([
+      prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt } }),
+      prisma.taskAssignee.deleteMany({ where: { taskId } }),
+      prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
+      prisma.taskResource.deleteMany({ where: { taskId } }),
+      prisma.taskResource.createMany({ data: d.resources.map((r, position) => ({ ...r, taskId, position })) }),
+      ...subtaskOps(taskId, d.subtasks, existingSubtasks),
+      prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: "Editó el borrador" } }),
+    ]);
+    revalidatePath("/tareas");
+    return { ok: true, taskId };
+  }
+  if (!isFull(d)) return { error: COMPLETE_MSG };
+
   const before = new Set(current.assignees.map((a) => a.userId));
   const added = d.assigneeIds.filter((id) => !before.has(id));
-  // La fecha de aparición solo se puede cambiar mientras la tarea no aparece; si se quita, aparece de inmediato
+  // La fecha de aparición solo se puede cambiar mientras la tarea no aparece (o al sacarla de borradores); si se quita, aparece de inmediato
   const wasPublished = isPublished(current);
-  const publishAt = wasPublished ? current.publishAt : d.publishAt;
-  const publishesNow = !wasPublished && !publishAt;
-  const cronWillNotify = wasPublished && current.publishAt !== null && current.publishNotifiedAt === null; // ya apareció pero el aviso aún no sale
+  const publishAtEditable = !wasPublished || wasDraft;
+  const publishAt = publishAtEditable ? d.publishAt : current.publishAt;
+  const publishesNow = promoteTo ? !publishAt : !wasPublished && !publishAt;
+  const cronWillNotify = !wasDraft && wasPublished && current.publishAt !== null && current.publishNotifiedAt === null; // ya apareció pero el aviso aún no sale
   await prisma.$transaction([
-    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, ...(waitPatch ?? {}), ...(wasPublished ? {} : { publishAt, publishNotifiedAt: null }) } }),
+    prisma.task.update({
+      where: { id: taskId },
+      data: {
+        clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, ...(waitPatch ?? {}),
+        ...(publishAtEditable ? { publishAt, publishNotifiedAt: null } : {}),
+        ...(promoteTo ? { status: promoteTo, ...(promoteTo === "PARA_REVISAR" ? { readyAt: new Date() } : {}) } : {}),
+      },
+    }),
     prisma.taskAssignee.deleteMany({ where: { taskId } }),
     prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
     prisma.taskResource.deleteMany({ where: { taskId } }),
     prisma.taskResource.createMany({ data: d.resources.map((r, position) => ({ ...r, taskId, position })) }),
     ...subtaskOps(taskId, d.subtasks, existingSubtasks),
-    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED" } }),
+    prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: promoteTo ? "MOVED" : "EDITED", note: promoteTo ? `BORRADOR → ${promoteTo}` : null } }),
   ]);
 
-  // Avisos: a las personas nuevas si la tarea ya es visible; a todas si acaba de publicarse; a nadie si sigue programada
+  // Avisos: a las personas nuevas si la tarea ya es visible; a todas si acaba de publicarse o salió de borradores; a nadie si sigue programada
   const stillWaiting = isWaiting(current);
-  const toNotify = stillWaiting ? [] : publishesNow ? d.assigneeIds : wasPublished && !cronWillNotify ? added : [];
+  const toNotify = stillWaiting ? [] : publishesNow ? d.assigneeIds : !promoteTo && wasPublished && !cronWillNotify ? added : [];
   if (publishesNow) await prisma.task.update({ where: { id: taskId }, data: { publishNotifiedAt: new Date() } });
   if (toNotify.length) {
-    const [people, ctx] = await Promise.all([
-      prisma.user.findMany({ where: { id: { in: toNotify } }, select: { email: true } }),
-      prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } }),
-    ]);
-    await notifyUsers(toNotify, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${d.title}`, body: `${ctx?.client.companyName ?? ""} · ${ctx?.projectName ?? ""} — entrega ${formatMx(d.dueAt)}`, link: `/tareas?tarea=${taskId}` });
-    const link = await taskLink(taskId);
-    await notify(people.map((p) => p.email), (withLogo) =>
-      tareaAsignadaEmail({ title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", due: formatMx(d.dueAt), byName: user.name, link, withLogo }),
-    );
+    const ctx = await prisma.project.findUnique({ where: { id: d.projectId }, select: { projectName: true, client: { select: { companyName: true } } } });
+    await announceTask({ id: taskId, title: d.title, clientName: ctx?.client.companyName ?? "", projectName: ctx?.projectName ?? "", dueAt: d.dueAt }, toNotify, user.id, user.name);
   }
   revalidatePath("/tareas");
   return { ok: true, taskId };
@@ -212,7 +277,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
  */
 export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: string; surprise?: boolean } = {}): Promise<Result> {
   const user = await requireUser(STAFF_ROLES);
-  if (!STATUS_ORDER.includes(to)) return { error: "Fase no válida" };
+  if (!BOARD_ORDER_OPS.includes(to)) return { error: "Fase no válida" };
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: { assignees: { select: { userId: true, user: { select: { email: true } } } }, client: { select: { companyName: true } }, project: { select: { projectName: true } } },
@@ -225,6 +290,8 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
     return { error: `Esta tarea está en espera: se activa cuando se apruebe «${prev?.title ?? "la tarea anterior"}»` };
   }
   if (!canMove(user.role, mine, task.status, to)) return { error: "No puedes mover la tarea a esa fase" };
+  // Sacar una tarea de BORRADORES la manda al equipo: debe estar completa
+  if (task.status === "BORRADOR" && to !== "BORRADOR" && !(task.clientId && task.projectId && task.areaId && task.dueAt && task.assignees.length > 0)) return { error: COMPLETE_MSG };
 
   const note = opts.note?.trim().slice(0, 2000) || null;
   const from = task.status;
@@ -256,9 +323,17 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   if (returning) {
     await notifyUsers(assigneeIds, { actorId: user.id, kind: "TASK_RETURNED", title: `Tu tarea volvió a «En proceso»: ${task.title}`, body: note, link: path });
   }
+  // De borrador a una fase de trabajo: se avisa a las personas asignadas como si fuera una tarea nueva (si no es programada)
+  if (from === "BORRADOR" && to !== "BORRADOR" && task.dueAt) {
+    const publishesNow = !task.publishAt || task.publishAt <= now;
+    if (publishesNow) {
+      await prisma.task.update({ where: { id: taskId }, data: { publishNotifiedAt: now } });
+      await announceTask({ id: taskId, title: task.title, clientName: task.client?.companyName ?? "", projectName: task.project?.projectName ?? "", dueAt: task.dueAt }, assigneeIds, user.id, user.name);
+    }
+  }
   if (to === "PARA_REVISAR" && !isOps(user)) {
     await notify(reviewNotifyEmails(), (withLogo) =>
-      tareaParaRevisarEmail({ title: task.title, teamName: user.name, clientName: task.client.companyName, projectName: task.project.projectName, note, link, withLogo }),
+      tareaParaRevisarEmail({ title: task.title, teamName: user.name, clientName: task.client?.companyName ?? "", projectName: task.project?.projectName ?? "", note, link, withLogo }),
     );
   }
   // Al aprobar, se activan las tareas encadenadas que esperaban a esta (su plazo cuenta desde este instante)
@@ -296,6 +371,7 @@ export async function rescheduleTask(taskId: string, day: string): Promise<Resul
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true } } } });
   if (!task) return { error: "La tarea no existe" };
   if (isWaiting(task)) return { error: "La tarea está en espera: su fecha se calcula cuando se apruebe la anterior" };
+  if (!task.dueAt) return { error: "Esta tarea aún no tiene fecha de entrega: asígnala al editarla" };
   const time = toMxInput(task.dueAt).slice(11, 16);
   const next = parseMxInput(`${day}T${time}`);
   if (!next) return { error: "Fecha no válida" };
@@ -369,12 +445,9 @@ export async function addTaskAssignees(taskId: string, userIds: string[]): Promi
     prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Agregó a: ${people.map((p) => p.name).join(", ")}` } }),
   ]);
   // Si la tarea es programada y todavía no aparece (o el aviso general aún no sale), el aviso llega al publicarse
-  if (isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
-    await notifyUsers(people.map((p) => p.id), { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${taskId}` });
-    const link = await taskLink(taskId);
-    await notify(people.map((p) => p.email), (withLogo) =>
-      tareaAsignadaEmail({ title: task.title, clientName: task.client.companyName, projectName: task.project.projectName, due: formatMx(task.dueAt), byName: user.name, link, withLogo }),
-    );
+  // Un borrador no avisa a nadie hasta que se manda al equipo
+  if (task.status !== "BORRADOR" && task.dueAt && isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
+    await announceTask({ id: taskId, title: task.title, clientName: task.client?.companyName ?? "", projectName: task.project?.projectName ?? "", dueAt: task.dueAt }, people.map((p) => p.id), user.id, user.name);
   }
   revalidatePath("/tareas");
   return { ok: true, taskId };
@@ -387,13 +460,13 @@ export async function removeTaskAssignee(taskId: string, userId: string): Promis
   if (!task) return { error: "La tarea no existe" };
   const target = task.assignees.find((a) => a.userId === userId);
   if (!target) return { error: "Esa persona ya no está asignada" };
-  if (task.assignees.length <= 1) return { error: "La tarea debe tener al menos una persona asignada" };
+  if (task.assignees.length <= 1 && task.status !== "BORRADOR") return { error: "La tarea debe tener al menos una persona asignada" };
   await prisma.$transaction([
     prisma.taskAssignee.delete({ where: { taskId_userId: { taskId, userId } } }),
     prisma.subtask.updateMany({ where: { taskId, assigneeId: userId }, data: { assigneeId: null } }),
     prisma.taskEvent.create({ data: { taskId, userId: user.id, kind: "EDITED", note: `Quitó a: ${target.user.name}` } }),
   ]);
-  if (isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
+  if (task.status !== "BORRADOR" && isPublished(task) && (task.publishAt === null || task.publishNotifiedAt !== null)) {
     await notifyUsers([userId], { actorId: user.id, kind: "TASK_UNASSIGNED", title: `Ya no tienes asignada la tarea: ${task.title}`, body: `${user.name} te quitó de la tarea`, link: "/tareas" });
   }
   revalidatePath("/tareas");

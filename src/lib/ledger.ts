@@ -40,6 +40,7 @@ export type NewEntry = {
   movementId?: string;
   loanId?: string;
   loanPaymentId?: string;
+  incomeId?: string;
   note?: string;
 };
 
@@ -58,6 +59,7 @@ export async function writeEntries(db: Db, entries: NewEntry[]) {
       movementId: e.movementId ?? null,
       loanId: e.loanId ?? null,
       loanPaymentId: e.loanPaymentId ?? null,
+      incomeId: e.incomeId ?? null,
       note: e.note?.slice(0, 191) ?? null,
     })),
   });

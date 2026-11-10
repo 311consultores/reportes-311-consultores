@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Clock, Gift, History, KanbanSquare, Lock, Plus, Search, Wand2, X } from "lucide-react";
+import { CalendarDays, ChevronsDownUp, ChevronsUpDown, Clock, Gift, History, KanbanSquare, Lock, Plus, Search, Wand2, X } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { clearFinished, moveTask, openSurprise, rescheduleTask } from "@/app/actions/tasks";
 import { getTaskCard, searchTasks, type TaskHit } from "@/app/actions/task-search";
@@ -16,7 +16,7 @@ import { randomCongrats } from "@/lib/congrats-phrases";
 import { isTaskManager } from "@/lib/roles";
 import { ComboSelect } from "@/components/combo-select";
 import { isPublishedIso } from "@/lib/task-schedule";
-import { canMove, dueState, formatMx, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
+import { BOARD_ORDER_OPS, canMove, dueState, formatMx, QUICK_ADD, STATUS_INFO, STATUS_ORDER, STREAK_BADGES } from "@/lib/tasks-shared";
 import { cn } from "@/lib/utils";
 import { TaskCalendar, type Birthday, type CalMode } from "./task-calendar";
 import { TaskDetail } from "./task-detail";
@@ -24,9 +24,11 @@ import { TaskForm, type ClientOption } from "./task-form";
 import { waitLabel } from "@/lib/task-wait";
 import type { AreaOption, ChainFrom, TaskCard, TaskPrefill } from "./task-types";
 
+const COLLAPSED_KEY = "tareas_tarjetas_contraidas";
+
 const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-type View = null | { kind: "new" } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string } | { kind: "chain"; from: ChainFrom };
+type View = null | { kind: "new"; status?: TaskStatus } | { kind: "edit"; id: string } | { kind: "detail"; id: string } | { kind: "accept"; id: string } | { kind: "surprise"; id: string } | { kind: "chain"; from: ChainFrom };
 
 /** Tablero Kanban de tareas con tarjetas arrastrables, filtros (Admin y Editor) y ventana de detalle. */
 export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, history, initialView = "tablero", streak = 0, prefill, notesByTask = {}, calMode = "mes", showBirthdays = true, birthdays = [] }: {
@@ -50,6 +52,22 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
   const [q, setQ] = useState("");
   const [extra, setExtra] = useState<TaskCard | null>(null); // tarea abierta desde la búsqueda que no está en el tablero (historial)
   const [message, setMessage] = useState<string>();
+  // Tarjetas contraídas (por tarjeta): se recuerdan en este navegador para que no se reabran al recargar
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_KEY);
+      if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>);
+    } catch { /* sin almacenamiento: las tarjetas simplemente inician abiertas */ }
+  }, []);
+  function toggleCollapsed(id: string) {
+    setCollapsed((c) => {
+      const next = { ...c };
+      if (next[id]) delete next[id]; else next[id] = true;
+      try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)); } catch { /* ignorar */ }
+      return next;
+    });
+  }
   const [, startRefresh] = useTransition();
   const [now, setNow] = useState(() => new Date());
   const nq = norm(q.trim());
@@ -95,6 +113,12 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
     const from = override[id] ?? t.status;
     if (!canMove(role, isMine(t), from, to)) return;
     setMessage(undefined);
+    // Un borrador solo sale hacia el equipo cuando está completo; si falta algo se abre para terminarlo
+    if (from === "BORRADOR" && to !== "BORRADOR" && !(t.clientId && t.projectId && t.areaId && t.dueAt && t.assignees.length > 0)) {
+      setMessage("Para mandarla al equipo completa el cliente, el proyecto, el área, la fecha de entrega y al menos una persona.");
+      setView({ kind: "edit", id });
+      return;
+    }
 
     let note: string | undefined;
     let surprise: boolean | undefined;
@@ -213,10 +237,10 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
           </table>
         </div>
       ) : mode === "calendario" ? (
-        <TaskCalendar tasks={list} birthdays={birthdays} initialMode={calMode} initialBirthdays={showBirthdays} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
+        <TaskCalendar tasks={list.filter((t): t is TaskCard & { dueAt: string } => !!t.dueAt)} birthdays={birthdays} initialMode={calMode} initialBirthdays={showBirthdays} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {STATUS_ORDER.map((s) => {
+        <div className={cn("grid gap-4 md:grid-cols-2", isOps ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
+          {(isOps ? BOARD_ORDER_OPS : STATUS_ORDER).map((s) => {
             const info = STATUS_INFO[s];
             const items = list.filter((t) => t.status === s);
             const droppable = dragId ? (() => { const t = byId(dragId); return !!t && !t.waiting && canMove(role, isMine(t), t.status, s); })() : false;
@@ -231,11 +255,19 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
               >
                 <header className="flex items-center justify-between gap-2 px-1">
                   <h2 className="text-sm font-bold tracking-wide" title={info.hint}>{info.emoji} {info.label}</h2>
-                  <span className="rounded-full px-2 py-0.5 text-xs font-semibold text-white" style={{ backgroundColor: info.dot }}>{items.length}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="rounded-full px-2 py-0.5 text-xs font-semibold text-white" style={{ backgroundColor: info.dot }}>{items.length}</span>
+                    {isOps && QUICK_ADD.includes(s) && (
+                      <button type="button" onClick={() => setView({ kind: "new", status: s })} aria-label={`Nueva tarea en ${info.label}`} title={`Nueva tarea en ${info.label}`} className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-zinc-700 shadow-sm transition-all duration-200 ease-out hover:bg-[#007AFF] hover:text-white active:scale-95 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-[#007AFF]">
+                        <Plus size={14} />
+                      </button>
+                    )}
+                  </span>
                 </header>
                 {items.map((t) => {
-                  const st = dueState(t.status, t.dueAt, now);
-                  const draggable = !t.waiting && STATUS_ORDER.some((to) => canMove(role, isMine(t), t.status, to));
+                  const st = t.dueAt ? dueState(t.status, t.dueAt, now) : "ok";
+                  const draggable = !t.waiting && BOARD_ORDER_OPS.some((to) => canMove(role, isMine(t), t.status, to));
+                  const folded = !!collapsed[t.id];
                   return (
                     <article
                       key={t.id}
@@ -245,6 +277,31 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
                       onClick={() => setView(viewFor(t))}
                       className={cn("card cursor-pointer space-y-2 p-3 transition-all duration-200 ease-out hover:-translate-y-0.5", dragId === t.id && "opacity-40", st === "overdue" && "ring-2 ring-[#FF3B30]/50", st === "soon" && "ring-2 ring-[#FF9500]/50")}
                     >
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleCollapsed(t.id); }}
+                        onDragStart={(e) => e.preventDefault()}
+                        draggable={false}
+                        aria-label={folded ? "Expandir tarjeta" : "Contraer tarjeta"}
+                        aria-expanded={!folded}
+                        title={folded ? "Expandir tarjeta" : "Contraer tarjeta"}
+                        className="float-right -mr-1 -mt-1 ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-black/5 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+                      >
+                        {folded ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+                      </button>
+                      {folded ? (
+                        <div className="flex items-center gap-2.5 pr-6">
+                          <span className="flex shrink-0 -space-x-2">
+                            {(t.assignees.length ? t.assignees.slice(0, 3) : [t.createdBy]).map((a) => <Avatar key={a.id} name={a.name} userId={a.id} photoKey={a.photoUrl} size={28} />)}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="truncate text-sm font-semibold leading-snug">{t.title}</h3>
+                            <p className={cn("text-[11px] font-semibold", st === "overdue" ? "text-[#D70015] dark:text-[#FF453A]" : st === "soon" ? "text-[#B25E00] dark:text-[#FFB340]" : "text-zinc-500")}>
+                              {t.waiting ? `Plazo: ${waitLabel(t.waitDays, t.waitHours)}` : t.dueAt ? formatMx(t.dueAt) : "Sin fecha"}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (<>
                       {t.waiting && (
                         <p className="inline-flex items-center gap-1.5 rounded-full bg-[#FF9500]/15 px-2.5 py-1 text-[11px] font-semibold text-[#8A4B00] dark:text-[#FFB340]" title="Se activa cuando se apruebe la tarea anterior"><Lock size={12} /> En espera de «{t.prevTask?.title ?? "la anterior"}»</p>
                       )}
@@ -264,16 +321,17 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
                       {viewFor(t).kind === "surprise" && (
                         <p className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-[#AF52DE]/15 px-2.5 py-1 text-xs font-semibold text-[#8944AB] dark:text-[#DA8FFF]"><Gift size={13} /> ¡Tienes una sorpresa! Haz clic</p>
                       )}
-                      <p className="meta truncate text-xs">{t.clientName} · {t.projectName}</p>
+                      <p className="meta truncate text-xs">{t.clientName ? `${t.clientName} · ${t.projectName}` : "Sin cliente asignado"}</p>
                       <div className="flex items-center justify-between gap-2">
                         <span className="flex -space-x-2">
                           {t.assignees.slice(0, 4).map((a) => <Avatar key={a.id} name={a.name} userId={a.id} photoKey={a.photoUrl} size={26} />)}
                           {t.assignees.length > 4 && <span className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-full bg-zinc-200 text-[10px] font-semibold dark:bg-zinc-700">+{t.assignees.length - 4}</span>}
                         </span>
                         <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", st === "overdue" ? "bg-[#FF3B30]/10 text-[#D70015] dark:text-[#FF453A]" : st === "soon" ? "bg-[#FF9500]/15 text-[#B25E00] dark:text-[#FFB340]" : "bg-black/5 text-zinc-600 dark:bg-white/10 dark:text-zinc-300")}>
-                          {t.waiting ? `Plazo: ${waitLabel(t.waitDays, t.waitHours)}` : <>{st === "overdue" ? "Vencida · " : st === "soon" ? "Por vencer · " : ""}{formatMx(t.dueAt)}</>}
+                          {t.waiting ? `Plazo: ${waitLabel(t.waitDays, t.waitHours)}` : t.dueAt ? <>{st === "overdue" ? "Vencida · " : st === "soon" ? "Por vencer · " : ""}{formatMx(t.dueAt)}</> : "Sin fecha"}
                         </span>
                       </div>
+                      </>)}
                     </article>
                   );
                 })}
@@ -284,8 +342,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
         </div>
       )}
 
-      <Modal open={view?.kind === "new"} onClose={closeView} wide title="Nueva tarea" subtitle="Se asigna a quien elijas del equipo y nace en PENDIENTE">
-        <TaskForm clients={clients} team={team} areas={areas} prefill={prefill} onCancel={closeView} onDone={(id, chain) => { router.refresh(); setView(chain ? { kind: "chain", from: chain } : { kind: "detail", id }); }} />
+      <Modal open={view?.kind === "new"} onClose={closeView} wide title={view?.kind === "new" && view.status === "BORRADOR" ? "Nuevo borrador" : "Nueva tarea"} subtitle={view?.kind === "new" && view.status === "BORRADOR" ? "Solo el nombre es obligatorio; se completa y se manda al equipo después" : `Se asigna a quien elijas del equipo y nace en ${STATUS_INFO[(view?.kind === "new" && view.status) || "PENDIENTE"].label}`}>
+        <TaskForm key={view?.kind === "new" ? view.status ?? "PENDIENTE" : "x"} initialStatus={view?.kind === "new" ? view.status : undefined} clients={clients} team={team} areas={areas} prefill={prefill} onCancel={closeView} onDone={(id, chain) => { router.refresh(); setView(chain ? { kind: "chain", from: chain } : { kind: "detail", id }); }} />
       </Modal>
 
       <Modal open={view?.kind === "chain"} onClose={closeView} wide title="Encadenar otra tarea" subtitle={view?.kind === "chain" ? `Se activa cuando se apruebe «${view.from.title}»` : undefined}>

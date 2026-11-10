@@ -28,7 +28,7 @@ const isOps = (u: CurrentUser) => isTaskManager(u.role);
 async function taskFor(user: CurrentUser, taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true, user: { select: { email: true } } } } } });
   if (!task) return null;
-  if (!isOps(user) && (!task.assignees.some((a) => a.userId === user.id) || !isPublished(task))) return null;
+  if (!isOps(user) && (!task.assignees.some((a) => a.userId === user.id) || !isPublished(task) || task.status === "BORRADOR")) return null;
   return task;
 }
 

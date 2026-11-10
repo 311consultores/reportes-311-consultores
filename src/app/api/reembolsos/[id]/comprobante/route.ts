@@ -12,7 +12,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!user) return new Response("No autorizado", { status: 401 });
   if (!/^[0-9a-f-]{36}$/i.test(id)) return new Response("No encontrado", { status: 404 });
   const r = await prisma.reimbursement.findFirst({ where: { id, ...(user.role === "ADMIN" ? {} : user.role === "TEAM_311" ? { requestedById: user.id } : { id: "-" }) } });
-  if (!r) return new Response("No encontrado", { status: 404 });
+  if (!r || !r.receiptKey || !r.receiptType || !r.receiptName) return new Response("Este reembolso no tiene comprobante", { status: 404 });
   return serveStoredFile(req, r.receiptKey, {
     "Content-Type": r.receiptType,
     "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(r.receiptName)}`,

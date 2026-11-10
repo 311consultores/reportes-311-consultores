@@ -11,13 +11,13 @@ export type TaskCard = {
   id: string;
   title: string;
   descriptionHtml: string;
-  dueAt: string;
+  dueAt: string | null; // vacío solo en un borrador
   publishAt: string | null; // tarea programada: aparece para la persona asignada a partir de esta fecha
   createdAt: string;
   status: TaskStatus;
-  clientId: string;
+  clientId: string | null;
   clientName: string;
-  projectId: string;
+  projectId: string | null;
   projectName: string;
   areaId: string | null;
   areaName: string | null;
@@ -43,4 +43,4 @@ export type TaskCard = {
 };
 
 /** De dónde sale una tarea encadenada nueva. */
-export type ChainFrom = { id: string; title: string; clientId: string; projectId: string };
+export type ChainFrom = { id: string; title: string; clientId: string | null; projectId: string | null };

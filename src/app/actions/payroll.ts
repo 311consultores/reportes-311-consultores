@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { centsToDecimal, dateOnly, decimalToCents, formatCents, parseMoney, todayMx } from "@/lib/finance";
 import { balanceOf, boxLabel, CASH_LABEL, getBalances, writeEntries } from "@/lib/ledger";
-import { parseBreakdown } from "@/lib/payroll";
+import { currentPayConfig, parseBreakdown, type BreakdownRow } from "@/lib/payroll";
 
 type Res = { error?: string; ok?: boolean };
 
@@ -116,5 +116,56 @@ export async function savePayConfig(rows: { userId: string; amount: string }[]):
   await prisma.$transaction(parsed.map((p) => prisma.user.update({ where: { id: p.userId }, data: { weeklyPay: p.cents === null ? null : centsToDecimal(p.cents) } })));
   refresh();
   revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Edita una semana de nómina que aún no está pagada: sueldos por persona (se puede agregar o quitar gente solo para esa semana),
+ * y el ajuste (bono o descuento) con su nota. Queda marcada como «Editada» y deja de reescribirse con los sueldos vigentes.
+ */
+export async function updatePayrollWeek(id: string, input: { rows: { userId: string; amount: string }[]; adjustment: string; note: string }): Promise<Res> {
+  await requireUser(["ADMIN"]);
+  const adj = parseSigned(input.adjustment);
+  if (adj === null) return { error: "El ajuste debe ser un monto (por ejemplo 500 o -250)" };
+  const note = input.note.trim().slice(0, 300);
+  if (adj !== 0 && note.length < 3) return { error: "Escribe el motivo del ajuste" };
+  if (input.rows.length === 0) return { error: "La semana necesita al menos una persona con sueldo" };
+
+  const ids = input.rows.map((r) => r.userId);
+  if (ids.some((u) => !/^[0-9a-f-]{36}$/i.test(u))) return { error: "Hay una persona no válida" };
+  if (new Set(ids).size !== ids.length) return { error: "Una persona aparece más de una vez" };
+  const users = await prisma.user.findMany({ where: { id: { in: ids }, active: true, role: { not: "CLIENTE" } }, select: { id: true, name: true } });
+  const nameOf = new Map(users.map((u) => [u.id, u.name]));
+  const breakdown: BreakdownRow[] = [];
+  for (const r of input.rows) {
+    const name = nameOf.get(r.userId);
+    if (!name) return { error: "Hay una persona que ya no está activa" };
+    const cents = parseMoney(r.amount);
+    if (cents === null) return { error: `Monto no válido para ${name}: «${r.amount}»` };
+    breakdown.push({ userId: r.userId, name, cents });
+  }
+  const base = breakdown.reduce((s, r) => s + r.cents, 0);
+  if (base + adj <= 0) return { error: "El total a pagar debe ser mayor a cero (revisa los sueldos y el ajuste)" };
+
+  const r = await prisma.payrollWeek.updateMany({
+    where: { id, status: "PROGRAMADA" },
+    data: { breakdown: JSON.stringify(breakdown), baseTotal: centsToDecimal(base), adjustment: centsToDecimal(adj), adjustmentNote: adj !== 0 ? note : null, edited: true },
+  });
+  if (!r.count) return { error: "Esta semana ya está pagada: anula el pago para poder editarla" };
+  refresh();
+  return { ok: true };
+}
+
+/** Quita la edición manual de una semana PROGRAMADA: vuelve a usar los sueldos vigentes y sin ajuste. */
+export async function resetPayrollWeek(id: string): Promise<Res> {
+  await requireUser(["ADMIN"]);
+  const cfg = await currentPayConfig();
+  const base = cfg.reduce((s, r) => s + r.cents, 0);
+  const r = await prisma.payrollWeek.updateMany({
+    where: { id, status: "PROGRAMADA" },
+    data: { breakdown: JSON.stringify(cfg), baseTotal: centsToDecimal(base), adjustment: 0, adjustmentNote: null, edited: false },
+  });
+  if (!r.count) return { error: "Esta semana ya está pagada" };
+  refresh();
   return { ok: true };
 }
