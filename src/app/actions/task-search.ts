@@ -70,8 +70,8 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
     const person = t.assignees.find((a) => has(a.user.name));
     const res = t.resources.find((r) => has(r.title));
     if (has(t.title)) { field = "Nombre"; rank = 0; }
-    else if (has(t.client?.companyName ?? "")) { field = "Cliente"; rank = 1; snippet = t.client?.companyName ?? null; }
-    else if (has(t.project?.projectName ?? "")) { field = "Proyecto"; rank = 2; snippet = t.project?.projectName ?? null; }
+    else if (has(t.client.companyName)) { field = "Cliente"; rank = 1; snippet = t.client.companyName; }
+    else if (has(t.project.projectName)) { field = "Proyecto"; rank = 2; snippet = t.project.projectName; }
     else if (person) { field = "Persona"; rank = 3; snippet = person.user.name; }
     else if (has(desc)) { field = "Descripción"; rank = 4; snippet = around(desc, q); }
     else if (res) { field = "Recurso"; rank = 5; snippet = res.title; }
@@ -80,7 +80,7 @@ export async function searchTasks(query: string): Promise<TaskHit[]> {
     return {
       rank,
       hit: {
-        id: t.id, title: t.title, clientName: t.client?.companyName ?? "", projectName: t.project?.projectName ?? "", status: t.status,
+        id: t.id, title: t.title, clientName: t.client.companyName, projectName: t.project.projectName, status: t.status,
         history: t.status === "TERMINADA" && (!!t.hiddenAt || (!!t.acceptedAt && t.acceptedAt < cutoff)), field, snippet,
       } satisfies TaskHit,
     };

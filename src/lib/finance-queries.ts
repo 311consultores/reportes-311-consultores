@@ -23,15 +23,16 @@ export type FlowRow = {
 };
 
 /** Ingresos (cobros) y egresos (gastos y retiros) del periodo, junto con traslados y saldos iniciales. */
-export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: number; expenses: number; incomeInvoices: number; incomeReceipts: number }> {
+export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: number; expenses: number; incomeInvoices: number; incomeReceipts: number; incomeDirect: number }> {
   const range = mes ? monthRange(mes, "date") : null;
   const dateWhere = range ? { occurredOn: range } : {};
 
-  const [paid, expenses, movements, loans, loanPayments] = await Promise.all([
+  const [paid, directIncomes, expenses, movements, loans, loanPayments] = await Promise.all([
     prisma.invoice.findMany({
       where: { status: "PAGADA", ...(range ? { collectedOn: range } : {}) },
       include: { client: { select: { companyName: true } } },
     }),
+    prisma.directIncome.findMany({ where: dateWhere }),
     prisma.expense.findMany({ where: dateWhere }),
     prisma.movement.findMany({ where: dateWhere }),
     prisma.loan.findMany({ where: range ? { loanDate: range } : {}, include: { origins: true } }),
@@ -42,6 +43,7 @@ export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: n
   let income = 0;
   let incomeInvoices = 0;
   let incomeReceipts = 0;
+  let incomeDirect = 0;
   for (const i of paid) {
     const c = decimalToCents(i.total);
     income += c;
@@ -51,6 +53,15 @@ export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: n
       key: `i-${i.id}`, date: i.collectedOn ?? i.paidAt ?? i.sentAt, type: "Ingreso", cents: c, voided: false, href: `/facturas/${i.id}`,
       concept: `${KIND_LABEL[i.kind]}${i.number ? ` ${i.number}` : ""} · ${i.client.companyName}`,
       detail: `${accountLabel(i.account)}${i.isSoftware ? " · Software" : ""} · ${i.description}`,
+    });
+  }
+  // Ingresos directos a una caja (no pasan por el reparto de un cobro): cuentan como ingreso mientras no estén anulados
+  for (const d of directIncomes) {
+    const c = decimalToCents(d.amount);
+    if (!d.voidedAt) { income += c; incomeDirect += c; }
+    rows.push({
+      key: `d-${d.id}`, date: d.occurredOn, type: "Ingreso", cents: c, voided: !!d.voidedAt, href: `/finanzas/caja/${d.box}`,
+      concept: `Ingreso directo · ${d.concept}`, detail: `Caja ${boxLabel(d.box)} · ${CASH_LABEL[d.cashType]} · ${d.reason}`,
     });
   }
   let out = 0;
@@ -88,7 +99,7 @@ export async function getFlow(mes: string): Promise<{ rows: FlowRow[]; income: n
     });
   }
   rows.sort((a, b) => b.date.getTime() - a.date.getTime());
-  return { rows, income, expenses: out, incomeInvoices, incomeReceipts };
+  return { rows, income, expenses: out, incomeInvoices, incomeReceipts, incomeDirect };
 }
 
 /** Acumulado de facturas y recibos por estatus (todo el historial). */

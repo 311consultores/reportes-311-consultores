@@ -33,7 +33,7 @@ export default async function BaulPage({ searchParams }: { searchParams: Promise
       notes={[...own, ...shared].map((n) => toNoteCard(n, me.id))}
       labels={labels}
       clients={clients.map((c) => ({ id: c.id, name: c.companyName, projects: c.projects.map((p) => ({ id: p.id, name: p.projectName })) }))}
-      tasks={tasks.map((t) => ({ id: t.id, title: t.title, client: t.client?.companyName ?? "" }))}
+      tasks={tasks.map((t) => ({ id: t.id, title: t.title, client: t.client.companyName }))}
       people={people}
       isOps={isOps}
       openId={nota}

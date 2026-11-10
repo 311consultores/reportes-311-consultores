@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/branding";
 import { dayKey, mxMonthStart, parseMxInput } from "@/lib/tasks-shared";
 import { notWaitingWhere, publishedWhere, startOf } from "@/lib/task-visibility";
-import { onlyComplete } from "@/lib/task-complete";
 
 /** Dashboard de desempeño: todos los cálculos (solo lectura sobre los datos que el portal ya guarda). */
 
@@ -158,7 +157,7 @@ export function computeKpis(tasks: TaskData[], f: Filters, now: Date): Kpis {
 // ---------- Carga de datos ----------
 
 async function loadTasks(f: Filters) {
-  const rows = await prisma.task.findMany({
+  return prisma.task.findMany({
     where: {
       ...(f.clientId ? { clientId: f.clientId } : {}),
       ...(f.areaId ? (f.areaId === "none" ? { areaId: null } : { areaId: f.areaId }) : {}),
@@ -175,7 +174,6 @@ async function loadTasks(f: Filters) {
       area: { select: { id: true, name: true, color: true } },
     },
   });
-  return onlyComplete(rows); // los borradores no cuentan en las métricas
 }
 
 export type PersonRow = { id: string; name: string; role: Role; areas: string[]; kpis: Kpis; streak: number; chat: { messages: number; replyAvgMs: number | null } };
@@ -249,11 +247,10 @@ export async function computeDashboard(f: Filters, now = new Date()): Promise<Da
     });
 
   // Calidad de la gestión: quien crea y quien revisa
-  const createdInAll = await prisma.task.findMany({
+  const createdIn = await prisma.task.findMany({
     where: { status: { not: "BORRADOR" }, createdAt: { gte: f.from, lte: f.to }, ...(f.clientId ? { clientId: f.clientId } : {}), ...(f.areaId ? (f.areaId === "none" ? { areaId: null } : { areaId: f.areaId }) : {}) },
     select: { createdById: true, createdAt: true, dueAt: true, events: { where: { kind: "EDITED" }, select: { id: true }, take: 1 } },
   });
-  const createdIn = createdInAll.filter((t): t is typeof t & { dueAt: Date } => !!t.dueAt); // los borradores no cuentan
   const mg = new Map<string, { assigned: number; d48: number; edited: number; reviews: number; reviewMs: number[]; returned: number }>();
   const slot = (id: string) => mg.get(id) ?? mg.set(id, { assigned: 0, d48: 0, edited: 0, reviews: 0, reviewMs: [], returned: 0 }).get(id)!;
   for (const t of createdIn) {

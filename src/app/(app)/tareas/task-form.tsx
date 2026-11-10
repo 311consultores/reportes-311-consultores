@@ -26,7 +26,7 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, initi
   const showWait = !!chainFrom || !!task?.waiting;
   const [waitDays, setWaitDays] = useState(String(task?.waiting ? task.waitDays ?? 0 : 2));
   const [waitHours, setWaitHours] = useState(String(task?.waiting ? task.waitHours ?? 0 : 0));
-  const [dueAt, setDueAt] = useState(() => (task ? (task.dueAt ? toMxInput(new Date(task.dueAt)) : "") : draft ? "" : toMxInput(defaultDue())));
+  const [dueAt, setDueAt] = useState(() => toMxInput(task ? new Date(task.dueAt) : defaultDue()));
   const [resources, setResources] = useState<{ key: number; title: string; url: string }[]>(() =>
     task?.resources.length ? task.resources.map((r, i) => ({ key: i, title: r.title, url: r.url })) : [],
   );
@@ -71,16 +71,16 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, initi
         </>
       )}
       {draft && (
-        <p className="rounded-xl bg-[#AF52DE]/10 px-3 py-2 text-sm text-[#8944AB] dark:text-[#DA8FFF]">✏️ Es un <strong>borrador</strong>: solo el nombre es obligatorio y el equipo no lo ve. Cuando esté completo, mándalo al equipo.</p>
+        <p className="rounded-xl bg-[#AF52DE]/10 px-3 py-2 text-sm text-[#8944AB] dark:text-[#DA8FFF]">✏️ Es un <strong>borrador</strong>: el equipo no lo ve. Necesita nombre, cliente, proyecto y fecha de entrega; el área y las personas puedes dejarlas para después. Cuando esté completo, mándalo al equipo.</p>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="label" htmlFor="t-client">Cliente</label>
-          <ComboSelect name="clientId" ariaLabel="Cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={clientId} onChange={(v) => { setClientId(v); setProjectId(""); }} placeholder="Escribe para buscar un cliente…" required={!draft} />
+          <ComboSelect name="clientId" ariaLabel="Cliente" options={clients.map((c) => ({ id: c.id, label: c.name }))} value={clientId} onChange={(v) => { setClientId(v); setProjectId(""); }} placeholder="Escribe para buscar un cliente…" required />
         </div>
         <div>
           <label className="label" htmlFor="t-project">Proyecto</label>
-          <select id="t-project" name="projectId" className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} required={!draft} disabled={!clientId}>
+          <select id="t-project" name="projectId" className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} required disabled={!clientId}>
             <option value="">{clientId ? "Elige un proyecto…" : "Primero elige el cliente"}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -118,8 +118,8 @@ export function TaskForm({ clients, team, areas, task, prefill, chainFrom, initi
           ) : (
             <>
               <label className="label" htmlFor="t-due">Fecha y hora de entrega</label>
-              <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required={!draft} />
-              {!task && !draft && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
+              <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
+              {!task && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
             </>
           )}
         </div>

@@ -37,8 +37,5 @@ CREATE TABLE `DirectIncome` (
 
 ALTER TABLE `DirectIncome` ADD CONSTRAINT `DirectIncome_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Tareas: estado BORRADOR y cliente, proyecto y fecha de entrega vacios (solo en borradores)
-ALTER TABLE `Task` MODIFY `status` ENUM('BORRADOR', 'PENDIENTE', 'EN_PROCESO', 'PARA_REVISAR', 'TERMINADA') NOT NULL DEFAULT 'PENDIENTE',
-    MODIFY `clientId` VARCHAR(191) NULL,
-    MODIFY `projectId` VARCHAR(191) NULL,
-    MODIFY `dueAt` DATETIME(3) NULL;
+-- Tareas: nuevo estado BORRADOR (un borrador conserva cliente, proyecto y fecha de entrega obligatorios)
+ALTER TABLE `Task` MODIFY `status` ENUM('BORRADOR', 'PENDIENTE', 'EN_PROCESO', 'PARA_REVISAR', 'TERMINADA') NOT NULL DEFAULT 'PENDIENTE';

@@ -59,7 +59,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
       </form>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Ingresos del periodo" value={formatCents(flow.income)} hint={`Facturas ${formatCents(flow.incomeInvoices)} · Recibos ${formatCents(flow.incomeReceipts)}`} tone="green" />
+        <Kpi label="Ingresos del periodo" value={formatCents(flow.income)} hint={`Facturas ${formatCents(flow.incomeInvoices)} · Recibos ${formatCents(flow.incomeReceipts)} · Directos ${formatCents(flow.incomeDirect)}`} tone="green" />
         <Kpi label="Egresos del periodo" value={formatCents(flow.expenses)} hint="Gastos y retiros" tone="red" />
         <Kpi label="Balance del periodo" value={formatCents(net)} hint="Ingresos − egresos" />
         <Kpi label="Dinero en cajas hoy" value={formatCents(cash + bank)} hint={`Efectivo ${formatCents(cash)} · Banco ${formatCents(bank)}`} />

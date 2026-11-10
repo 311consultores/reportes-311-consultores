@@ -40,7 +40,7 @@ export async function activateDependents(prevId: string, opts: { actorId: string
     try {
       await notifyUsers(people.map((u) => u.id), { actorId: opts.actorId, kind: "TASK_ASSIGNED", title: `Ya puedes empezar: ${t.title}`, body: `${why} — entrega ${formatMx(dueAt)}`, link: `/tareas?tarea=${t.id}` });
       const logo = await readLogo311();
-      const mail = tareaAsignadaEmail({ title: t.title, clientName: t.client?.companyName ?? "", projectName: t.project?.projectName ?? "", due: formatMx(dueAt), byName: t.createdBy.name, link: `${await getBaseUrl()}/tareas?tarea=${t.id}`, withLogo: !!logo });
+      const mail = tareaAsignadaEmail({ title: t.title, clientName: t.client.companyName, projectName: t.project.projectName, due: formatMx(dueAt), byName: t.createdBy.name, link: `${await getBaseUrl()}/tareas?tarea=${t.id}`, withLogo: !!logo });
       await sendMail({
         to: people.map((u) => u.email), ...mail, subject: `Ya puedes empezar: ${t.title}`,
         inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined,

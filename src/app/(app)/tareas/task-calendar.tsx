@@ -8,9 +8,6 @@ import { dayKey, formatMx, MONTH_NAMES, STATUS_INFO, toMxInput } from "@/lib/tas
 import { cn } from "@/lib/utils";
 import type { TaskCard } from "./task-types";
 
-/** Tarea con fecha de entrega: los borradores sin fecha no aparecen en el calendario. */
-type DatedTask = TaskCard & { dueAt: string };
-
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 export type Birthday = { id: string; name: string; photoUrl: string | null; md: string }; // md = «MM-DD»
@@ -36,7 +33,7 @@ const dayLabel = (key: string, opts: Intl.DateTimeFormatOptions) => new Date(`${
  * Quien gestiona tareas puede arrastrar una tarea a otro día para cambiar su fecha de entrega.
  */
 export function TaskCalendar({ tasks, canDrag, onOpen, onReschedule, birthdays, initialMode = "mes", initialBirthdays = true }: {
-  tasks: DatedTask[]; canDrag: boolean; onOpen: (id: string) => void; onReschedule: (id: string, day: string) => void;
+  tasks: TaskCard[]; canDrag: boolean; onOpen: (id: string) => void; onReschedule: (id: string, day: string) => void;
   birthdays: Birthday[]; initialMode?: CalMode; initialBirthdays?: boolean;
 }) {
   const todayKey = dayKey(new Date());
@@ -47,7 +44,7 @@ export function TaskCalendar({ tasks, canDrag, onOpen, onReschedule, birthdays, 
   const [over, setOver] = useState<string>();
 
   const byDay = useMemo(() => {
-    const m = new Map<string, DatedTask[]>();
+    const m = new Map<string, TaskCard[]>();
     for (const t of tasks) {
       const k = dayKey(t.dueAt);
       m.set(k, [...(m.get(k) ?? []), t]);
@@ -149,7 +146,7 @@ export function TaskCalendar({ tasks, canDrag, onOpen, onReschedule, birthdays, 
   const upcoming = (() => {
     const open = tasks.filter((t) => t.status !== "TERMINADA").sort((a, b) => a.dueAt.localeCompare(b.dueAt));
     const overdue = open.filter((t) => dayKey(t.dueAt) < todayKey);
-    const groups = new Map<string, DatedTask[]>();
+    const groups = new Map<string, TaskCard[]>();
     for (const t of open) {
       const k = dayKey(t.dueAt);
       if (k >= todayKey) groups.set(k, [...(groups.get(k) ?? []), t]);
@@ -159,7 +156,7 @@ export function TaskCalendar({ tasks, canDrag, onOpen, onReschedule, birthdays, 
     return { overdue, keys: [...days].sort(), groups };
   })();
 
-  const taskRow = (t: DatedTask) => (
+  const taskRow = (t: TaskCard) => (
     <button key={t.id} type="button" onClick={() => onOpen(t.id)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.05]">
       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_INFO[t.status].dot }} title={STATUS_INFO[t.status].label} />
       <span className="w-12 shrink-0 font-mono text-xs text-zinc-500">{timeOf(t.dueAt)}</span>

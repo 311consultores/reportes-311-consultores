@@ -114,8 +114,8 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
     if (!canMove(role, isMine(t), from, to)) return;
     setMessage(undefined);
     // Un borrador solo sale hacia el equipo cuando está completo; si falta algo se abre para terminarlo
-    if (from === "BORRADOR" && to !== "BORRADOR" && !(t.clientId && t.projectId && t.areaId && t.dueAt && t.assignees.length > 0)) {
-      setMessage("Para mandarla al equipo completa el cliente, el proyecto, el área, la fecha de entrega y al menos una persona.");
+    if (from === "BORRADOR" && to !== "BORRADOR" && !(t.areaId && t.assignees.length > 0)) {
+      setMessage("Para mandarla al equipo completa el área y asigna al menos a una persona.");
       setView({ kind: "edit", id });
       return;
     }
@@ -237,7 +237,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
           </table>
         </div>
       ) : mode === "calendario" ? (
-        <TaskCalendar tasks={list.filter((t): t is TaskCard & { dueAt: string } => !!t.dueAt)} birthdays={birthdays} initialMode={calMode} initialBirthdays={showBirthdays} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
+        <TaskCalendar tasks={list} birthdays={birthdays} initialMode={calMode} initialBirthdays={showBirthdays} canDrag={isOps} onOpen={(id) => { const t = byId(id); if (t) setView(viewFor(t)); }} onReschedule={reschedule} />
       ) : (
         <div className={cn("grid gap-4 md:grid-cols-2", isOps ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
           {(isOps ? BOARD_ORDER_OPS : STATUS_ORDER).map((s) => {
@@ -342,7 +342,7 @@ export function TaskBoard({ tasks, role, meId, clients, team, areas, openId, his
         </div>
       )}
 
-      <Modal open={view?.kind === "new"} onClose={closeView} wide title={view?.kind === "new" && view.status === "BORRADOR" ? "Nuevo borrador" : "Nueva tarea"} subtitle={view?.kind === "new" && view.status === "BORRADOR" ? "Solo el nombre es obligatorio; se completa y se manda al equipo después" : `Se asigna a quien elijas del equipo y nace en ${STATUS_INFO[(view?.kind === "new" && view.status) || "PENDIENTE"].label}`}>
+      <Modal open={view?.kind === "new"} onClose={closeView} wide title={view?.kind === "new" && view.status === "BORRADOR" ? "Nuevo borrador" : "Nueva tarea"} subtitle={view?.kind === "new" && view.status === "BORRADOR" ? "Pide nombre, cliente, proyecto y fecha; el área y las personas se agregan después, al mandarla al equipo" : `Se asigna a quien elijas del equipo y nace en ${STATUS_INFO[(view?.kind === "new" && view.status) || "PENDIENTE"].label}`}>
         <TaskForm key={view?.kind === "new" ? view.status ?? "PENDIENTE" : "x"} initialStatus={view?.kind === "new" ? view.status : undefined} clients={clients} team={team} areas={areas} prefill={prefill} onCancel={closeView} onDone={(id, chain) => { router.refresh(); setView(chain ? { kind: "chain", from: chain } : { kind: "detail", id }); }} />
       </Modal>
 

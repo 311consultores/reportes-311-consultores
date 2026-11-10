@@ -34,7 +34,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const [rows, clients, team, areaRows] = await Promise.all([
     prisma.task.findMany({
       where,
-      orderBy: history ? { acceptedAt: "desc" } : [{ dueAt: { sort: "asc", nulls: "last" } }],
+      orderBy: history ? { acceptedAt: "desc" } : { dueAt: "asc" },
       take: history ? 200 : 500,
       include: taskInclude,
     }),

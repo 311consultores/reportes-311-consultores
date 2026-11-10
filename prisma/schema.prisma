@@ -652,17 +652,17 @@ enum TaskStatus {
 // Panel de tareas (Evolutivo 7): tareas asignadas al equipo TEAM 311 por Admin o Editor
 model Task {
   id                String           @id @default(uuid())
-  clientId          String? // vacío solo en un BORRADOR
-  client            Client?          @relation(fields: [clientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  projectId         String? // vacío solo en un BORRADOR
-  project           Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  clientId          String
+  client            Client           @relation(fields: [clientId], references: [id])
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id])
   publishAt         DateTime? // Tarea programada: aparece para la persona asignada a partir de esta fecha y hora (vacío = de inmediato)
   publishNotifiedAt DateTime? // Cuándo se avisó a las personas asignadas de una tarea programada
   areaId            String? // Área de la tarea (obligatoria al crearla; las anteriores a la actualización quedan sin área)
   area              Area?            @relation(fields: [areaId], references: [id])
   title             String           @db.VarChar(191)
   descriptionHtml   String           @db.Text
-  dueAt             DateTime? // Fecha y hora de entrega (vacío solo en un BORRADOR)
+  dueAt             DateTime // Fecha y hora de entrega
   status            TaskStatus       @default(PENDIENTE)
   createdById       String
   createdBy         User             @relation("TaskCreator", fields: [createdById], references: [id])
