@@ -298,3 +298,6 @@ export const secciones = [
 
 import { aplicarE17 } from "./contenido-e17.mjs";
 aplicarE17(secciones, "admin");
+
+import { aplicarE20 } from "./contenido-e20.mjs";
+aplicarE20(secciones, "admin");

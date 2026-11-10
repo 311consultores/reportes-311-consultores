@@ -162,7 +162,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: Pro
                   const k = balanceOf(balances, b.value, "BANCO");
                   return (
                     <tr key={b.value}>
-                      <td className="td"><span className="font-medium">{b.label}</span>{b.hint && <span className="block text-xs text-zinc-500">{b.hint}</span>}</td>
+                      <td className="td"><Link href={`/finanzas/caja/${b.value}`} className="font-medium" aria-label={`Ver el historial de la caja ${b.label}`}>{b.label}</Link>{b.hint && <span className="block text-xs text-zinc-500">{b.hint}</span>}</td>
                       <td className="td text-right">{formatCents(e)}</td>
                       <td className="td text-right">{formatCents(k)}</td>
                       <td className="td text-right font-semibold">{formatCents(e + k)}</td>

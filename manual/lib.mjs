@@ -9,6 +9,8 @@ export const ASSETS = path.join(ROOT, "assets");
 export const SHOTS = path.join(ROOT, "capturas");
 
 const CHROME_PATHS = [
+  process.env.CHROME_PATH ?? "", // por si se genera en otra máquina (Linux, Mac…)
+  "/opt/pw-browsers/chromium",
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
 ];
