@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useRef } from "react";
 
-type State = { error?: string; ok?: boolean } | undefined;
+type State = { error?: string; ok?: boolean; id?: string } | undefined;
 
 export function ActionForm({
   action,
@@ -17,8 +17,8 @@ export function ActionForm({
   submitLabel: string;
   className?: string;
   children: React.ReactNode;
-  /** Se ejecuta al guardar con éxito (después de limpiar el formulario). */
-  onSuccess?: () => void;
+  /** Se ejecuta al guardar con éxito (después de limpiar el formulario). Recibe lo que devolvió la acción (por ejemplo, el id creado). */
+  onSuccess?: (state: State) => void;
   successMessage?: string;
   /** Limpia el formulario al guardar (desactívalo en formularios de edición, que deben conservar los valores). */
   resetOnSuccess?: boolean;
@@ -29,7 +29,7 @@ export function ActionForm({
   useEffect(() => {
     if (state?.ok) {
       if (resetOnSuccess) ref.current?.reset();
-      onSuccess?.();
+      onSuccess?.(state);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

@@ -1,23 +1,27 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, X } from "lucide-react";
+import { Link2, Plus, X } from "lucide-react";
 import { createTask, updateTask } from "@/app/actions/tasks";
 import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { RichTextEditor } from "@/components/rich-text";
 import { ComboSelect } from "@/components/combo-select";
 import { defaultDue, toMxInput } from "@/lib/tasks-shared";
 import { isPublishedIso } from "@/lib/task-schedule";
-import type { AreaOption, TaskCard, TaskPrefill } from "./task-types";
+import type { AreaOption, ChainFrom, TaskCard, TaskPrefill } from "./task-types";
 
 export type ClientOption = { id: string; name: string; projects: { id: string; name: string }[] };
 
 /** Formulario para crear o editar una tarea (Admin y Editor). */
-export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel }: {
-  clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; task?: TaskCard; prefill?: TaskPrefill; onDone: (taskId: string) => void; onCancel: () => void;
+export function TaskForm({ clients, team, areas, task, prefill, chainFrom, onDone, onCancel }: {
+  clients: ClientOption[]; team: TeamOption[]; areas: AreaOption[]; task?: TaskCard; prefill?: TaskPrefill; chainFrom?: ChainFrom; onDone: (taskId: string, chain?: ChainFrom) => void; onCancel: () => void;
 }) {
-  const [clientId, setClientId] = useState(task?.clientId ?? prefill?.clientId ?? "");
-  const [projectId, setProjectId] = useState(task?.projectId ?? prefill?.projectId ?? "");
+  const [clientId, setClientId] = useState(task?.clientId ?? chainFrom?.clientId ?? prefill?.clientId ?? "");
+  const [projectId, setProjectId] = useState(task?.projectId ?? chainFrom?.projectId ?? prefill?.projectId ?? "");
+  // Tarea encadenada: no lleva fecha fija, sino un plazo en días y horas que cuenta desde que se apruebe la anterior
+  const showWait = !!chainFrom || !!task?.waiting;
+  const [waitDays, setWaitDays] = useState(String(task?.waiting ? task.waitDays ?? 0 : 2));
+  const [waitHours, setWaitHours] = useState(String(task?.waiting ? task.waitHours ?? 0 : 0));
   const [dueAt, setDueAt] = useState(() => toMxInput(task ? new Date(task.dueAt) : defaultDue()));
   const [resources, setResources] = useState<{ key: number; title: string; url: string }[]>(() =>
     task?.resources.length ? task.resources.map((r, i) => ({ key: i, title: r.title, url: r.url })) : [],
@@ -40,16 +44,24 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const chainNext = ((e.nativeEvent as SubmitEvent).submitter as HTMLElement | null)?.dataset.chain === "1"; // «Asignar y encadenar otra tarea»
+    const titleNow = String(fd.get("title") ?? "");
     setError(undefined);
     start(async () => {
       const r = task ? await updateTask(task.id, fd) : await createTask(fd);
       if (r.error || !r.taskId) setError(r.error ?? "No se pudo guardar");
-      else onDone(r.taskId);
+      else onDone(r.taskId, chainNext ? { id: r.taskId, title: titleNow, clientId, projectId } : undefined);
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      {chainFrom && (
+        <>
+          <input type="hidden" name="prevTaskId" value={chainFrom.id} />
+          <p className="rounded-xl bg-[#FF9500]/10 px-3 py-2 text-sm text-[#8A4B00] dark:text-[#FFB340]">🔗 Esta tarea quedará <strong>en espera</strong> hasta que se apruebe «{chainFrom.title}». Entonces se activa y se avisa a quien la recibe.</p>
+        </>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="label" htmlFor="t-client">Cliente</label>
@@ -83,11 +95,24 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
           <input id="t-title" name="title" className="input" maxLength={191} defaultValue={task?.title ?? prefill?.title ?? ""} placeholder="Nombre de la tarea" required />
         </div>
         <div>
-          <label className="label" htmlFor="t-due">Fecha y hora de entrega</label>
-          <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
-          {!task && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
+          {showWait ? (
+            <>
+              <label className="label" htmlFor="t-wait-d">Plazo para entregar (desde la aprobación)</label>
+              <div className="flex items-center gap-2">
+                <input id="t-wait-d" name="waitDays" type="number" min={0} max={365} className="input !w-20" value={waitDays} onChange={(e) => setWaitDays(e.target.value)} aria-label="Días" /> <span className="text-sm">días</span>
+                <input name="waitHours" type="number" min={0} max={23} className="input !w-20" value={waitHours} onChange={(e) => setWaitHours(e.target.value)} aria-label="Horas" /> <span className="text-sm">horas</span>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">El plazo empieza a contar en el instante en que se apruebe la tarea anterior.</p>
+            </>
+          ) : (
+            <>
+              <label className="label" htmlFor="t-due">Fecha y hora de entrega</label>
+              <input id="t-due" name="dueAt" type="datetime-local" className="input" value={dueAt} onChange={(e) => setDueAt(e.target.value)} required />
+              {!task && <p className="mt-1 text-xs text-zinc-500">Por defecto, 48 horas después de crearla.</p>}
+            </>
+          )}
         </div>
-        {canSchedule && (
+        {canSchedule && !showWait && (
           <div className="md:col-span-2">
             <label className="label" htmlFor="t-publish">Programar aparición (opcional)</label>
             <input id="t-publish" name="publishAt" type="datetime-local" className="input md:!w-64" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} />
@@ -138,7 +163,8 @@ export function TaskForm({ clients, team, areas, task, prefill, onDone, onCancel
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-outline" onClick={onCancel}>Cancelar</button>
-        <button type="submit" className="btn" disabled={busy}>{busy ? "Guardando…" : task ? "Guardar cambios" : "Asignar tarea"}</button>
+        {!task && <button type="submit" data-chain="1" className="btn-outline" disabled={busy}><Link2 size={15} /> {chainFrom ? "Crear y encadenar otra" : "Asignar y encadenar otra tarea"}</button>}
+        <button type="submit" className="btn" disabled={busy}>{busy ? "Guardando…" : task ? "Guardar cambios" : chainFrom ? "Crear tarea encadenada" : "Asignar tarea"}</button>
       </div>
     </form>
   );

@@ -6,6 +6,8 @@ import { createInvoice } from "@/app/actions/invoices";
 import { ActionForm } from "@/components/action-form";
 import { DateInput } from "@/components/date-input";
 import { SearchSelect } from "@/components/search-select";
+import type { FileSlot } from "@/lib/invoice-files";
+import { FilesPicker, uploadInvoiceFile } from "./invoice-files";
 import { formatCents, parseMoney, vatOf } from "@/lib/finance";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +19,9 @@ export function InvoiceForm({ clients }: { clients: ClientOpt[] }) {
   const [clientId, setClientId] = useState("");
   const [description, setDescription] = useState("");
   const [subtotal, setSubtotal] = useState("");
+  const [files, setFiles] = useState<Partial<Record<FileSlot, File>>>({});
+  const [uploadErr, setUploadErr] = useState<string>();
+  const [pickerKey, setPickerKey] = useState(0);
 
   const options = useMemo(() => clients.map((c) => ({ value: c.id, label: c.companyName })), [clients]);
   const client = clients.find((c) => c.id === clientId);
@@ -36,7 +41,19 @@ export function InvoiceForm({ clients }: { clients: ClientOpt[] }) {
       submitLabel="Registrar"
       successMessage="Registrado correctamente"
       className="space-y-4"
-      onSuccess={() => {
+      onSuccess={async (state) => {
+        // El documento ya quedó registrado: ahora se suben sus archivos (si se eligieron)
+        const toUpload = Object.entries(files) as [FileSlot, File | undefined][];
+        setUploadErr(undefined);
+        if (state?.id) {
+          for (const [slot, f] of toUpload) {
+            if (!f) continue;
+            const err = await uploadInvoiceFile(state.id, slot, f);
+            if (err) { setUploadErr(`El documento se registró, pero no se pudo subir un archivo: ${err}. Puedes subirlo desde su detalle.`); break; }
+          }
+        }
+        setFiles({});
+        setPickerKey((k) => k + 1);
         setClientId("");
         setDescription("");
         setSubtotal("");
@@ -106,6 +123,9 @@ export function InvoiceForm({ clients }: { clients: ClientOpt[] }) {
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="isSoftware" className="h-4 w-4" /> Proyecto de <strong>SOFTWARE</strong>
       </label>
+
+      <FilesPicker key={`${kind}-${pickerKey}`} kind={kind} files={files} onChange={setFiles} />
+      {uploadErr && <p className="text-sm text-destructive">{uploadErr}</p>}
     </ActionForm>
   );
 }

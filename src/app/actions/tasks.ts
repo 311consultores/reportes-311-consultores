@@ -10,7 +10,8 @@ import { getBaseUrl } from "@/lib/base-url";
 import { tareaAsignadaEmail, tareaDevueltaEmail, tareaParaRevisarEmail } from "@/lib/email-templates";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { ASSIGNABLE_ROLES, isTaskManager, STAFF_ROLES, TASK_MANAGER_ROLES } from "@/lib/roles";
-import { isPublished } from "@/lib/task-visibility";
+import { isPublished, isWaiting } from "@/lib/task-visibility";
+import { activateDependents, waitMs } from "@/lib/task-chain";
 import { canMove, formatMx, parseMxInput, STATUS_ORDER, toMxInput } from "@/lib/tasks-shared";
 
 type Result = { error?: string; ok?: boolean; taskId?: string; reviewId?: string };
@@ -103,22 +104,42 @@ async function parseTaskForm(fd: FormData, currentAreaId?: string | null): Promi
 /** Crea una tarea (Admin, Editor y PROJECT 311). Nace en PENDIENTE y se avisa por correo a quienes la reciben. */
 export async function createTask(fd: FormData): Promise<Result> {
   const user = await requireUser(TASK_MANAGER_ROLES);
+
+  // Tarea encadenada (Evolutivo 19): espera a que otra se apruebe; su plazo se da en días y horas desde esa aprobación
+  const prevId = String(fd.get("prevTaskId") ?? "");
+  let chain: { prevId: string; prevTitle: string; days: number; hours: number; prevDone: boolean } | null = null;
+  if (prevId) {
+    const prev = /^[0-9a-f-]{36}$/i.test(prevId) ? await prisma.task.findUnique({ where: { id: prevId }, select: { id: true, title: true, status: true, dueAt: true } }) : null;
+    if (!prev) return { error: "La tarea anterior no existe" };
+    const days = Math.floor(Number(fd.get("waitDays") ?? 0));
+    const hours = Math.floor(Number(fd.get("waitHours") ?? 0));
+    if (!Number.isFinite(days) || !Number.isFinite(hours) || days < 0 || days > 365 || hours < 0 || hours > 23) return { error: "El plazo no es válido (días de 0 a 365 y horas de 0 a 23)" };
+    if (days === 0 && hours === 0) return { error: "Indica el plazo en días y/o horas para entregar la tarea encadenada" };
+    const prevDone = prev.status === "TERMINADA";
+    // Mientras espera, la fecha de entrega es solo una estimación (se recalcula al activarse)
+    fd.set("dueAt", toMxInput(new Date(Math.max(prev.dueAt.getTime(), Date.now()) + waitMs(days, hours))));
+    fd.delete("publishAt");
+    chain = { prevId: prev.id, prevTitle: prev.title, days, hours, prevDone };
+  }
   const d = await parseTaskForm(fd);
   if ("error" in d) return { error: d.error };
+  const waiting = !!chain && !chain.prevDone;
+  const dueAt = chain?.prevDone ? new Date(Date.now() + waitMs(chain.days, chain.hours)) : d.dueAt; // si la anterior ya estaba aprobada, el plazo cuenta desde ahora
 
   const task = await prisma.task.create({
     data: {
-      clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, publishAt: d.publishAt, createdById: user.id,
+      clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt, publishAt: d.publishAt, createdById: user.id,
+      ...(chain ? { prevTaskId: chain.prevId, waitDays: chain.days, waitHours: chain.hours, activatedAt: waiting ? null : new Date() } : {}),
       assignees: { create: d.assigneeIds.map((userId) => ({ userId })) },
       resources: { create: d.resources.map((r, position) => ({ ...r, position })) },
       subtasks: { create: d.subtasks.map((s, position) => ({ title: s.title, assigneeId: s.assigneeId, dueAt: s.dueAt, position })) },
-      events: { create: { userId: user.id, kind: "CREATED" } },
+      events: { create: { userId: user.id, kind: "CREATED", note: chain ? (waiting ? `Encadenada: en espera de «${chain.prevTitle}»` : `Encadenada a «${chain.prevTitle}» (ya estaba aprobada)`) : null } },
     },
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { email: true } } } } },
   });
 
-  // Una tarea programada no avisa ahora: el aviso sale cuando aparece (lo hace la tarea programada de cada hora)
-  if (!d.publishAt) {
+  // Una tarea programada no avisa ahora (sale cuando aparece) y una encadenada en espera avisa cuando se activa
+  if (!d.publishAt && !waiting) {
     await notifyUsers(d.assigneeIds, { actorId: user.id, kind: "TASK_ASSIGNED", title: `Nueva tarea: ${task.title}`, body: `${task.client.companyName} · ${task.project.projectName} — entrega ${formatMx(task.dueAt)}`, link: `/tareas?tarea=${task.id}` });
     const link = await taskLink(task.id);
     await notify(task.assignees.map((a) => a.user.email), (withLogo) =>
@@ -134,6 +155,16 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   const user = await requireUser(TASK_MANAGER_ROLES);
   const current = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: true } });
   if (!current) return { error: "La tarea no existe" };
+  // Una tarea en espera se edita con su plazo (días y horas) en lugar de una fecha fija
+  let waitPatch: { waitDays: number; waitHours: number } | null = null;
+  if (isWaiting(current)) {
+    const days = Math.floor(Number(fd.get("waitDays") ?? current.waitDays ?? 0));
+    const hours = Math.floor(Number(fd.get("waitHours") ?? current.waitHours ?? 0));
+    if (!Number.isFinite(days) || !Number.isFinite(hours) || days < 0 || days > 365 || hours < 0 || hours > 23 || (days === 0 && hours === 0)) return { error: "El plazo no es válido (días de 0 a 365 y horas de 0 a 23; al menos uno mayor a 0)" };
+    waitPatch = { waitDays: days, waitHours: hours };
+    fd.set("dueAt", toMxInput(new Date(current.dueAt.getTime() - waitMs(current.waitDays, current.waitHours) + waitMs(days, hours))));
+    fd.delete("publishAt");
+  }
   const d = await parseTaskForm(fd, current.areaId);
   if ("error" in d) return { error: d.error };
 
@@ -146,7 +177,7 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   const publishesNow = !wasPublished && !publishAt;
   const cronWillNotify = wasPublished && current.publishAt !== null && current.publishNotifiedAt === null; // ya apareció pero el aviso aún no sale
   await prisma.$transaction([
-    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, ...(wasPublished ? {} : { publishAt, publishNotifiedAt: null }) } }),
+    prisma.task.update({ where: { id: taskId }, data: { clientId: d.clientId, projectId: d.projectId, areaId: d.areaId, title: d.title, descriptionHtml: d.descriptionHtml, dueAt: d.dueAt, ...(waitPatch ?? {}), ...(wasPublished ? {} : { publishAt, publishNotifiedAt: null }) } }),
     prisma.taskAssignee.deleteMany({ where: { taskId } }),
     prisma.taskAssignee.createMany({ data: d.assigneeIds.map((userId) => ({ taskId, userId })) }),
     prisma.taskResource.deleteMany({ where: { taskId } }),
@@ -156,7 +187,8 @@ export async function updateTask(taskId: string, fd: FormData): Promise<Result> 
   ]);
 
   // Avisos: a las personas nuevas si la tarea ya es visible; a todas si acaba de publicarse; a nadie si sigue programada
-  const toNotify = publishesNow ? d.assigneeIds : wasPublished && !cronWillNotify ? added : [];
+  const stillWaiting = isWaiting(current);
+  const toNotify = stillWaiting ? [] : publishesNow ? d.assigneeIds : wasPublished && !cronWillNotify ? added : [];
   if (publishesNow) await prisma.task.update({ where: { id: taskId }, data: { publishNotifiedAt: new Date() } });
   if (toNotify.length) {
     const [people, ctx] = await Promise.all([
@@ -188,6 +220,10 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
   if (!task) return { error: "La tarea no existe" };
   const mine = task.assignees.some((a) => a.userId === user.id);
   if (!isOps(user) && (!mine || !isPublished(task))) return { error: "Esa tarea no es tuya" };
+  if (isWaiting(task)) {
+    const prev = task.prevTaskId ? await prisma.task.findUnique({ where: { id: task.prevTaskId }, select: { title: true } }) : null;
+    return { error: `Esta tarea está en espera: se activa cuando se apruebe «${prev?.title ?? "la tarea anterior"}»` };
+  }
   if (!canMove(user.role, mine, task.status, to)) return { error: "No puedes mover la tarea a esa fase" };
 
   const note = opts.note?.trim().slice(0, 2000) || null;
@@ -225,6 +261,8 @@ export async function moveTask(taskId: string, to: TaskStatus, opts: { note?: st
       tareaParaRevisarEmail({ title: task.title, teamName: user.name, clientName: task.client.companyName, projectName: task.project.projectName, note, link, withLogo }),
     );
   }
+  // Al aprobar, se activan las tareas encadenadas que esperaban a esta (su plazo cuenta desde este instante)
+  if (to === "TERMINADA") await activateDependents(taskId, { actorId: user.id, reason: "APROBADA", prevTitle: task.title });
   if (returning) {
     await notify(task.assignees.map((a) => a.user.email), (withLogo) => tareaDevueltaEmail({ title: task.title, byName: user.name, note: note ?? "", link, withLogo }));
   }
@@ -257,6 +295,7 @@ export async function rescheduleTask(taskId: string, day: string): Promise<Resul
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: "Fecha no válida" };
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { assignees: { select: { userId: true } } } });
   if (!task) return { error: "La tarea no existe" };
+  if (isWaiting(task)) return { error: "La tarea está en espera: su fecha se calcula cuando se apruebe la anterior" };
   const time = toMxInput(task.dueAt).slice(11, 16);
   const next = parseMxInput(`${day}T${time}`);
   if (!next) return { error: "Fecha no válida" };
@@ -289,6 +328,7 @@ export async function toggleSubtask(subtaskId: string, done: boolean): Promise<R
   const user = await requireUser(STAFF_ROLES);
   const sub = await prisma.subtask.findUnique({ where: { id: subtaskId }, include: { task: { include: { assignees: { select: { userId: true } } } } } });
   if (!sub) return { error: "La subtarea no existe" };
+  if (isWaiting(sub.task)) return { error: "La tarea está en espera de que se apruebe la anterior: aún no se pueden marcar subtareas" };
   const ops = isOps(user);
   if (!ops) {
     if (!sub.task.assignees.some((a) => a.userId === user.id) || !isPublished(sub.task)) return { error: "Esa tarea no es tuya" };

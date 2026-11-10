@@ -109,26 +109,37 @@ const revisiones = (perfil) => ({
     { t: "steps", x: [
       "Presiona <b>Nueva revisión</b>.",
       "Elige el <b>cliente</b> y su <b>proyecto</b> <n>1</n>, y escribe el <b>título</b> <n>2</n> (por ejemplo «Parrilla noviembre 2026»).",
-      "Elige quién atiende los <b>ajustes de COPY</b> <n>3</n> y quién los de <b>ARTE</b> <n>4</n>; salen de las personas del TEAM 311. A ellas les llegará la tarea.",
+      "Elige quién atiende los <b>ajustes de COPY</b> <n>3</n> y quién los de <b>ARTE</b> <n>4</n>: haz clic en el buscador, escribe unas letras y elige a la persona de la lista (con su foto). Queda como una <b>pill</b> con su foto; es <b>una persona por campo</b> y salen del TEAM 311. A ellas les llegará la tarea.",
       "Indica la fecha en que el cliente debe responder <n>5</n>: un día antes le llega un recordatorio por correo.",
       "Revisa los <b>correos a los que se avisa</b> <n>6</n>: vienen los del cliente y del proyecto; quita o agrega los que quieras.",
       "Presiona <b>Crear y agregar slides</b>.",
     ] },
     f("e22-nueva-revision", "Nueva revisión (datos de ejemplo)", [
-      "Proyecto del cliente.", "Título de la revisión.", "Quién atiende los ajustes de copy.", "Quién atiende los ajustes de arte.", "Fecha límite de respuesta del cliente.", "Correos a los que se avisa.",
+      "Proyecto del cliente.", "Título de la revisión.", "Persona que atiende los ajustes de copy (pill con foto).", "Persona que atiende los ajustes de arte.", "Fecha límite de respuesta del cliente.", "Correos a los que se avisa.",
     ], 80),
     { t: "h3", x: "Agregar los slides" },
-    { t: "p", x: "Cada <b>slide</b> es una publicación. Presiona <b>Agregar slide</b> <n>3</n> y llénalo; todo se guarda solo." },
-    f("e23-armar-revision", "Revisión en borrador: datos generales y lista de slides", [
+    { t: "p", x: "Cada <b>slide</b> es una publicación. Los <b>datos generales</b> <n>2</n> aparecen <b>plegados</b>, con una línea de resumen (título, responsables y fecha límite); haz clic en ellos para desplegarlos y editarlos. Presiona <b>Agregar slide</b> <n>3</n> para sumar uno: cuando bajas por la página y ese botón sale de la pantalla, aparece uno <b>flotante</b> abajo a la derecha, igual que «Agregar actividad» en los reportes." },
+    f("e23-armar-revision", "Revisión en borrador: datos generales plegados y lista de slides", [
       "<b>Publicar al cliente</b> (se activa cuando hay al menos un slide).",
-      "Datos generales: título, responsables, fecha límite y correos (<b>Guardar datos generales</b>).",
+      "Datos generales plegados con su resumen.",
       "<b>Agregar slide</b>.",
       "<b>Asa ⋮⋮</b> para arrastrar y cambiar el orden (también hay flechas ↑ ↓).",
       "Eliminar el slide.",
     ]),
+    f("e23a-datos-generales", "Datos generales desplegados", [
+      "Clic para plegar o desplegar.",
+      "Quien atiende los ajustes de <b>COPY</b>: aparece como <b>pill con su foto</b> (una sola persona); la <b>X</b> la quita para elegir a otra.",
+      "Quien atiende los ajustes de <b>ARTE</b>.",
+      "Fecha límite de respuesta del cliente.",
+      "<b>Guardar datos generales</b>.",
+    ], 85),
+    { t: "p", x: "Al abrir un slide capturas lo siguiente (todo se guarda solo):" },
     f("e23b-slide-abierto", "Un slide abierto", [
-      "<b>Copy</b> de la publicación (hasta 2,200 caracteres, con contador).",
-      "<b>Canal</b> (Facebook o Instagram) y fecha de publicación opcional.",
+      "<b>Título</b> del slide (opcional). Si lo dejas vacío se muestra solo «Slide 3».",
+      "<b>Tipo</b> (<b>obligatorio</b>): BANNER, VIDEO, CARRUSEL o AD. Se muestra como una pill de color junto al título (BANNER verde, VIDEO morado, CARRUSEL naranja, AD azul). Es una etiqueta informativa: no se valida contra el arte que subas.",
+      "<b>Emojis</b>: abre el selector y haz clic en el emoji para insertarlo donde está el cursor.",
+      "<b>Copy</b> de la publicación (hasta 2,200 caracteres, con contador). Es texto simple, tal como saldrá en la red social.",
+      "<b>Canales</b>: marca Facebook, Instagram o <b>ambos</b> (al menos uno).",
       "<b>Arte</b>: sube una imagen, varias (carrusel de hasta 10) o un video. Imágenes JPG o PNG hasta 8 MB; video MP4, WEBM o MOV hasta 100 MB.",
       "<b>Simular vista en redes</b>.",
     ], 80),
@@ -139,7 +150,7 @@ const revisiones = (perfil) => ({
     { t: "p", x: "Muestra el logo y el nombre del cliente, el copy cortado con «Ver más», el carrusel que se desliza y el video con reproducción. Es una simulación <b>referencial</b>: el aspecto final puede variar un poco según el dispositivo. En historias el texto no se muestra debajo de la imagen." },
     { t: "h3", x: "Publicar al cliente" },
     { t: "steps", x: [
-      "Presiona <b>Publicar al cliente</b>. El portal revisa que <b>cada slide tenga copy y arte</b>; si falta algo, te dice cuáles slides.",
+      "Presiona <b>Publicar al cliente</b>. El portal revisa que <b>cada slide tenga copy, arte y tipo</b>; si falta algo, te dice cuáles slides.",
       "Confirma en la ventana: se mandará un correo a los correos de aviso.",
       "La revisión pasa a <b>Esperando al cliente</b> y ya no se pueden agregar, quitar ni reordenar slides.",
     ] },
@@ -151,8 +162,8 @@ const revisiones = (perfil) => ({
       "<b>Iniciar revisión</b> (o Continuar revisión / Revisar ajustes). Al empezar, un aviso le agradece su tiempo y le sugiere terminarla en una sola sesión.",
     ]),
     f("e29-cliente-visor", "Visor de la revisión", [
-      "Miniaturas: globo naranja si hay comentarios; palomita verde si está aprobado.",
-      "<b>Copy</b> del slide.",
+      "Miniaturas con su título y pill de tipo: globo naranja si hay comentarios; palomita verde si está aprobado.",
+      "<b>Título y tipo</b> del slide (pill de color) y <b>Copy</b>, tal como se verá en redes.",
       "<b>Arte</b> (imagen, carrusel con flechas o video) y el botón para simular la publicación.",
       "<b>Aprobar slide</b>.",
       "Comentarios: pestañas Copy, Arte e Historial. Se guardan solos. En un carrusel indica «sobre la imagen N»; en un video, el segundo exacto.",
@@ -348,7 +359,7 @@ export function aplicarE17(secciones, perfil) {
     insertSection(secciones, "baul", documentos(false), revisiones("editor"));
     const faq = find(secciones, "faq").bloques.find((b) => b.t === "faq");
     faq.items.push(
-      ["El cliente no ve una revisión que armé.", "Si está en <b>Borrador</b> solo la ve el equipo. Presiona <b>Publicar al cliente</b>; el portal revisa que cada slide tenga copy y arte."],
+      ["El cliente no ve una revisión que armé.", "Si está en <b>Borrador</b> solo la ve el equipo. Presiona <b>Publicar al cliente</b>; el portal revisa que cada slide tenga copy, arte y <b>tipo</b> (BANNER, VIDEO, CARRUSEL o AD)."],
       ["El cliente pide un cambio en un slide ya aprobado.", "Un slide aprobado se bloquea. Si el cliente lo pide por el grupo de WhatsApp, abre la revisión y presiona <b>Reabrir</b> en ese slide, con el motivo."],
       ["No puedo cambiar el orden de las actividades.", "Solo se reordenan reportes <b>En proceso</b> o <b>Rechazados</b>. Usa el asa ⋮⋮ o, si falla el arrastre, las flechas ↑ ↓."],
       ["No me deja enviar un documento.", "Marca la casilla «Lo leí y está correcto» y revisa que haya al menos un destinatario con un correo válido. Un documento ya enviado no se vuelve a enviar editado: duplícalo."],

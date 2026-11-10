@@ -5,5 +5,9 @@ export const publishedWhere = (now: Date = new Date()): Prisma.TaskWhereInput =>
 
 export const isPublished = (t: { publishAt: Date | null }, now: Date = new Date()) => !t.publishAt || t.publishAt <= now;
 
-/** Desde cuándo «cuenta» la tarea para quien la recibe (puntualidad, respuesta, ciclo): su aparición si se programó; si no, su creación. */
-export const startOf = (t: { publishAt: Date | null; createdAt: Date }) => t.publishAt ?? t.createdAt;
+/** Tarea encadenada que sigue esperando a que se apruebe la anterior: se puede consultar y chatear, pero no cuenta como abierta ni vencida. */
+export const isWaiting = (t: { prevTaskId: string | null; activatedAt: Date | null }) => !!t.prevTaskId && !t.activatedAt;
+export const notWaitingWhere = (): Prisma.TaskWhereInput => ({ NOT: { prevTaskId: { not: null }, activatedAt: null } });
+
+/** Desde cuándo «cuenta» la tarea para quien la recibe (puntualidad, respuesta, ciclo): su aparición si se programó; si se encadenó, su activación; si no, su creación. */
+export const startOf = (t: { publishAt: Date | null; createdAt: Date; activatedAt?: Date | null }) => t.publishAt ?? t.activatedAt ?? t.createdAt;

@@ -36,10 +36,10 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
 
   const data: ReviewData = {
     id: r.id, title: r.title, status: r.status, round: r.round, startedAt: r.startedAt?.toISOString() ?? null,
-    respondBy: r.respondBy ? isoDate(r.respondBy) : null, clientId: r.client.id, clientName: r.client.companyName, clientHasLogo: !!r.client.logoUrl, projectName: r.project.projectName,
+    respondBy: r.respondBy ? isoDate(r.respondBy) : null, clientId: r.client.id, projectId: r.projectId, clientName: r.client.companyName, clientHasLogo: !!r.client.logoUrl, projectName: r.project.projectName,
     approvedByName: r.approvedByName, approvedAt: r.approvedAt?.toISOString() ?? null, copyUserId: r.copyUserId, artUserId: r.artUserId, notifyEmails: r.notifyEmails,
     slides: r.slides.map((s) => ({
-      id: s.id, position: s.position, channel: s.channel, publishOn: s.publishOn ? isoDate(s.publishOn) : null, copy: s.copy, status: s.status,
+      id: s.id, position: s.position, title: s.title, kind: s.kind, channel: s.channel, publishOn: s.publishOn ? isoDate(s.publishOn) : null, copy: s.copy, status: s.status,
       approvedByName: s.approvedByName, approvedAt: s.approvedAt?.toISOString() ?? null, reopenedReason: s.reopenedReason,
       copyVersion: s.copyVersion, prevCopy: s.copyVersions[0]?.text ?? null, artVersion: s.artVersion,
       assets: s.assets.filter((a) => a.version === s.artVersion).map((a) => ({ id: a.id, type: a.type, name: a.name })),
@@ -57,11 +57,15 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
 
   if (user.role === "CLIENTE") return <ReviewViewer data={data} meId={user.id} />;
 
-  const team = await prisma.user.findMany({ where: { role: "TEAM_311", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const team = await prisma.user.findMany({ where: { role: "TEAM_311", active: true }, orderBy: { name: "asc" }, select: { id: true, name: true, photoUrl: true } });
+  // Mientras es borrador se puede cambiar de cliente: se ofrece el catálogo completo
+  const clients = r.status === "BORRADOR"
+    ? await prisma.client.findMany({ orderBy: { companyName: "asc" }, select: { id: true, companyName: true, mainEmails: true, projects: { orderBy: { projectName: "asc" }, select: { id: true, projectName: true, projectEmails: true } } } })
+    : [];
   return (
     <div className="max-w-5xl space-y-6">
       <Link href="/revisiones" className="btn-outline inline-flex"><ArrowLeft size={16} /> Revisiones</Link>
-      {r.status === "BORRADOR" ? <ReviewBuilder data={data} team={team} /> : <ReviewMonitor data={data} team={team} focusSlide={focus} />}
+      {r.status === "BORRADOR" ? <ReviewBuilder data={data} team={team} clients={clients} /> : <ReviewMonitor data={data} team={team} focusSlide={focus} />}
     </div>
   );
 }

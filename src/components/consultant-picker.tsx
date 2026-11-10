@@ -9,8 +9,12 @@ export type TeamOption = { id: string; name: string; photoUrl: string | null };
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Selector múltiple con buscador de usuarios TEAM 311: los elegidos aparecen como fotos con su nombre. */
-export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo aparecen usuarios con rol TEAM 311.", emptyText = "Aún no hay usuarios TEAM 311", searchText = "Escribe para buscar y agregar consultores…" }: {
+export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo aparecen usuarios con rol TEAM 311.", emptyText = "Aún no hay usuarios TEAM 311", searchText = "Escribe para buscar y agregar consultores…", single = false, name = "consultantIds" }: {
   options: TeamOption[]; initial?: string[]; onChange?: (ids: string[]) => void; hint?: string; emptyText?: string; searchText?: string;
+  /** Una sola persona: al elegir otra reemplaza a la anterior y el buscador se oculta mientras haya una elegida. */
+  single?: boolean;
+  /** Nombre del campo oculto que viaja en el formulario. */
+  name?: string;
 }) {
   const [selected, setSelectedRaw] = useState<string[]>(initial);
   const setSelected = (u: string[] | ((s: string[]) => string[])) =>
@@ -30,7 +34,7 @@ export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo
 
   return (
     <div ref={box} className="relative space-y-2" onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node)) setOpen(false); }}>
-      {selected.map((id) => <input key={id} type="hidden" name="consultantIds" value={id} />)}
+      {selected.map((id) => <input key={id} type="hidden" name={name} value={id} />)}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {selected.map((id) => {
@@ -47,16 +51,18 @@ export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo
           })}
         </div>
       )}
-      <input
-        className="input"
-        placeholder={options.length === 0 ? emptyText : searchText}
-        value={q}
-        disabled={options.length === 0}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        autoComplete="off"
-      />
-      {open && (
+      {!(single && selected.length > 0) && (
+        <input
+          className="input"
+          placeholder={options.length === 0 ? emptyText : searchText}
+          value={q}
+          disabled={options.length === 0}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          autoComplete="off"
+        />
+      )}
+      {open && !(single && selected.length > 0) && (
         <ul className="glass absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl py-1 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
           {available.length === 0 && <li className="px-3.5 py-2 text-sm text-zinc-500">{options.length === selected.length ? "Ya agregaste a todos" : "Sin resultados"}</li>}
           {available.map((o) => (
@@ -65,7 +71,7 @@ export function ConsultantPicker({ options, initial = [], onChange, hint = "Solo
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm hover:bg-[#007AFF]/10"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setSelected((s) => [...s, o.id]); setQ(""); }}
+                onClick={() => { setSelected((s) => (single ? [o.id] : [...s, o.id])); setQ(""); if (single) setOpen(false); }}
               >
                 <Avatar name={o.name} userId={o.id} photoKey={o.photoUrl} size={26} /> {o.name}
               </button>

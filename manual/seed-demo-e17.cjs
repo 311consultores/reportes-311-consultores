@@ -18,6 +18,8 @@ const RID = "e702b71d-d30b-4d3c-9848-11fc3d9eb407";
     await p.reviewAsset.deleteMany({ where: { slideId: { in: slides.map((s) => s.id) }, version: { gt: 1 } } });
     await p.reviewSlide.updateMany({ where: { reviewId: RID }, data: { status: "PENDIENTE", approvedAt: null, approvedByName: null, reopenedReason: null, copyVersion: 1, artVersion: 1 } });
     await p.reviewSlide.update({ where: { id: slides[0].id }, data: { copy: "Tu proyecto merece cimientos fuertes. Conoce nuestros productos en concreto premezclado." } });
+    const meta = [["Cimientos fuertes", "BANNER", "FACEBOOK,INSTAGRAM"], ["3 señales de supervisión", "CARRUSEL", "FACEBOOK"], ["Vaciado de losa en 6 horas", "VIDEO", "INSTAGRAM"]];
+    for (let i = 0; i < slides.length; i++) await p.reviewSlide.update({ where: { id: slides[i].id }, data: { title: meta[i][0], kind: meta[i][1], channel: meta[i][2] } });
   };
   const comment = (s, target, body, extra = {}) => p.reviewComment.create({ data: { reviewId: RID, slideId: s.id, target, round: 1, authorId: cli.id, body, ...extra } });
 
@@ -44,6 +46,11 @@ const RID = "e702b71d-d30b-4d3c-9848-11fc3d9eb407";
         for (let k = 0; k < keep.length; k++) await p.reviewAsset.create({ data: { slideId: s.id, key: keep[k].key, type: keep[k].type, name: keep[k].name, position: k + 1 } });
       }
     }
+    const d0 = await p.review.findFirst({ where: { title: "Campaña Buen Fin" } });
+    await p.reviewSlide.deleteMany({ where: { reviewId: d0.id, position: { gt: 3 } } });
+    const draft = await p.review.findFirst({ where: { title: "Campaña Buen Fin" }, include: { slides: { orderBy: { position: "asc" } } } });
+    const dm = [["Lanzamiento Buen Fin", "BANNER", "FACEBOOK"], ["Hábitos saludables", "CARRUSEL", "INSTAGRAM"], ["Nuestros especialistas", "AD", "FACEBOOK,INSTAGRAM"]];
+    for (let i = 0; i < draft.slides.length; i++) await p.reviewSlide.update({ where: { id: draft.slides[i].id }, data: { title: dm[i][0], kind: dm[i][1], channel: dm[i][2], copy: draft.slides[i].copy.replace(/🔥s*/g, "") } });
     console.log("borrador listo");
   } else if (mode === "cliente") {
     await reset();

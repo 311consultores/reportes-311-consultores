@@ -7,10 +7,11 @@ import { desempenoSemanalEmail, notaRecordatorioEmail, reviewReminderEmail, tare
 import { htmlToText } from "@/lib/sanitize";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { formatMx } from "@/lib/tasks-shared";
-import { publishedWhere } from "@/lib/task-visibility";
+import { notWaitingWhere, publishedWhere } from "@/lib/task-visibility";
 import { addDaysIso, dateOnly, fmtDate, todayMx } from "@/lib/finance";
 import { computeDashboard, fmtPct, getMeasuredFrom, getThresholds, mxWeekStart, lightFor } from "@/lib/metrics";
 import { dayKey } from "@/lib/tasks-shared";
+import { ensurePayrollWeeks } from "@/lib/payroll";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
   const base = await getBaseUrl();
   const logo = await readLogo311();
   const inline = logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined;
-  const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false, recordatoriosRevision: 0 };
+  const result = { programadas: 0, porVencer: 0, vencidasPersonas: 0, vencidasTotal: 0, resumenAdmin: false, resumenSemanal: false, recordatoriosRevision: 0, nominaAviso: 0 };
 
   // 0) Tareas programadas que ya aparecieron: se avisa a las personas asignadas (campanita, navegador y correo)
   const published = await prisma.task.findMany({
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
 
   // 1) Por vencer (menos de 12 horas)
   const soon = await prisma.task.findMany({
-    where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { gt: now, lte: new Date(now.getTime() + 12 * 3600_000) }, reminderSentAt: null, ...publishedWhere(now) },
+    where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { gt: now, lte: new Date(now.getTime() + 12 * 3600_000) }, reminderSentAt: null, ...publishedWhere(now), ...notWaitingWhere() },
     include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, email: true, active: true } } } } },
   });
   for (const t of soon) {
@@ -112,7 +113,7 @@ export async function GET(req: Request) {
   const force = url.searchParams.get("force") === "1";
   if (force || (hourMx >= 8 && (await getSetting(LAST_KEY)) !== today)) {
     const overdue = await prisma.task.findMany({
-      where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { lt: now }, ...publishedWhere(now) },
+      where: { status: { in: ["PENDIENTE", "EN_PROCESO"] }, dueAt: { lt: now }, ...publishedWhere(now), ...notWaitingWhere() },
       orderBy: { dueAt: "asc" },
       include: { client: { select: { companyName: true } }, project: { select: { projectName: true } }, assignees: { include: { user: { select: { id: true, name: true, email: true, active: true } } } } },
     });
@@ -146,6 +147,22 @@ export async function GET(req: Request) {
         return Response.json({ ...result, error: "No se pudo enviar el aviso de tareas vencidas" }, { status: 502 });
       }
     }
+  }
+
+  // 2b) Nómina: se crean las semanas que faltan y, el día de pago (sábado) a partir de las 8:00, se avisa al ADMIN si sigue PROGRAMADA
+  try {
+    await ensurePayrollWeeks();
+    const due = await prisma.payrollWeek.findMany({ where: { status: "PROGRAMADA", payDate: { lte: dateOnly(today) }, reminderSentAt: null } });
+    if (hourMx >= 8 && due.length > 0) {
+      const admins = await prisma.user.findMany({ where: { role: "ADMIN", active: true }, select: { id: true } });
+      for (const w of due) {
+        await notifyUsers(admins.map((a) => a.id), { kind: "PAYROLL_DUE", title: `💵 Hoy toca pagar la nómina (semana ${w.week})`, body: "Registra el pago en Finanzas → Nómina.", link: "/finanzas/nomina" });
+        await prisma.payrollWeek.update({ where: { id: w.id }, data: { reminderSentAt: now } });
+      }
+      result.nominaAviso = due.length;
+    }
+  } catch (e) {
+    console.error("[cron tareas] nómina:", e);
   }
 
   // 3) Resumen semanal de desempeño: los lunes a partir de las 8:00 (México), con la semana anterior (lunes a domingo). Solo a necesito@311consultores.com.

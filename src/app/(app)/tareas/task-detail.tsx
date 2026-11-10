@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Check, Clock, ExternalLink, Link2, MessageCircle, Pencil, Plus, Wand2, X } from "lucide-react";
+import { CalendarClock, Check, Clock, ExternalLink, Link2, Lock, MessageCircle, Pencil, Plus, Wand2, X } from "lucide-react";
 import type { Role, TaskStatus } from "@prisma/client";
 import { AvatarChip } from "@/components/avatar";
 import { DeleteButton } from "@/components/delete-button";
@@ -19,14 +19,15 @@ import { cn } from "@/lib/utils";
 import { addTaskAssignees, removeTaskAssignee, toggleSubtask } from "@/app/actions/tasks";
 import { TaskChat } from "./task-chat";
 import { SendToClientModal } from "../revisiones/send-to-client-modal";
+import { waitLabel } from "@/lib/task-wait";
 import type { TaskCard } from "./task-types";
 
 const eventNote = (kind: string, note: string | null) =>
   kind === "MOVED" && note ? note.replace(/[A-Z_]+/g, (k) => (STATUS_INFO[k as TaskStatus]?.label.toLowerCase() ?? k)).replace(" → ", " → ") : note;
 
 /** Cuerpo de la ventana de detalle de una tarea (estilo Trello): contenido a la izquierda y mini-panel a la derecha. */
-export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, onEdit, onClose }: {
-  task: TaskCard; notes?: { id: string; title: string }[]; team?: TeamOption[]; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void;
+export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, onEdit, onClose, onChain, onOpenTask }: {
+  task: TaskCard; notes?: { id: string; title: string }[]; team?: TeamOption[]; role: Role; meId: string; onMove: (to: TaskStatus) => void; onEdit: () => void; onClose: () => void; onChain?: () => void; onOpenTask?: (id: string) => void;
 }) {
   const router = useRouter();
   const [now, setNow] = useState(() => new Date());
@@ -41,8 +42,9 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
   const info = STATUS_INFO[task.status];
   const rem = remainingText(task.dueAt, now);
   const active = task.status === "PENDIENTE" || task.status === "EN_PROCESO";
-  const targets = STATUS_ORDER.filter((s) => canMove(role, mine, task.status, s));
-  const canReady = role === "TEAM_311" && mine && active;
+  const waiting = task.waiting; // en espera: se consulta y se chatea, pero no se mueve ni se marcan subtareas
+  const targets = waiting ? [] : STATUS_ORDER.filter((s) => canMove(role, mine, task.status, s));
+  const canReady = !waiting && role === "TEAM_311" && mine && active;
   const locked = task.status === "TERMINADA" && !isOps; // el TEAM 311 solo consulta
   // Enlace de la tarea para copiar y mandar por WhatsApp (solo quien gestiona tareas)
   const [copied, setCopied] = useState(false);
@@ -53,16 +55,11 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
       const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
     }
   }
-  async function copyLink() {
-    await copyText(taskUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
   // El botón de WhatsApp copia el mensaje (con el nombre de todas las personas asignadas) para pegarlo en WhatsApp
   async function copyMessage() {
     await copyText(taskAssignMessage(task.assignees.map((a) => a.name), task.title, taskUrl));
-    setToast("Mensaje copiado");
-    setTimeout(() => setToast(undefined), 3000);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   }
   // Agregar o quitar personas sin abrir «Editar»
   const { confirm } = useDialogs();
@@ -95,7 +92,7 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
   const subs = task.subtasks.map((s) => ({ ...s, done: local[s.id] ?? s.done }));
   const doneCount = subs.filter((s) => s.done).length;
   const allDone = subs.length > 0 && doneCount === subs.length;
-  const canCheck = isOps || (mine && !locked);
+  const canCheck = !waiting && (isOps || (mine && !locked));
   const [sendReview, setSendReview] = useState(false); // ventana «Enviar al cliente» de una tarea de revisión
   async function checkSub(id: string, done: boolean) {
     setLocal((l) => ({ ...l, [id]: done }));
@@ -116,8 +113,20 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
             {info.emoji} {info.label}
           </span>
           {task.areaName && <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide text-white" style={{ backgroundColor: task.areaColor ?? "#007AFF" }}>{task.areaName}</span>}
+          {waiting && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FF9500]/15 px-3 py-1 text-xs font-semibold text-[#B25E00] dark:text-[#FFB340]"><Lock size={13} /> En espera</span>}
           {scheduled && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#5856D6]/15 px-3 py-1 text-xs font-semibold text-[#4B49C0] dark:text-[#A5A3FF]" title="La persona asignada aún no la ve"><Clock size={13} /> Programada · aparece {formatMx(task.publishAt as string)}</span>}
         </div>
+
+        {task.prevTask && (
+          <div className={cn("rounded-xl px-3 py-2 text-sm", waiting ? "bg-[#FF9500]/10 text-[#8A4B00] dark:text-[#FFB340]" : "bg-black/[0.04] dark:bg-white/[0.06]")}>
+            <p className="flex flex-wrap items-center gap-1.5">
+              {waiting ? <Lock size={14} /> : <Link2 size={14} />}
+              {waiting ? "En espera de " : "Encadenada a "}
+              <button type="button" className="font-semibold underline" onClick={() => onOpenTask?.(task.prevTask!.id)}>{task.prevTask.title}</button>
+            </p>
+            <p className="mt-0.5 text-xs">{waiting ? `Se activa cuando se apruebe esa tarea; tendrás ${waitLabel(task.waitDays, task.waitHours)} para entregarla desde ese momento. Mientras tanto puedes consultarla y chatear.` : `Plazo que se dio al activarse: ${waitLabel(task.waitDays, task.waitHours)}.`}</p>
+          </div>
+        )}
 
         <div>
           <h3 className="mb-1 text-sm font-semibold">Asignada a</h3>
@@ -133,11 +142,6 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
             {isOps && (
               <button type="button" aria-expanded={adding} onClick={() => setAdding((v) => !v)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-black/20 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-black/5 dark:border-white/25 dark:text-zinc-300 dark:hover:bg-white/10"><Plus size={13} /> Agregar</button>
             )}
-            {isOps && (
-              <button type="button" onClick={copyMessage} title="Copia el mensaje para pegarlo en WhatsApp" aria-label="WhatsApp: copiar mensaje" className="inline-flex items-center gap-1 rounded-full bg-[#25D366]/15 px-2.5 py-1 text-xs font-semibold text-[#128C4A] transition-all hover:bg-[#25D366]/25 dark:text-[#4ADE80]">
-                <MessageCircle size={13} /> WhatsApp
-              </button>
-            )}
             {toast && <span role="status" className="rounded-full bg-[#34C759]/15 px-2.5 py-1 text-xs font-semibold text-[#1E7B3A] dark:text-[#6EE7A0]">✔ {toast}</span>}
           </div>
           {adding && isOps && (
@@ -151,6 +155,17 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
           )}
           {assignError && <p className="mt-1 text-xs text-destructive">{assignError}</p>}
         </div>
+
+        {task.nextTasks.length > 0 && (
+          <div>
+            <h3 className="mb-1 text-sm font-semibold">Tareas encadenadas después de esta</h3>
+            <ul className="flex flex-wrap gap-2">
+              {task.nextTasks.map((n) => (
+                <li key={n.id}><button type="button" onClick={() => onOpenTask?.(n.id)} className="inline-flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1 text-sm hover:bg-black/10 dark:bg-white/10"><Link2 size={13} /> {n.title}{n.waiting ? " (en espera)" : ""}</button></li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <h3 className="mb-1 text-sm font-semibold">Creada por</h3>
@@ -237,16 +252,16 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
         </div>
         <div>
           <p className="text-xs text-zinc-500">Fecha de entrega</p>
-          <p>{formatMx(task.dueAt)}</p>
-          {task.status !== "PARA_REVISAR" && task.status !== "TERMINADA" && (
+          {waiting ? <p>{waitLabel(task.waitDays, task.waitHours)} después de que se apruebe la anterior</p> : <p>{formatMx(task.dueAt)}</p>}
+          {!waiting && task.status !== "PARA_REVISAR" && task.status !== "TERMINADA" && (
             <p className={cn("mt-1 flex items-center gap-1.5 font-semibold", rem.overdue ? "text-[#FF3B30]" : "text-[#007AFF]")}>
               <CalendarClock size={15} /> {rem.text}
             </p>
           )}
         </div>
         {isOps && (
-          <button type="button" className="btn-outline w-full justify-center" onClick={copyLink}>
-            {copied ? <><Check size={15} /> ¡Enlace copiado!</> : <><Link2 size={15} /> Copiar enlace de la tarea</>}
+          <button type="button" onClick={copyMessage} title="Copia el mensaje para pegarlo en WhatsApp" className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[#25D366]/15 px-3 py-2 text-sm font-semibold text-[#128C4A] transition-all hover:bg-[#25D366]/25 dark:text-[#4ADE80]">
+            {copied ? <><Check size={15} /> ¡Mensaje copiado!</> : <><MessageCircle size={15} /> Copiar tarea para WhatsApp</>}
           </button>
         )}
         <p className="rounded-xl bg-[#FF9500]/10 px-3 py-2 text-[13px] italic text-[#B25E00] dark:text-[#FFB340]">“{phrase}”</p>
@@ -285,6 +300,10 @@ export function TaskDetail({ task, notes = [], team = [], role, meId, onMove, on
         )}
 
         {locked && <p className="text-xs text-zinc-500">Esta tarea ya fue aceptada. Solo puedes consultarla.</p>}
+        {waiting && <p className="text-xs text-zinc-500">Esta tarea está en espera: no se puede mover de fase hasta que se apruebe la anterior.</p>}
+        {isOps && onChain && (
+          <button type="button" className="btn-outline w-full justify-center" onClick={onChain}><Link2 size={15} /> Encadenar otra tarea</button>
+        )}
 
         {isOps && (
           <div className="flex flex-wrap items-center gap-3 border-t border-black/5 pt-3 dark:border-white/10">

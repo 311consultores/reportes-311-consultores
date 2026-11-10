@@ -33,7 +33,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const [rows, total, clients, facturado, cobrado, pendiente, vencido] = await Promise.all([
     prisma.invoice.findMany({
       where,
-      include: { client: { select: { companyName: true } } },
+      include: { client: { select: { companyName: true } }, files: { where: { removedAt: null }, orderBy: { createdAt: "asc" } } },
       orderBy: [{ sentAt: "desc" }],
       take: MAX_ROWS,
     }),
@@ -143,6 +143,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
               <th className="th text-right">Total</th>
               <th className="th">Fecha límite</th>
               <th className="th">Estatus</th>
+              <th className="th">Archivos</th>
               {!isClient && <th className="th">Cobro</th>}
               {!isClient && <th className="th" />}
             </tr>
@@ -169,6 +170,17 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                       <StatusPill status={st} />
                     )}
                   </td>
+                  <td className="td whitespace-nowrap text-sm">
+                    {r.files.length === 0 ? <span className="text-zinc-400">—</span> : (
+                      <span className="flex flex-wrap gap-1.5">
+                        {r.files.map((f) => (
+                          <a key={f.id} href={`/api/facturas/${r.id}/archivos/${f.id}`} className="inline-flex items-center gap-1 rounded-full bg-[#007AFF]/10 px-2.5 py-0.5 text-xs font-medium text-[#0062CC] hover:bg-[#007AFF]/20 dark:text-[#4DA3FF]" title={f.name}>
+                            <Download size={12} /> {f.slot === "PDF" ? "PDF" : f.slot === "XML" ? "XML" : "Comprobante"}
+                          </a>
+                        ))}
+                      </span>
+                    )}
+                  </td>
                   {!isClient && (
                     <td className="td whitespace-nowrap text-xs text-zinc-500">
                       {r.collectedOn ? <>{fmtDate(r.collectedOn)}<span className="block">{accountLabel(r.account)}</span></> : "—"}
@@ -179,7 +191,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={isClient ? 5 : 9} className="td py-8 text-center text-zinc-500">{filtered ? "No hay resultados con estos filtros" : "Aún no hay facturas ni recibos registrados"}</td></tr>
+              <tr><td colSpan={isClient ? 6 : 10} className="td py-8 text-center text-zinc-500">{filtered ? "No hay resultados con estos filtros" : "Aún no hay facturas ni recibos registrados"}</td></tr>
             )}
           </tbody>
         </table>

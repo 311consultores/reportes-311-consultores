@@ -20,7 +20,9 @@ export type CommentData = {
 export type SlideData = {
   id: string;
   position: number;
-  channel: string;
+  title: string | null;
+  kind: string | null; // BANNER | VIDEO | CARRUSEL | AD
+  channel: string; // canales separados por coma
   publishOn: string | null; // AAAA-MM-DD
   copy: string;
   status: SlideStatus;
@@ -44,6 +46,7 @@ export type ReviewData = {
   startedAt: string | null;
   respondBy: string | null; // AAAA-MM-DD
   clientId: string;
+  projectId: string;
   clientName: string;
   clientHasLogo: boolean;
   projectName: string;

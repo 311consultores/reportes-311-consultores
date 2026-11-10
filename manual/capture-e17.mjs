@@ -14,7 +14,7 @@ const only = process.argv[2] ?? "todo";
 fs.mkdirSync(path.join(SHOTS, "admin"), { recursive: true });
 
 const browser = await launch();
-const HIDE = "nextjs-portal{display:none!important} *{caret-color:transparent!important}";
+const HIDE = "nextjs-portal{display:none!important} *{caret-color:transparent!important} button.fixed.bottom-6{display:none!important}";
 
 async function session(email) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1.5, locale: "es-MX", colorScheme: "light", timezoneId: "America/Mexico_City" });
@@ -184,15 +184,18 @@ if (only === "editor" || only === "todo") {
     await pickClient(page, "Constructora Horizonte").catch(async () => { await page.locator("li", { hasText: "Constructora Horizonte" }).first().click(); });
     await page.locator("#projectId").selectOption({ label: "Torre Norte" });
     await page.fill("#title", "Parrilla diciembre 2026");
-    await page.locator("#copyUserId").selectOption({ index: 1 });
-    await page.locator("#artUserId").selectOption({ index: 2 });
+    const pickers = page.getByPlaceholder("Escribe para buscar a una persona…");
+    await pickers.first().click();
+    await page.locator("ul button", { hasText: "Ana Pérez" }).first().click();
+    await pickers.first().click();
+    await page.locator("ul button", { hasText: "Luis Gómez" }).first().click();
     await shot(out("e22-nueva-revision"), {
       loc: L("main .card").first(),
       marks: [
         { loc: L("#projectId"), n: 1, at: "tl" },
         { loc: L("#title"), n: 2, at: "tl" },
-        { loc: L("#copyUserId"), n: 3, at: "tl" },
-        { loc: L("#artUserId"), n: 4, at: "tr" },
+        { loc: L("label", { hasText: "Ajustes de COPY" }).locator("xpath=following-sibling::div"), n: 3, at: "tl" },
+        { loc: L("label", { hasText: "Ajustes de ARTE" }).locator("xpath=following-sibling::div"), n: 4, at: "tr" },
         { loc: L("#respondBy"), n: 5, at: "tl" },
         { loc: L("main .card .input.flex"), n: 6, at: "tl" },
       ],
@@ -212,14 +215,30 @@ if (only === "editor" || only === "todo") {
         { loc: L("button[aria-label='Eliminar el slide']").first(), n: 5, at: "tl" },
       ],
     });
-    await page.waitForTimeout(1500);
+    await L("main button[aria-expanded]").first().click();
+    await page.waitForTimeout(600);
+    await shot(out("e23a-datos-generales"), {
+      loc: L("section.card").first(),
+      marks: [
+        { loc: L("section.card button[aria-expanded]").first(), n: 1, at: "tl" },
+        { loc: L("label", { hasText: "Ajustes de COPY" }).locator("xpath=following-sibling::div"), n: 2, at: "tl" },
+        { loc: L("label", { hasText: "Ajustes de ARTE" }).locator("xpath=following-sibling::div"), n: 3, at: "tr" },
+        { loc: L("#m-resp"), n: 4, at: "tl" },
+        { loc: L("button", { hasText: "Guardar datos generales" }), n: 5, at: "tl" },
+      ],
+    });
+    await L("main button[aria-expanded]").first().click();
+    await page.waitForTimeout(800);
     await shot(out("e23b-slide-abierto"), {
       loc: L("main section.space-y-4 > div").last(),
       marks: [
-        { loc: L("main section.space-y-4 textarea").last(), n: 1, at: "tl" },
-        { loc: L("main section.space-y-4 select").last(), n: 2, at: "tl" },
-        { loc: L("main section.space-y-4 label.cursor-pointer").last(), n: 3, at: "tl" },
-        { loc: L("button", { hasText: "Simular vista en redes" }).last(), n: 4, at: "tl" },
+        { loc: L("main section.space-y-4 input[id^=title-]").last(), n: 1, at: "tl" },
+        { loc: L("main section.space-y-4 select[id^=kind-]").last(), n: 2, at: "tl" },
+        { loc: L("main section.space-y-4 button[aria-label='Insertar un emoji']").last(), n: 3, at: "tl" },
+        { loc: L("main section.space-y-4 textarea").last(), n: 4, at: "tl" },
+        { loc: L("main section.space-y-4 p.label", { hasText: "Canales" }).last(), n: 5, at: "tl" },
+        { loc: L("main section.space-y-4 label.cursor-pointer").last(), n: 6, at: "tl" },
+        { loc: L("button", { hasText: "Simular vista en redes" }).last(), n: 7, at: "tl" },
       ],
     });
     await L("button", { hasText: "Simular vista en redes" }).last().click();

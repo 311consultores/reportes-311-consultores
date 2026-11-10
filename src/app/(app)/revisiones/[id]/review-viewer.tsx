@@ -7,9 +7,10 @@ import { ArrowLeft, Check, ChevronLeft, Eye, FileDown, ChevronRight, MessageSqua
 import { approveSlide, deleteComment, saveComment, sendAdjustments, startReview } from "@/app/actions/reviews";
 import { Modal } from "@/components/modal";
 import { PostSimulator } from "@/components/post-simulator";
+import { SlideKindPill } from "@/components/slide-kind-pill";
 import { ReviewThumb } from "@/components/review-thumb";
 import { diffWords } from "@/lib/text-diff";
-import { artKind, assetUrl, channelLabel, fmtSec, MAX_COMMENT, parseSec, REVIEW_STATUS_LABEL, SLIDE_STATUS_LABEL, SLIDE_STATUS_STYLE } from "@/lib/reviews";
+import { artKind, assetUrl, channelLabel, channelsOf, fmtSec, slideName, MAX_COMMENT, parseSec, REVIEW_STATUS_LABEL, SLIDE_STATUS_LABEL, SLIDE_STATUS_STYLE } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 import type { CommentData, ReviewData, SlideData } from "./types";
 
@@ -156,8 +157,12 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
           {slides.map((s, i) => {
             const n = sentOf(s).length + draftsOf(s.id).length;
             return (
-              <button key={s.id} type="button" onClick={() => go(i)} aria-label={`Ir al slide ${s.position}`} className={cn("relative h-20 w-24 shrink-0 rounded-xl border-2 p-0.5 lg:h-auto lg:w-full", i === idx ? "border-[#007AFF]" : "border-transparent")}>
+              <button key={s.id} type="button" onClick={() => go(i)} aria-label={`Ir al slide ${s.position}`} title={slideName(s.position, s.title)} className={cn("relative h-20 w-24 shrink-0 rounded-xl border-2 p-0.5 lg:h-auto lg:w-full", i === idx ? "border-[#007AFF]" : "border-transparent")}>
                 <ReviewThumb asset={s.assets[0]} index={i} className="h-full w-full lg:aspect-square lg:h-auto" />
+                <span className="mt-1 hidden space-y-0.5 text-left lg:block">
+                  <SlideKindPill kind={s.kind} className="!px-1.5 !py-0 !text-[9px]" />
+                  {s.title && <span className="block truncate text-[10px] leading-tight text-zinc-500">{s.title}</span>}
+                </span>
                 <span className="absolute left-0.5 top-0.5 rounded-br-lg rounded-tl-lg bg-black/70 px-1.5 text-[10px] text-white">{s.position}</span>
                 {n > 0 && <span className="absolute -right-1 -top-1 flex min-w-[20px] items-center justify-center gap-0.5 rounded-full border-2 border-background bg-[#FF9500] px-1 text-[10px] font-bold text-white" title={`${n} comentario(s)`}><MessageSquare size={10} />{n}</span>}
                 {s.status === "APROBADO" && <span className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#34C759] text-white"><Check size={12} strokeWidth={3} /></span>}
@@ -169,7 +174,8 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
         {/* Slide */}
         <div className="order-1 min-w-0 flex-1 space-y-3 lg:order-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-base font-semibold tracking-tight">Slide {slide.position} de {slides.length}</h2>
+            <h2 className="text-base font-semibold tracking-tight">Slide {slide.position} de {slides.length}{slide.title ? <span className="font-semibold"> · {slide.title}</span> : null}</h2>
+            <SlideKindPill kind={slide.kind} />
             <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", SLIDE_STATUS_STYLE[slide.status])}>{SLIDE_STATUS_LABEL[slide.status]}</span>
             <span className="meta">{channelLabel(slide.channel)}{slide.publishOn ? ` · Publicación ${new Date(`${slide.publishOn}T12:00:00`).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}` : ""}</span>
             {canComment && (
@@ -180,7 +186,7 @@ export function ReviewViewer({ data, meId }: { data: ReviewData; meId: string })
           </div>
           {slide.status === "APROBADO" && <p className="meta">Aprobado por {slide.approvedByName}{slide.approvedAt ? ` · ${when(slide.approvedAt)}` : ""}. Si necesitas un cambio, solicítalo en el grupo de trabajo por WhatsApp.</p>}
 
-          <button type="button" className="btn-outline px-3.5 py-2 text-sm" onClick={() => setSim(true)}><Eye size={15} /> Simular vista en {channelLabel(slide.channel)}</button>
+          <button type="button" className="btn-outline px-3.5 py-2 text-sm" onClick={() => setSim(true)}><Eye size={15} /> {channelsOf(slide.channel).length === 1 ? `Simular vista en ${channelLabel(slide.channel)}` : "Simular vista en redes"}</button>
           <div className="grid gap-3 md:grid-cols-2">
             <section className="card flex flex-col gap-3">
               <p className="label !mb-0">Copy</p>

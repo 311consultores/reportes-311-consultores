@@ -13,7 +13,7 @@ import {
   computeDistribution, firstNegative, getBalances, getSplitConfig, writeEntries, type DistributionSnapshot,
 } from "@/lib/ledger";
 
-type State = { error?: string; ok?: boolean } | undefined;
+type State = { error?: string; ok?: boolean; id?: string } | undefined;
 
 const log = (invoiceId: string, userId: string, action: string, details?: unknown) =>
   prisma.invoiceLog.create({ data: { invoiceId, userId, action, details: details ? JSON.stringify(details) : null } });
@@ -61,7 +61,19 @@ export async function createInvoice(_p: State, fd: FormData): Promise<State> {
   });
   await log(invoice.id, user.id, "CREATED", { kind: d.kind, total: subtotal + vat });
   revalidatePath("/facturas");
-  return { ok: true };
+  return { ok: true, id: invoice.id };
+}
+
+/** Quita un archivo de una factura o recibo: el cliente ya no lo descarga. Queda marcado y registrado en el historial. */
+export async function removeInvoiceFile(fileId: string): Promise<{ error?: string }> {
+  const user = await requireUser(["ADMIN", "EDITOR"]);
+  const f = /^[0-9a-f-]{36}$/i.test(fileId) ? await prisma.invoiceFile.findFirst({ where: { id: fileId, removedAt: null } }) : null;
+  if (!f) return { error: "El archivo no existe o ya se quitó" };
+  await prisma.invoiceFile.update({ where: { id: f.id }, data: { removedAt: new Date(), removedById: user.id } });
+  await log(f.invoiceId, user.id, "FILE_REMOVED", { slot: f.slot, name: f.name });
+  revalidatePath("/facturas");
+  revalidatePath(`/facturas/${f.invoiceId}`);
+  return {};
 }
 
 /** Corrige una factura mientras siga Enviada. Queda registrado qué cambió. */

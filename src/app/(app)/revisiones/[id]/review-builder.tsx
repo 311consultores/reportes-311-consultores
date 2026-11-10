@@ -4,12 +4,17 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Plus, Send, Trash2, Upload, X } from "lucide-react";
 import { addSlide, deleteAsset, deleteSlide, moveAsset, publishReview, reorderSlides, saveSlide, updateReviewMeta } from "@/app/actions/reviews";
+import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
+import { CopyEditor } from "@/components/copy-editor";
 import { DateInput } from "@/components/date-input";
+import { SlideKindPill } from "@/components/slide-kind-pill";
 import { PostSimulator } from "@/components/post-simulator";
 import { useDialogs } from "@/components/dialogs";
 import { EmailPills } from "@/components/email-pills";
+import { SearchSelect } from "@/components/search-select";
+import { splitEmails, uniqueEmails } from "@/lib/emails";
 import { ReviewThumb } from "@/components/review-thumb";
-import { ART_KIND_LABEL, artKind, CHANNELS, MAX_ASSETS, MAX_COPY } from "@/lib/reviews";
+import { ART_KIND_LABEL, artKind, CHANNELS, channelsOf, MAX_ASSETS, MAX_COPY, SLIDE_KINDS, slideName } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 import type { AssetData, ReviewData, SlideData } from "./types";
 
@@ -17,7 +22,9 @@ const MIME_BY_EXT: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jp
 const mimeOf = (f: File) => f.type || MIME_BY_EXT[f.name.split(".").pop()?.toLowerCase() ?? ""] || "";
 
 /** Armado de una revisión en borrador: datos generales, slides (copy + arte), orden y publicación al cliente. */
-export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: string; name: string }[] }) {
+type ClientOpt = { id: string; companyName: string; mainEmails: string; projects: { id: string; projectName: string; projectEmails: string }[] };
+
+export function ReviewBuilder({ data, team, clients }: { data: ReviewData; team: TeamOption[]; clients: ClientOpt[] }) {
   const router = useRouter();
   const { confirm } = useDialogs();
   const [slides, setSlides] = useState<SlideData[]>(data.slides);
@@ -27,9 +34,31 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
   const [msg, setMsg] = useState<{ ok: boolean; text: string }>();
 
   // ---- Datos generales ----
-  const [meta, setMeta] = useState({ title: data.title, copyUserId: data.copyUserId ?? "", artUserId: data.artUserId ?? "", respondBy: data.respondBy ?? "", notifyEmails: data.notifyEmails });
+  const [meta, setMeta] = useState({ clientId: data.clientId, projectId: data.projectId, title: data.title, copyUserId: data.copyUserId ?? "", artUserId: data.artUserId ?? "", respondBy: data.respondBy ?? "", notifyEmails: data.notifyEmails });
   const [metaState, setMetaState] = useState<{ ok: boolean; text: string }>();
   const [savingMeta, startMeta] = useTransition();
+  const [metaOpen, setMetaOpen] = useState(false); // los datos generales aparecen plegados
+  const nameOf = (id: string) => team.find((t) => t.id === id)?.name ?? "—";
+  const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.companyName })), [clients]);
+  const metaClient = clients.find((c) => c.id === meta.clientId);
+  const [emailsKey, setEmailsKey] = useState(0);
+  const suggestEmails = (c: ClientOpt | undefined, projectId: string) =>
+    c ? uniqueEmails([...splitEmails(c.mainEmails), ...splitEmails(c.projects.find((p) => p.id === projectId)?.projectEmails ?? "")]).join(",") : "";
+
+  // Cuando el botón superior «Agregar slide» sale de la pantalla, aparece uno flotante que acompaña al usuario
+  const addBtn = useRef<HTMLButtonElement>(null);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  useEffect(() => {
+    const el = addBtn.current;
+    if (!el) return;
+    const check = () => setHeaderVisible(el.getBoundingClientRect().bottom > 0);
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, []);
 
   // ---- Reordenar: arrastrar con el asa o con las flechas ----
   const ref = useRef(slides);
@@ -142,25 +171,49 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
       {msg && <p className={cn("text-sm", msg.ok ? "text-[#248A3D]" : "text-destructive")}>{msg.text}</p>}
 
       <section className="card space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Datos generales</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <button type="button" aria-expanded={metaOpen} onClick={() => setMetaOpen((v) => !v)} className="flex w-full items-center gap-3 text-left">
+          <ChevronDown size={18} className={cn("shrink-0 text-zinc-500 transition-transform duration-200", !metaOpen && "-rotate-90")} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-lg font-semibold tracking-tight">Datos generales</span>
+            <span className="block truncate text-sm text-zinc-500">{meta.title} · Copy: {nameOf(meta.copyUserId)} · Arte: {nameOf(meta.artUserId)}{meta.respondBy ? ` · Responder antes del ${meta.respondBy.split("-").reverse().join("/")}` : ""}</span>
+          </span>
+          <span className="shrink-0 text-xs font-medium text-[#007AFF]">{metaOpen ? "Ocultar" : "Ver y editar"}</span>
+        </button>
+        <div className={cn("grid gap-4 sm:grid-cols-2", !metaOpen && "hidden")}>
+          <div>
+            <label className="label">Cliente</label>
+            <SearchSelect
+              name="clientId" required options={clientOptions} value={meta.clientId} placeholder="Escribe para buscar un cliente…"
+              onChange={(v) => {
+                if (!v || v === meta.clientId) return;
+                const c = clients.find((x) => x.id === v);
+                // Al cambiar de cliente se elige su primer proyecto y se sugieren sus correos (se pueden ajustar)
+                const projectId = c?.projects[0]?.id ?? "";
+                setMeta((m) => ({ ...m, clientId: v, projectId, notifyEmails: suggestEmails(c, projectId) }));
+                setEmailsKey((k) => k + 1);
+              }}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="m-project">Proyecto</label>
+            <select
+              id="m-project" className="input" value={meta.projectId}
+              onChange={(e) => { const projectId = e.target.value; setMeta((m) => ({ ...m, projectId, notifyEmails: suggestEmails(metaClient, projectId) })); setEmailsKey((k) => k + 1); }}
+            >
+              {(metaClient?.projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+            </select>
+          </div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="m-title">Título</label>
             <input id="m-title" className="input" maxLength={191} value={meta.title} onChange={(e) => setMeta((m) => ({ ...m, title: e.target.value }))} />
           </div>
           <div>
-            <label className="label" htmlFor="m-copy">Ajustes de COPY los atiende</label>
-            <select id="m-copy" className="input" value={meta.copyUserId} onChange={(e) => setMeta((m) => ({ ...m, copyUserId: e.target.value }))}>
-              <option value="">Elige a una persona…</option>
-              {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <label className="label">Ajustes de COPY los atiende</label>
+            <ConsultantPicker single options={team} name="copyUserId" initial={meta.copyUserId ? [meta.copyUserId] : []} hint="" searchText="Escribe para buscar a una persona…" onChange={(ids) => setMeta((m) => ({ ...m, copyUserId: ids[0] ?? "" }))} />
           </div>
           <div>
-            <label className="label" htmlFor="m-art">Ajustes de ARTE los atiende</label>
-            <select id="m-art" className="input" value={meta.artUserId} onChange={(e) => setMeta((m) => ({ ...m, artUserId: e.target.value }))}>
-              <option value="">Elige a una persona…</option>
-              {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <label className="label">Ajustes de ARTE los atiende</label>
+            <ConsultantPicker single options={team} name="artUserId" initial={meta.artUserId ? [meta.artUserId] : []} hint="" searchText="Escribe para buscar a una persona…" onChange={(ids) => setMeta((m) => ({ ...m, artUserId: ids[0] ?? "" }))} />
           </div>
           <div>
             <label className="label" htmlFor="m-resp">El cliente debe responder antes del</label>
@@ -168,10 +221,10 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
           </div>
           <div className="sm:col-span-2">
             <label className="label">Correos a los que se avisa</label>
-            <EmailPills name="notifyEmails" defaultValue={meta.notifyEmails} onChange={(csv) => setMeta((m) => (m.notifyEmails === csv ? m : { ...m, notifyEmails: csv }))} />
+            <EmailPills key={emailsKey} name="notifyEmails" defaultValue={meta.notifyEmails} onChange={(csv) => setMeta((m) => (m.notifyEmails === csv ? m : { ...m, notifyEmails: csv }))} />
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className={cn("flex items-center gap-3", !metaOpen && "hidden")}>
           <button
             type="button" className="btn-outline" disabled={savingMeta}
             onClick={() => startMeta(async () => {
@@ -188,7 +241,7 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold tracking-tight">Slides ({slides.length})</h2>
-          <button type="button" className="btn" onClick={add} disabled={adding}><Plus size={16} /> Agregar slide</button>
+          <button ref={addBtn} type="button" className="btn" onClick={add} disabled={adding}><Plus size={16} /> Agregar slide</button>
         </div>
         <p className="meta">Cada slide es una publicación: su copy y su arte (imagen, video o carrusel). Arrastra con el asa ⋮⋮ o usa las flechas para cambiar el orden.</p>
         {slides.map((s, i) => (
@@ -203,6 +256,12 @@ export function ReviewBuilder({ data, team }: { data: ReviewData; team: { id: st
         ))}
         {slides.length === 0 && <p className="card meta">Todavía no hay slides. Pulsa «Agregar slide» para empezar.</p>}
       </section>
+
+      {!headerVisible && (
+        <button type="button" className="btn fixed bottom-6 right-6 z-40 rounded-full px-5 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.25)]" onClick={add} disabled={adding}>
+          <Plus size={18} /> Agregar slide
+        </button>
+      )}
     </div>
   );
 }
@@ -214,7 +273,9 @@ function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted,
 }) {
   const { confirm } = useDialogs();
   const [copy, setCopy] = useState(slide.copy);
-  const [channel, setChannel] = useState(slide.channel);
+  const [title, setTitle] = useState(slide.title ?? "");
+  const [kindSel, setKindSel] = useState(slide.kind ?? "");
+  const [channels, setChannels] = useState<string[]>(channelsOf(slide.channel).length ? channelsOf(slide.channel) : ["FACEBOOK"]);
   const [publishOn, setPublishOn] = useState(slide.publishOn ?? "");
   const [assets, setAssets] = useState<AssetData[]>(slide.assets);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -223,18 +284,19 @@ function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted,
   const [sim, setSim] = useState(false);
   const first = useRef(true);
   const kind = artKind(assets);
+  const toggleChannel = (c: string, on: boolean) => setChannels((list) => (on ? [...new Set([...list, c])] : list.filter((x) => x !== c)));
 
   // Autoguardado: espera a que se deje de escribir
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     setState("saving");
     const t = setTimeout(async () => {
-      const r = await saveSlide(slide.id, { copy, channel, publishOn: publishOn || null });
+      const r = await saveSlide(slide.id, { title, kind: kindSel, copy, channels, publishOn: publishOn || null });
       setState(r.error ? "error" : "saved");
       setErr(r.error);
     }, 900);
     return () => clearTimeout(t);
-  }, [copy, channel, publishOn, slide.id]);
+  }, [copy, title, kindSel, channels, publishOn, slide.id]);
 
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -288,7 +350,7 @@ function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted,
         )}
         <ReviewThumb asset={assets[0]} index={number - 1} className="h-11 w-11 shrink-0" />
         <button type="button" onClick={onToggle} aria-expanded={open} className="min-w-0 flex-1 text-left">
-          <span className="block text-sm font-semibold tracking-tight">Slide {number} <span className="font-normal text-zinc-500">· {ART_KIND_LABEL[kind]}</span></span>
+          <span className="flex flex-wrap items-center gap-2 text-sm font-semibold tracking-tight">{slideName(number, title)} <SlideKindPill kind={kindSel} />{!kindSel && <span className="rounded-full bg-[#FF3B30]/10 px-2 py-0.5 text-[11px] font-medium text-[#D70015]">Falta el tipo</span>}</span>
           <span className="block truncate text-xs text-zinc-500">{summary}</span>
         </button>
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -305,14 +367,34 @@ function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted,
       </div>
 
       <div className={cn("space-y-4 border-t border-black/5 px-4 py-4 dark:border-white/10", !open && "hidden")}>
+        <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
+          <div>
+            <label className="label" htmlFor={`title-${slide.id}`}>Título del slide (opcional)</label>
+            <input id={`title-${slide.id}`} className="input" maxLength={191} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lanzamiento de la nueva línea" />
+          </div>
+          <div>
+            <label className="label" htmlFor={`kind-${slide.id}`}>Tipo (obligatorio)</label>
+            <select id={`kind-${slide.id}`} className="input" value={kindSel} onChange={(e) => setKindSel(e.target.value)}>
+              <option value="">Elige el tipo…</option>
+              {SLIDE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.value}</option>)}
+            </select>
+          </div>
+        </div>
         <div>
-          <div className="flex items-end justify-between"><label className="label" htmlFor={`copy-${slide.id}`}>Copy</label><span className={cn("text-xs", copy.length > MAX_COPY ? "text-destructive" : "text-zinc-500")}>{copy.length} / {MAX_COPY}</span></div>
-          <textarea id={`copy-${slide.id}`} rows={6} maxLength={MAX_COPY} className="input" value={copy} onChange={(e) => setCopy(e.target.value)} placeholder="Escribe el texto de la publicación, con emojis y hashtags si los lleva." />
+          <label className="label" htmlFor={`copy-${slide.id}`}>Copy</label>
+          <CopyEditor id={`copy-${slide.id}`} value={copy} onChange={setCopy} max={MAX_COPY} placeholder="Escribe el texto de la publicación, con emojis y hashtags si los lleva." />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label" htmlFor={`ch-${slide.id}`}>Canal</label>
-            <select id={`ch-${slide.id}`} className="input" value={channel} onChange={(e) => setChannel(e.target.value)}>{CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
+            <p className="label">Canales</p>
+            <div className="flex flex-wrap gap-4">
+              {CHANNELS.map((c) => (
+                <label key={c.value} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" className="h-4 w-4 accent-[#007AFF]" checked={channels.includes(c.value)} onChange={(e) => toggleChannel(c.value, e.target.checked)} /> {c.label}
+                </label>
+              ))}
+            </div>
+            {channels.length === 0 && <p className="mt-1 text-xs text-destructive">Marca al menos un canal.</p>}
           </div>
           <div>
             <label className="label" htmlFor={`pub-${slide.id}`}>Fecha de publicación (opcional)</label>
@@ -350,7 +432,7 @@ function SlideCard({ reviewId, client, slide, number, open, onToggle, onDeleted,
         </div>
         {assets.length > 0 && <button type="button" className="btn-outline px-3.5 py-2 text-sm" onClick={() => setSim(true)}>Simular vista en redes</button>}
         {err && <p className="text-sm text-destructive">{err}</p>}
-        <PostSimulator open={sim} onClose={() => setSim(false)} clientId={client.id} clientName={client.name} hasLogo={client.hasLogo} copy={copy} assets={assets} channel={channel} />
+        <PostSimulator open={sim} onClose={() => setSim(false)} clientId={client.id} clientName={client.name} hasLogo={client.hasLogo} copy={copy} assets={assets} channel={channels.join(",")} />
       </div>
     </div>
   );

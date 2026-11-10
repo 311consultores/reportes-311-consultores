@@ -51,12 +51,12 @@ export default async function UsersPage() {
           <td className="td">
             <div className="flex items-center justify-end gap-2">
               {isTeamType && (
-                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, phone: u.phone, projectIds: u.projectAccess.map((p) => p.projectId), role: u.role, areaIds: u.areas.map((x) => x.areaId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} areas={areaList} canChangeRole={isAdmin && u.id !== me.id} />
+                <TeamEditor user={{ id: u.id, name: u.name, photoUrl: u.photoUrl, birthday: u.birthday, phone: u.phone, weeklyPay: isAdmin && u.weeklyPay ? u.weeklyPay.toString() : "", projectIds: u.projectAccess.map((p) => p.projectId), role: u.role, areaIds: u.areas.map((x) => x.areaId) }} assign={assign} email={isAdmin ? u.email : undefined} roleLabel={ROLE_LABEL[u.role]} areas={areaList} canChangeRole={isAdmin && u.id !== me.id} />
               )}
               {(isAdmin ? !isTeamType : u.role === "CLIENTE") && (
                 <UserEditor
                   canChangeRole={isAdmin}
-                  user={{ id: u.id, name: u.name, email: u.email, role: u.role as "ADMIN" | "EDITOR" | "CLIENTE", clientId: u.clientAccess[0]?.clientId ?? null, photoUrl: u.photoUrl, birthday: u.birthday }}
+                  user={{ id: u.id, name: u.name, email: u.email, role: u.role as "ADMIN" | "EDITOR" | "CLIENTE", clientId: u.clientAccess[0]?.clientId ?? null, photoUrl: u.photoUrl, birthday: u.birthday, weeklyPay: isAdmin && u.weeklyPay ? u.weeklyPay.toString() : "" }}
                   companies={companies}
                   isSelf={u.id === me.id}
                 />

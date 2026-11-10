@@ -470,6 +470,39 @@ Pulsa **Save** y luego **Restart**. Abre https://reportes.311consultores.com e i
 - **PDF resumen:** cuando la revisión queda **aprobada**, el cliente y el equipo ven «Descargar PDF resumen» (también en la tarjeta de la lista): cada slide con su copy, miniaturas del arte (hasta 4 imágenes; el video solo se menciona), todos los comentarios por ronda con quién los hizo y cuándo, y su resolución, más quién aprobó y cuándo.
 - **Recordatorio:** un día antes de la fecha límite (a partir de las 8:00, hora de México) el cliente recibe un correo con lo que falta por aprobar. Lo envía la **misma tarea programada de cada hora** (`/api/cron/tareas`): **no hay cron nuevo**. Se manda una sola vez por revisión.
 
+### Evolutivo 18 (1 nov 2026) — Revisiones: armado de slides más cómodo
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin (con la base de datos seleccionada), pestaña *SQL*, ejecuta `database/migraciones/20261101120000_evolutivo18a.sql`. **Agrega** dos columnas vacías (`title` y `kind`) en `ReviewSlide` y **amplía** la columna `channel` de 12 a 40 caracteres (para guardar «FACEBOOK,INSTAGRAM»). No toca ningún dato; las revisiones y slides existentes siguen igual.
+- **Datos generales plegados** (acordeón con una línea de resumen) en la pantalla donde se agregan los slides; en «Nueva revisión» siguen completos.
+- **Responsables con foto:** quien atiende los ajustes de copy y de arte se elige con el mismo buscador de las tareas y queda como pill con su foto (una persona por campo).
+- **Copy con emojis:** campo de texto con selector de emojis y contador; texto simple, tal como saldrá en redes (el cliente lo ve igual).
+- **Canales con casillas** (Facebook, Instagram o ambos), **título** opcional y **tipo obligatorio** (BANNER verde, VIDEO morado, CARRUSEL naranja, AD azul) por slide; el cliente los ve en el visor, las miniaturas y el PDF resumen, y el título sale en las subtareas de ajustes.
+- **«Agregar slide» flotante** cuando la página se alarga.
+- Publicar exige que cada slide tenga **tipo** (además de copy y arte).
+### Evolutivo 19 — etapa 1 (5 nov 2026) — Facturas descargables, WhatsApp, menú y revisiones
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin (con la base de datos seleccionada), pestaña *SQL*, ejecuta `database/migraciones/20261105120000_evolutivo19a.sql`. Solo **crea** la tabla nueva `InvoiceFile`; no toca ningún dato.
+- **Archivos de facturas y recibos:** al registrar (y después, en el detalle) el EDITOR/ADMIN puede subir el **PDF** y el **XML** de una factura, o el **comprobante** (PDF/imagen) de un recibo; opcionales, 10 MB por archivo, reemplazar/quitar con historial. El cliente los descarga desde su lista de facturas. No se manda correo. Se suben por `/api/facturas/[id]/archivos` (excluida del límite de 10 MB del proxy en `src/proxy.ts`).
+- **Tareas:** el botón verde «WhatsApp» junto a las personas se reemplazó por «Copiar tarea para WhatsApp» (mismo mensaje) en el detalle.
+- **Menú lateral:** un solo grupo abierto a la vez.
+- **Revisiones:** en borrador se puede cambiar el cliente y el proyecto (sugiere sus correos); la ficha de cada cliente tiene el botón «Nueva revisión» con el cliente ya elegido.
+### Evolutivo 19 — etapa 2 (6 nov 2026) — Tareas encadenadas
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin (con la base seleccionada), pestaña *SQL*, ejecuta `database/migraciones/20261106120000_evolutivo19b.sql` (después de la 19a). **Agrega** 4 columnas vacías (`prevTaskId`, `waitDays`, `waitHours`, `activatedAt`), un índice y una llave en `Task`. No toca ningún dato.
+- **Encadenar:** en «Nueva tarea» el botón «Asignar y encadenar otra tarea» crea la primera y abre el formulario de la siguiente (cliente y proyecto precargados); en el detalle de cualquier tarea está «Encadenar otra tarea». La encadenada no lleva fecha fija: lleva un plazo en días y horas que cuenta desde que se **apruebe** (TERMINADA) la anterior. En cascada A→B→C.
+- **En espera:** se puede consultar y chatear, pero no mover de fase ni marcar subtareas; el tablero muestra «En espera de …». No cuenta como abierta/vencida en Desempeño ni en los recordatorios.
+- **Al aprobarse la anterior** (o al eliminarla) se activa en ese instante: fecha de entrega = ahora + plazo, y se avisa por campanita, notificación del navegador y correo. Si se encadena a una tarea ya aprobada, se activa de inmediato. La puntualidad de la encadenada cuenta desde su activación.
+### Evolutivo 19 — etapa 3 (7 nov 2026) — Reembolsos del TEAM 311
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin (con la base seleccionada), pestaña *SQL*, ejecuta `database/migraciones/20261107120000_evolutivo19c.sql` (después de la 19b). **Agrega** una columna vacía (`box`) en `Expense` y la tabla nueva `Reimbursement`. No toca ningún dato.
+- **Reembolsos:** el TEAM 311 tiene «Reembolsos» en su menú: concepto, monto, fecha, «¿Cuándo necesitas que se te devuelva?» (Urge porfitas / Awanto para el sábado), comprobante (foto JPG/PNG o PDF, obligatorio, 10 MB) y cliente/proyecto opcionales. Solo ve los suyos. El ADMIN lo ve en Administración → Reembolsos (globo con los pendientes): Aprobar, Rechazar (con motivo) y Registrar pago. Al pagar elige la caja y cómo se divide (efectivo/banco/combinado); queda como un gasto de esa caja y no se paga de una caja sin saldo. Avisos: al solicitar, campanita + notificación + correo al ADMIN; al aprobar, rechazar o pagar, aviso a la persona.
+- El comprobante se sube por `/api/reembolsos` (excluida del límite de 10 MB del proxy en `src/proxy.ts`).
+### Evolutivo 19 — etapa 3b (8 nov 2026) — Nómina semanal
+- **Respaldo antes de actualizar (obligatorio).**
+- **Migración:** en phpMyAdmin (con la base seleccionada), pestaña *SQL*, ejecuta `database/migraciones/20261108120000_evolutivo19d.sql` (después de la 19c). **Agrega** una columna vacía (`weeklyPay`) en `User` y la tabla nueva `PayrollWeek`. No toca ningún dato.
+- **Primer uso (importante):** entra a *Finanzas → Nómina → Sueldos semanales* y pulsa «Cargar los montos acordados» (llena Michelle 2,300, Hafid 2,300, Leslie 1,500, Johnny 3,500, Jesús 3,500 y Omar 2,000 en las personas cuyo primer nombre coincida; revisa que sumen 15,100) o captúralos a mano; también se editan en el perfil del usuario (solo el ADMIN). Después guarda.
+- **Nómina:** pestaña *Finanzas → Nómina* (solo ADMIN). Una fila por semana del año (la primera: semana 45, sábado 7/nov/2026; no se crean semanas anteriores), siempre PROGRAMADA hasta que el ADMIN la marque PAGADA. Al pagar se abre un modal: la caja es siempre NÓMINA (se bloquea si no hay saldo), se reparte en efectivo/banco/combinado y se puede ajustar el total de ese pago (bono o descuento con motivo). El pago es una sola salida de la caja Nómina (aparece en Gastos) y el desglose por persona queda congelado. «Anular pago» (con motivo) devuelve el dinero y regresa la semana a PROGRAMADA.
+- **Aviso:** el sábado a partir de las 8:00, si la semana sigue PROGRAMADA, el ADMIN recibe campanita y notificación. Lo hace la **misma tarea programada de cada hora** (`/api/cron/tareas`): no hay cron nuevo. Las semanas se crean solas cada sábado.
 ## 10. Respaldos
 
 - Base de datos: cPanel, *Backup*, o un *Cron Job* con `mysqldump`. Descarga una copia fuera del hosting con frecuencia.

@@ -90,7 +90,7 @@ export async function voidExpense(id: string, reason: string): Promise<{ error?:
     await prisma.$transaction(async (tx) => {
       const e = await tx.expense.findUnique({ where: { id } });
       if (!e || e.voidedAt) throw new Error("El gasto no existe o ya fue anulado");
-      const box: Box = e.kind === "NOMINA" ? "NOMINA" : "GASTOS";
+      const box: Box = e.box ?? (e.kind === "NOMINA" ? "NOMINA" : "GASTOS");
       const cash = decimalToCents(e.cashAmount);
       const bank = decimalToCents(e.bankAmount);
       const today = dateOnly(todayMx());

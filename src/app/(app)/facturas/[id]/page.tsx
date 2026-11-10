@@ -7,6 +7,7 @@ import {
   accountLabel, centsToDecimal, decimalToCents, displayStatus, fmtDate, fmtDateTime, formatCents, formatDecimal, isoDate, KIND_LABEL, todayMx,
 } from "@/lib/finance";
 import { boxLabel, CASH_LABEL, parseSnapshot } from "@/lib/ledger";
+import { FilesPanel } from "../invoice-files";
 import { EditInvoiceForm } from "./edit-form";
 import { RevertButton } from "./revert-button";
 import { DeleteInvoice } from "./delete-invoice";
@@ -25,6 +26,9 @@ function describe(action: string, details: string | null): string {
     /* sin detalles legibles */
   }
   if (action === "CREATED") return "Registró el documento";
+  if (action === "FILE_ADDED") return `Subió un archivo: ${d.name}`;
+  if (action === "FILE_REPLACED") return `Reemplazó un archivo: ${d.previous} → ${d.name}`;
+  if (action === "FILE_REMOVED") return `Quitó un archivo: ${d.name}`;
   if (action === "PAID") return `Marcó como pagada · ${accountLabel(d.account as never)} · cobro del ${d.collectedOn}`;
   if (action === "REVERTED") return `Revirtió el pago${d.reason ? ` · Motivo: ${d.reason}` : ""}`;
   if (action === "EDITED") {
@@ -48,6 +52,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       createdBy: { select: { name: true } },
       paidBy: { select: { name: true } },
       logs: { orderBy: { createdAt: "desc" }, include: { user: { select: { name: true } } } },
+      files: { where: { removedAt: null }, orderBy: { createdAt: "asc" } },
     },
   });
   if (!inv) notFound();
@@ -91,6 +96,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           {inv.status === "ENVIADA" && <DeleteInvoice id={inv.id} isAdmin={isAdmin} alreadyPending={!!pending} />}
         </div>
       </div>
+
+      <FilesPanel invoiceId={inv.id} kind={inv.kind} files={inv.files.map((f) => ({ id: f.id, slot: f.slot as "PDF" | "XML" | "COMPROBANTE", name: f.name, size: f.size }))} />
 
       {isAdmin && snapshot && (
         <section className="card space-y-3">

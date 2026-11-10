@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { RotateCcw, Send, Upload, X } from "lucide-react";
 import { applyNewArt, deleteAsset, discardNewArt, reopenSlide, resolveComment, saveSlideCopy } from "@/app/actions/reviews";
 import { useDialogs } from "@/components/dialogs";
+import { CopyEditor } from "@/components/copy-editor";
 import { PostSimulator } from "@/components/post-simulator";
+import { SlideKindPill } from "@/components/slide-kind-pill";
 import { ReviewThumb } from "@/components/review-thumb";
-import { artKind, ART_KIND_LABEL, channelLabel, fmtSec, MAX_ASSETS, MAX_COPY, REVIEW_STATUS_LABEL, REVIEW_STATUS_STYLE, SLIDE_STATUS_LABEL, SLIDE_STATUS_STYLE } from "@/lib/reviews";
+import { artKind, ART_KIND_LABEL, channelLabel, fmtSec, MAX_ASSETS, MAX_COPY, slideName, REVIEW_STATUS_LABEL, REVIEW_STATUS_STYLE, SLIDE_STATUS_LABEL, SLIDE_STATUS_STYLE } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 import { SendToClientModal } from "../send-to-client-modal";
 import type { CommentData, ReviewData, SlideData } from "./types";
@@ -137,7 +139,7 @@ function SlideReview({ reviewId, client, slide: s, index, round, adjusting, focu
       <div className="flex flex-wrap items-center gap-3">
         <ReviewThumb asset={s.assets[0]} index={index} className="h-14 w-14 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold tracking-tight">Slide {s.position} <span className="font-normal text-zinc-500">· {ART_KIND_LABEL[artKind(s.assets)]} · {channelLabel(s.channel)} · copy v{s.copyVersion} · arte v{s.artVersion}</span></p>
+          <p className="flex flex-wrap items-center gap-2 font-semibold tracking-tight">{slideName(s.position, s.title)} <SlideKindPill kind={s.kind} /> <span className="font-normal text-zinc-500">· {ART_KIND_LABEL[artKind(s.assets)]} · {channelLabel(s.channel)} · copy v{s.copyVersion} · arte v{s.artVersion}</span></p>
           <p className="truncate text-xs text-zinc-500">{s.copy}</p>
         </div>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", SLIDE_STATUS_STYLE[s.status])}>{SLIDE_STATUS_LABEL[s.status]}</span>
@@ -157,8 +159,8 @@ function SlideReview({ reviewId, client, slide: s, index, round, adjusting, focu
       {editable && (
         <div className="space-y-4 rounded-2xl bg-black/[0.03] p-4 dark:bg-white/[0.04]">
           <div>
-            <div className="flex items-end justify-between"><label className="label" htmlFor={`c-${s.id}`}>Copy (versión actual: {s.copyVersion})</label><span className={cn("text-xs", copy.length > MAX_COPY ? "text-destructive" : "text-zinc-500")}>{copy.length} / {MAX_COPY}</span></div>
-            <textarea id={`c-${s.id}`} rows={5} maxLength={MAX_COPY} className="input" value={copy} onChange={(e) => setCopy(e.target.value)} />
+            <label className="label" htmlFor={`c-${s.id}`}>Copy (versión actual: {s.copyVersion})</label>
+            <CopyEditor id={`c-${s.id}`} rows={5} max={MAX_COPY} value={copy} onChange={setCopy} />
             <button type="button" className="btn-outline mt-2 px-3 py-1.5 text-sm" disabled={busy || copy.trim() === s.copy.trim()} onClick={() => run(() => saveSlideCopy(s.id, copy))}>Guardar como versión {s.copyVersion + 1} del copy</button>
           </div>
           <div>

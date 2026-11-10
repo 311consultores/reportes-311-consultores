@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Share2, ThumbsUp } from "lucide-react";
 import { Modal } from "@/components/modal";
-import { assetUrl } from "@/lib/reviews";
+import { assetUrl, channelsOf } from "@/lib/reviews";
 import { cn } from "@/lib/utils";
 
 type Network = "FACEBOOK" | "INSTAGRAM";
@@ -26,7 +26,7 @@ const handle = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").t
 export function PostSimulator({ open, onClose, clientId, clientName, hasLogo, copy, assets, channel }: {
   open: boolean; onClose: () => void; clientId: string; clientName: string; hasLogo: boolean; copy: string; assets: SimAsset[]; channel: string;
 }) {
-  const [network, setNetwork] = useState<Network>(channel === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK");
+  const [network, setNetwork] = useState<Network>(channelsOf(channel)[0] === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK");
   const [format, setFormat] = useState<Format>("SQUARE");
   const [idx, setIdx] = useState(0);
   const [more, setMore] = useState(false);
@@ -34,7 +34,7 @@ export function PostSimulator({ open, onClose, clientId, clientName, hasLogo, co
 
   useEffect(() => {
     if (!open) return;
-    setNetwork(channel === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK");
+    setNetwork(channelsOf(channel)[0] === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK");
     setIdx(0); setMore(false);
   }, [open, channel]);
 

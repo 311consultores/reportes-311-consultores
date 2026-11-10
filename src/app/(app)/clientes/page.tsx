@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { fullName } from "@/lib/client-data";
+import { REVIEW_CREATORS } from "@/lib/reviews";
 import { ClientsGrid } from "./clients-grid";
 import type { CardClient } from "./client-card";
 
@@ -52,7 +53,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     <div className="space-y-6">
       <h1 className="page-title">Clientes y proyectos</h1>
 
-      <ClientsGrid clients={cards} isAdmin={isAdmin} readOnly={readOnly} initialQuery={q ?? ""} />
+      <ClientsGrid clients={cards} isAdmin={isAdmin} readOnly={readOnly} canReview={(REVIEW_CREATORS as string[]).includes(user.role)} initialQuery={q ?? ""} />
     </div>
   );
 }

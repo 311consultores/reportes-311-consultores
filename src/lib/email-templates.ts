@@ -507,3 +507,19 @@ export function reviewReminderEmail(p: { clientName: string; title: string; resp
   );
   return { subject, text, html };
 }
+
+export function reembolsoSolicitadoEmail(p: { who: string; concept: string; amount: string; urgency: string; link: string; withLogo: boolean }) {
+  const subject = `Reembolso solicitado: ${p.concept}`;
+  const text = [`${p.who} solicitó un reembolso:`, "", p.concept, `Monto: ${p.amount}`, `Cuándo lo necesita: ${p.urgency}`, "", "Revísalo aquí:", p.link].join("\n");
+  const html = shell(
+    `<p style="margin:0 0 16px;"><strong>${esc(p.who)}</strong> solicitó un reembolso:</p>
+<p style="margin:0 0 16px;font-size:17px;"><strong>${esc(p.concept)}</strong></p>
+<table style="margin:0 0 20px;font-size:14px;border-collapse:collapse;">
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Monto</td><td>${esc(p.amount)}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#86868b;">Lo necesita</td><td>${esc(p.urgency)}</td></tr>
+</table>
+<p style="margin:0 0 8px;">${button(p.link, "Revisar el reembolso")}</p>`,
+    p.withLogo,
+  );
+  return { subject, text, html };
+}

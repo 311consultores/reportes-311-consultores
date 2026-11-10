@@ -34,4 +34,13 @@ export type TaskCard = {
   surpriseOpened: boolean;
   acceptNote: string | null;
   acceptedBy: string | null;
+  // Tareas encadenadas (Evolutivo 19)
+  waiting: boolean; // sigue esperando a que se apruebe la anterior
+  prevTask: { id: string; title: string } | null;
+  waitDays: number | null;
+  waitHours: number | null;
+  nextTasks: { id: string; title: string; waiting: boolean }[];
 };
+
+/** De dónde sale una tarea encadenada nueva. */
+export type ChainFrom = { id: string; title: string; clientId: string; projectId: string };

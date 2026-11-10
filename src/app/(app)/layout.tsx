@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isProject = user.role === "PROJECT_311"; // gestiona tareas; sin reportes ni administración
   const reviewsTasks = isOps || isProject;
 
-  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview, unreadNotifications, reviewBadge] = await Promise.all([
+  const [pendingDeletions, pendingEdits, pendingRegistrations, hasLogo, overdue, tasksToReview, unreadNotifications, reviewBadge, pendingReimb] = await Promise.all([
     isAdmin ? prisma.deletionRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0), // las de edición se suman en el globo del Log
     isOps ? prisma.editRequest.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
     isOps ? prisma.clientRegistration.count({ where: { status: "PENDIENTE" } }) : Promise.resolve(0),
@@ -37,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     user.role !== "CLIENTE" ? prisma.notification.count({ where: { userId: user.id, readAt: null } }) : Promise.resolve(0),
     // Revisiones: al cliente le cuenta las que esperan su respuesta; al equipo, las que tienen ajustes por hacer
     isProject ? Promise.resolve(0) : prisma.review.count({ where: { ...reviewScope(user), status: user.role === "CLIENTE" ? "PUBLICADA" : "EN_AJUSTES" } }),
+    isAdmin ? prisma.reimbursement.count({ where: { status: "SOLICITADO" } }) : Promise.resolve(0), // reembolsos por revisar
   ]);
   const linked = await getLinkedAccount(user.id, user.role); // cuenta con la que se puede cambiar de perfil (solo si hay vínculo con un ADMINISTRADOR)
   const today = todayMx();
@@ -54,6 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         ...(user.role !== "CLIENTE" ? [{ href: "/baul", label: "Baúl", icon: "baul" as const }, { href: "/retas", label: "Las Retas", icon: "retas" as const }] : []),
         ...(isOps || isProject ? [{ href: "/meta", label: "Campañas Meta", icon: "meta" as const }] : []),
         ...(isOps || isProject ? [{ href: "/clientes", label: "Clientes y proyectos", icon: "clientes" as const }] : []),
+        ...(isTeam ? [{ href: "/reembolsos", label: "Reembolsos", icon: "reembolsos" as const }] : []),
         ...(isOps ? [{ href: "/registros", label: "Registro de clientes", icon: "registros" as const, badge: pendingRegistrations }] : []),
       ],
     },
@@ -65,7 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             items: [
               { href: "/facturas", label: "Facturas", icon: "facturas" as const, badge: overdue.count },
               ...(isOps ? [{ href: "/documentos", label: "Documentos", icon: "documentos" as const }] : []),
-              ...(isAdmin ? [{ href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }, { href: "/desempeno", label: "Desempeño", icon: "desempeno" as const }] : []),
+              ...(isAdmin ? [{ href: "/reembolsos", label: "Reembolsos", icon: "reembolsos" as const, badge: pendingReimb }, { href: "/finanzas", label: "Finanzas", icon: "finanzas" as const }, { href: "/desempeno", label: "Desempeño", icon: "desempeno" as const }] : []),
             ],
           },
         ]

@@ -10,7 +10,7 @@ import { PhotoField } from "@/components/photo-field";
 import { BirthdayField } from "./birthday-field";
 
 type Role = "ADMIN" | "EDITOR" | "CLIENTE" | "TEAM_311" | "PROJECT_311";
-export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null; photoUrl: string | null; birthday: string | null };
+export type PlainUser = { id: string; name: string; email: string; role: Role; clientId: string | null; photoUrl: string | null; birthday: string | null; weeklyPay?: string | null };
 
 /** Edición de un usuario Administrador, Editor o Cliente. El Editor solo edita Clientes y no puede cambiarles el rol. */
 export function UserEditor({ user, companies, isSelf, canChangeRole = true }: { user: PlainUser; companies: { id: string; name: string }[]; isSelf: boolean; canChangeRole?: boolean }) {
@@ -56,6 +56,7 @@ export function UserEditor({ user, companies, isSelf, canChangeRole = true }: { 
               <>
                 <div><label className="label">Foto de perfil</label><PhotoField name="photo" userId={user.id} photoKey={user.photoUrl} current={user.name} /></div>
                 <div><label className="label">Fecha de cumpleaños</label><BirthdayField value={user.birthday} /></div>
+                {canChangeRole && <div><label className="label">Sueldo semanal (nómina)</label><input name="weeklyPay" inputMode="decimal" defaultValue={user.weeklyPay ?? ""} placeholder="Vacío = no cobra nómina" className="input" /></div>}
               </>
             )}
           </div>

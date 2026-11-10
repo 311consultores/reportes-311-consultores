@@ -45,6 +45,8 @@ model User {
   tasksCreated        ReportTask[]
   deletionRequests    DeletionRequest[]    @relation("DeletionRequester")
   deletionReviews     DeletionRequest[]    @relation("DeletionReviewer")
+  reimbursements      Reimbursement[]      @relation("ReimbursementRequester")
+  weeklyPay           Decimal?             @db.Decimal(12, 2) // sueldo semanal (nómina); solo lo ve y edita el ADMIN
   auditLogs           AuditLog[]
   clientAccess        ClientUser[]
   theme               String?              @db.VarChar(10) // "light" | "dark"; null = automático según el sistema
@@ -378,6 +380,7 @@ model Invoice {
   distribution String?         @db.Text // Etapa 2: reparto "congelado" al cobrar (JSON con porcentajes y montos)
   logs         InvoiceLog[]
   ledger       LedgerEntry[]
+  files        InvoiceFile[]
 
   @@index([clientId])
   @@index([status, dueDate])
@@ -475,6 +478,7 @@ model Expense {
   id          String      @id @default(uuid())
   concept     String      @db.VarChar(200)
   kind        ExpenseKind @default(OTRO) // NOMINA descuenta de la caja Nómina; OTRO, de la caja Gastos
+  box         Box? // caja de la que salió (vacío = la que corresponde al tipo: NOMINA o GASTOS)
   cashAmount  Decimal     @db.Decimal(12, 2)
   bankAmount  Decimal     @db.Decimal(12, 2)
   total       Decimal     @db.Decimal(12, 2)
@@ -649,9 +653,17 @@ model Task {
   subtasks          Subtask[]
   notes             Note[]
   attachments       TaskAttachment[]
+  // Tareas encadenadas (Evolutivo 19): esta tarea queda «en espera» hasta que la anterior se APRUEBE (TERMINADA)
+  prevTaskId        String?          @db.VarChar(191)
+  prevTask          Task?            @relation("TaskChain", fields: [prevTaskId], references: [id], onDelete: SetNull)
+  nextTasks         Task[]           @relation("TaskChain")
+  waitDays          Int? // plazo para entregar, contado desde la aprobación de la anterior
+  waitHours         Int?
+  activatedAt       DateTime? // cuándo se activó (la anterior se aprobó o se eliminó)
 
   @@index([status])
   @@index([dueAt])
+  @@index([prevTaskId])
   @@index([clientId])
   @@index([projectId])
   @@index([areaId])
@@ -968,7 +980,9 @@ model ReviewSlide {
   reviewId       String
   review         Review              @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   position       Int
-  channel        String              @default("FACEBOOK") @db.VarChar(12) // FACEBOOK | INSTAGRAM
+  title          String?             @db.VarChar(191) // título opcional del slide
+  kind           String?             @db.VarChar(12) // tipo: BANNER | VIDEO | CARRUSEL | AD (etiqueta informativa)
+  channel        String              @default("FACEBOOK") @db.VarChar(40) // canales separados por coma: FACEBOOK, INSTAGRAM
   publishOn      DateTime?           @db.Date
   copy           String              @db.Text
   status         SlideStatus         @default(PENDIENTE)
@@ -1032,4 +1046,71 @@ model ReviewCopyVersion {
   createdAt DateTime    @default(now())
 
   @@index([slideId])
+}
+
+/// Archivo que descarga el cliente: PDF y XML de una factura, o el comprobante de un recibo simple (Evolutivo 19). Lo reemplazado o quitado se conserva con removedAt.
+model InvoiceFile {
+  id           String    @id @default(uuid())
+  invoiceId    String
+  invoice      Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  slot         String    @db.VarChar(12) // PDF | XML | COMPROBANTE
+  key          String    @db.VarChar(300) // clave del archivo en el almacenamiento
+  name         String    @db.VarChar(191)
+  size         Int
+  uploadedById String    @db.VarChar(191)
+  createdAt    DateTime  @default(now())
+  removedAt    DateTime?
+  removedById  String?   @db.VarChar(191)
+
+  @@index([invoiceId])
+}
+
+/// Reembolso (Evolutivo 19): dinero que una persona del TEAM 311 puso de su bolsillo para la empresa. Solicitado → Aprobado/Rechazado → Pagado (solo el ADMIN).
+model Reimbursement {
+  id            String    @id @default(uuid())
+  requestedById String    @db.VarChar(191)
+  requestedBy   User      @relation("ReimbursementRequester", fields: [requestedById], references: [id])
+  concept       String    @db.VarChar(200)
+  amount        Decimal   @db.Decimal(12, 2)
+  spentOn       DateTime  @db.Date
+  urgency       String    @db.VarChar(12) // URGE | SABADO
+  clientId      String?   @db.VarChar(191)
+  projectId     String?   @db.VarChar(191)
+  receiptKey    String    @db.VarChar(300)
+  receiptName   String    @db.VarChar(191)
+  receiptType   String    @db.VarChar(60)
+  status        String    @default("SOLICITADO") @db.VarChar(12) // SOLICITADO | APROBADO | RECHAZADO | PAGADO
+  reviewedById  String?   @db.VarChar(191)
+  reviewedAt    DateTime?
+  rejectReason  String?   @db.VarChar(300)
+  paidById      String?   @db.VarChar(191)
+  paidAt        DateTime?
+  expenseId     String?   @db.VarChar(191)
+  createdAt     DateTime  @default(now())
+
+  @@index([requestedById])
+  @@index([status])
+}
+
+/// Pago semanal de nómina (Evolutivo 19): una fila por semana, a pagar a más tardar el sábado desde la caja NÓMINA. El desglose por persona se congela al pagar.
+model PayrollWeek {
+  id             String    @id @default(uuid())
+  year           Int
+  week           Int
+  payDate        DateTime  @db.Date
+  status         String    @default("PROGRAMADA") @db.VarChar(12) // PROGRAMADA | PAGADA
+  baseTotal      Decimal   @db.Decimal(12, 2)
+  breakdown      String    @db.Text // JSON: [{ userId, name, cents }]
+  adjustment     Decimal   @default(0) @db.Decimal(12, 2) // bono (+) o descuento (−) de ese pago
+  adjustmentNote String?   @db.VarChar(300)
+  paidTotal      Decimal?  @db.Decimal(12, 2)
+  expenseId      String?   @db.VarChar(191)
+  paidAt         DateTime?
+  paidById       String?   @db.VarChar(191)
+  voidReason     String?   @db.VarChar(300) // motivo de la última anulación
+  reminderSentAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([year, week])
+  @@index([status])
 }

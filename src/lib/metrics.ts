@@ -2,7 +2,7 @@ import type { Role, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/branding";
 import { dayKey, mxMonthStart, parseMxInput } from "@/lib/tasks-shared";
-import { publishedWhere, startOf } from "@/lib/task-visibility";
+import { notWaitingWhere, publishedWhere, startOf } from "@/lib/task-visibility";
 
 /** Dashboard de desempeño: todos los cálculos (solo lectura sobre los datos que el portal ya guarda). */
 
@@ -162,7 +162,7 @@ async function loadTasks(f: Filters) {
       ...(f.clientId ? { clientId: f.clientId } : {}),
       ...(f.areaId ? (f.areaId === "none" ? { areaId: null } : { areaId: f.areaId }) : {}),
       ...(f.personId ? { assignees: { some: { userId: f.personId } } } : {}),
-      AND: [publishedWhere(), { OR: [{ createdAt: { gte: f.from, lte: f.to } }, { events: { some: { createdAt: { gte: f.from, lte: f.to } } } }, { status: { not: "TERMINADA" } }] }],
+      AND: [publishedWhere(), notWaitingWhere(), { OR: [{ createdAt: { gte: f.from, lte: f.to } }, { events: { some: { createdAt: { gte: f.from, lte: f.to } } } }, { status: { not: "TERMINADA" } }] }],
     },
     take: 5000,
     include: {

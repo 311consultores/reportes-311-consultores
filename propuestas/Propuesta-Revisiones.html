@@ -1,0 +1,397 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Propuesta de diseño - Revisiones</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;color:#1d1d1f;background:#fff}
+.page{width:1280px;height:800px;padding:26px 34px 20px;page-break-after:always;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.ph h2{font-size:25px;letter-spacing:-.4px;margin-top:5px}
+.ph p{font-size:13.5px;color:#6e6e73;margin-top:3px}
+.pn{font-size:12px;color:#8e8e93;border:1px solid #e5e5ea;border-radius:99px;padding:4px 11px}
+.tag{font-size:11px;font-weight:700;letter-spacing:.8px;padding:3px 9px;border-radius:99px}
+.tc{background:#e3f6e8;color:#1e8e3e}.te{background:#e5f1ff;color:#0062cc}.tg{background:#f2f2f7;color:#555}
+.stage{flex:1;min-height:0;display:flex;gap:0;border:1px solid #e1e4ea;border-radius:14px;overflow:hidden;background:#f5f6f8}
+.notes{display:flex;gap:18px;margin-top:11px}
+.notes div{flex:1;display:flex;gap:8px;font-size:12px;line-height:1.38;color:#3a3a3c}
+.notes b{flex:none;width:19px;height:19px;border-radius:50%;background:#007AFF;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center}
+.side{width:176px;flex:none;background:#fff;border-right:1px solid #e5e7eb;padding:14px 10px;display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.brand{font-weight:700;font-size:12px;letter-spacing:.8px;padding:2px 8px 12px}.brand small{display:block;font-weight:400;letter-spacing:0;color:#8e8e93;font-size:10.5px;margin-top:2px}
+.nav{padding:8px 10px;border-radius:10px;color:#48484a;display:flex;justify-content:space-between;align-items:center}
+.nav.on{background:#e5f1ff;color:#0062cc;font-weight:700}
+.bdg{background:#ff3b30;color:#fff;font-size:10px;border-radius:99px;padding:1px 6px}
+.user{margin-top:auto;display:flex;gap:8px;align-items:center;padding:8px;font-size:12px}.user small{display:block;color:#8e8e93;font-size:10px}
+.main{flex:1;min-width:0;padding:16px 20px;overflow:hidden;position:relative}
+.h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
+.chip{font-size:10.5px;font-weight:700;border-radius:99px;padding:3px 9px;white-space:nowrap;display:inline-block}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px}
+.btn{display:inline-flex;align-items:center;gap:6px;background:#007AFF;color:#fff;border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.btn.o{background:#fff;color:#1d1d1f;border:1px solid #d1d1d6;font-weight:600}
+.btn.g{background:#34C759}.btn.s{padding:6px 10px;font-size:11.5px}
+.art{border-radius:10px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.92);font-size:11px;font-weight:700;text-align:center;position:relative;overflow:hidden}
+.art span{padding:6px;line-height:1.3}
+.avatar{border-radius:50%;color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.meta{font-size:11px;color:#8e8e93}
+.tabs{display:flex;gap:6px;margin:10px 0 12px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;background:#fff;border:1px solid #e1e4ea;color:#48484a}.tab.on{background:#1d1d1f;color:#fff;border-color:#1d1d1f}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.prog{height:6px;border-radius:9px;background:#eceef2;overflow:hidden}.prog i{display:block;height:100%;background:#34C759}
+.ta{border:1px solid #d1d1d6;border-radius:10px;padding:8px 10px;font-size:12px;background:#fff;color:#3a3a3c;line-height:1.4}
+.lbl{font-size:10.5px;font-weight:700;letter-spacing:.7px;color:#6e6e73;text-transform:uppercase;margin-bottom:5px}
+.film{width:150px;flex:none;background:#fff;border-right:1px solid #e5e7eb;padding:12px 12px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+.th{position:relative;border:2px solid transparent;border-radius:10px;padding:2px}.th.on{border-color:#007AFF}
+.th small{position:absolute;left:-1px;top:-1px;background:#1d1d1f;color:#fff;font-size:9.5px;border-radius:7px 0 7px 0;padding:1px 6px;z-index:2}
+.th .dot{position:absolute;right:-5px;top:-5px;min-width:19px;height:19px;border-radius:99px;background:#ff9500;color:#fff;display:flex;align-items:center;justify-content:center;gap:2px;font-size:9.5px;font-weight:700;z-index:2;border:2px solid #fff}
+.th .st{position:absolute;right:5px;bottom:5px;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;z-index:2}
+.cm{border:1px solid #e5e7eb;border-radius:12px;padding:9px 11px;font-size:11.8px;line-height:1.4;background:#fff}
+.cm .by{display:flex;gap:6px;align-items:center;margin-bottom:4px;color:#8e8e93;font-size:10.5px}.cm .by b{color:#1d1d1f}
+.q{background:#fafafa;border-left:3px solid #d1d1d6;padding:5px 8px;color:#6e6e73;font-size:11px;margin:4px 0;border-radius:0 6px 6px 0}
+del{background:#ffe3e1;color:#a4161a;text-decoration:line-through}ins{background:#dff5e4;color:#12662a;text-decoration:none}
+.step{flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;font-size:12.5px;line-height:1.4;position:relative}
+.step b.n{display:flex;width:26px;height:26px;border-radius:50%;background:#007AFF;color:#fff;align-items:center;justify-content:center;margin-bottom:8px;font-size:13px}
+.arrow{align-self:center;font-size:20px;color:#aeaeb2;padding:0 6px}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th{text-align:left;font-size:10.5px;letter-spacing:.6px;color:#6e6e73;padding:9px 12px;border-bottom:1px solid #e5e7eb;text-transform:uppercase}
+table.t td{padding:10px 12px;border-bottom:1px solid #f0f1f4;vertical-align:middle}
+.phone{width:270px;height:536px;border:9px solid #1d1d1f;border-radius:34px;background:#fff;overflow:hidden;position:relative;display:flex;flex-direction:column;font-size:11.5px}
+.fb{background:#fff;border-radius:12px;border:1px solid #dadde1;width:430px;font-size:13px;overflow:hidden}
+@page{size:1280px 800px;margin:0}</style></head><body>
+<section class="page" style="background:linear-gradient(180deg,#f5f9ff,#fff 55%)">
+  <div style="margin-top:40px"><span class="tag te">PROPUESTA DE DISEÑO · ANTES DE PROGRAMAR</span>
+  <h1 style="font-size:46px;letter-spacing:-1.2px;margin:14px 0 8px;line-height:1.05">Revisiones de parrillas<br>para redes sociales</h1>
+  <p style="font-size:16px;color:#555;max-width:760px;line-height:1.5">Así se vería y funcionaría el nuevo módulo «Revisiones»: el cliente revisa copy y artes en un visor tipo presentación, deja comentarios con historial, y su equipo recibe todo en una sola tarea con subtareas.</p></div>
+  <div style="display:flex;gap:6px;margin-top:38px;align-items:stretch">
+    <div class="step"><b class="n">1</b><b>Equipo arma la revisión</b><br>Un slide por publicación: copy + arte (imagen, video o carrusel). Se ordenan arrastrando y se publican al cliente.</div><div class="arrow">›</div>
+    <div class="step"><b class="n">2</b><b>Cliente recibe el aviso</b><br>Correo y aviso en el portal. Entra a «Revisiones» y pulsa <i>Iniciar revisión</i>.</div><div class="arrow">›</div>
+    <div class="step"><b class="n">3</b><b>Cliente comenta y aprueba</b><br>Comentarios separados para copy y arte, con guardado automático. Aprueba lo que está bien y pulsa <i>Enviar ajustes</i>.</div><div class="arrow">›</div>
+    <div class="step"><b class="n">4</b><b>Se crea 1 tarea con subtareas</b><br>Los ajustes de copy llegan a quien lleva el copy; los de arte, a quien lleva el diseño. Cada subtarea abre su slide.</div><div class="arrow">›</div>
+    <div class="step"><b class="n">5</b><b>Equipo corrige y avisa</b><br>Sube la nueva versión, marca el ajuste y pulsa <i>Enviar al cliente</i>. El cliente recibe un solo aviso con enlace.</div><div class="arrow">›</div>
+    <div class="step" style="border-color:#34C759"><b class="n" style="background:#34C759">6</b><b>Aprobación final</b><br>Cuando todos los slides están aprobados, queda registro de quién aprobó y cuándo.</div>
+  </div>
+  <div style="display:flex;gap:22px;margin-top:34px;align-items:center">
+    <div class="lbl" style="margin:0">Estado de cada slide</div>
+    <span class="chip" style="color:#8e8e93;background:#f2f2f7">Pendiente de revisión</span><span class="chip" style="color:#c93400;background:#fff1e0">Cambios solicitados</span><span class="chip" style="color:#0062cc;background:#e5f1ff">Ajustado · por revisar</span><span class="chip" style="color:#1e8e3e;background:#e3f6e8">Aprobado</span>
+  </div>
+  <p style="margin-top:auto;font-size:11.5px;color:#8e8e93">Las pantallas son maquetas con datos de ejemplo (cliente «Constructora Horizonte», parrilla de noviembre). Los colores y componentes siguen el diseño actual del portal.</p>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tc">CLIENTE</span><h2>Pestaña «Revisiones»</h2><p>Lo primero que ve el cliente: qué debe revisar, cuánto avance lleva y un botón claro para empezar.</p></div>
+    <div class="pn">Vista 2</div>
+  </header>
+  <div class="stage"><aside class="side">
+    <div class="brand">311 CONSULTORES<small>Portal de Operaciones</small></div>
+    <div class="nav ">Reportes</div><div class="nav on">Revisiones<b class="bdg">2</b></div><div class="nav ">Facturas</div>
+    <div class="user"><span class="avatar" style="width:30px;height:30px;background:#34C759;font-size:12px">AV</span><span><b>Ana Vega</b><small>CLIENTE</small></span></div>
+  </aside><div class="main">
+    <div class="h1">Revisiones</div><div class="meta">Aquí revisas los copys y artes que preparamos para tus redes sociales.</div>
+    <div class="tabs"><span class="tab on">Por revisar · 2</span><span class="tab">En ajustes · 1</span><span class="tab">Aprobadas · 5</span></div>
+    <div class="grid3">
+      
+<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:9px">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px"><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><b style="font-size:13.5px">Parrilla noviembre 2026</b><div class="meta">Constructora Horizonte · Torre Norte</div></div><span class="chip" style="color:#8e8e93;background:#f2f2f7">Pendiente de revisión</span></div>
+  <div><div class="prog"><i style="width:0%"></i></div><div class="meta" style="margin-top:4px">12 slides · 0 aprobados</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="meta">Responder antes del <b style="color:#1d1d1f">8 nov</b></span><span class="btn s">Iniciar revisión</span></div>
+</div>
+      
+<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:9px">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px"><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><b style="font-size:13.5px">Campaña Buen Fin</b><div class="meta">Constructora Horizonte · Torre Norte</div></div><span class="chip" style="color:#0062cc;background:#e5f1ff">Ajustado · por revisar</span></div>
+  <div><div class="prog"><i style="width:58%"></i></div><div class="meta" style="margin-top:4px">8 slides · 5 aprobados · Ronda 2</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="meta">Responder antes del <b style="color:#1d1d1f">8 nov</b></span><span class="btn s">Revisar ajustes</span></div>
+</div>
+      
+<div class="card" style="padding:12px;display:flex;flex-direction:column;gap:9px">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px"><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#8e44ad,#e84393);"><span></span></div><div class="art" style="width:100%;height:62px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><b style="font-size:13.5px">Parrilla octubre 2026</b><div class="meta">Constructora Horizonte · Torre Norte</div></div><span class="chip" style="color:#c93400;background:#fff1e0">Cambios solicitados</span></div>
+  <div><div class="prog"><i style="width:83%"></i></div><div class="meta" style="margin-top:4px">12 slides · 10 aprobados · Ronda 2</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="meta">Responder antes del <b style="color:#1d1d1f">8 nov</b></span><span class="btn o s">Ver avance</span></div>
+</div>
+    </div>
+    <div class="card" style="margin-top:14px;padding:11px 14px;font-size:12px;color:#3a3a3c;background:#fffbea;border-color:#f5e3a0">Tip: tus comentarios se guardan solos. Cuando termines pulsa <b>Enviar ajustes</b> y nuestro equipo recibe todo junto.</div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Tarjetas con miniaturas reales del contenido: el cliente reconoce de un vistazo cuál parrilla es.</span></div><div><b>2</b><span>El estado y el botón cambian según el momento: Iniciar revisión, Revisar ajustes o Ver avance.</span></div><div><b>3</b><span>El globo rojo del menú cuenta lo que espera respuesta del cliente; en el correo llega el mismo enlace.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tc">CLIENTE</span><h2>Pantalla de revisión (tipo presentación)</h2><p>Miniaturas a la izquierda, el slide al centro y los comentarios del slide a la derecha.</p></div>
+    <div class="pn">Vista 3</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 16px;display:flex;align-items:center;gap:12px;font-size:12.5px">
+      <span class="btn o s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg> Revisiones</span><b>Parrilla noviembre 2026</b><span class="meta">Ronda 1 · 12 slides</span>
+      <span style="margin-left:auto" class="meta">✔ Guardado hace 2 s</span><span class="btn">Enviar ajustes (3)</span></div>
+    <div style="flex:1;display:flex;min-height:0">
+      <div class="film"><div class="th "><small>1</small><span class="st" style="background:#34C759"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div><div class="th "><small>2</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>2</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div></div><div class="th on"><small>3</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>1</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div><div class="th "><small>4</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div></div><div class="th "><small>5</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div></div><div class="th "><small>6</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#8e44ad,#e84393);"><span></span></div></div><div class="th "><small>7</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div></div>
+      <div style="flex:1;padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:14px">Slide 3 de 12</b><span class="chip" style="color:#c93400;background:#fff1e0">Cambios solicitados</span><span class="meta">Facebook · Publicación 12 nov, 9:00 a. m.</span><span style="margin-left:auto" class="btn g s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Aprobar slide</span></div>
+        <div style="display:flex;gap:14px;flex:1;min-height:0">
+          <div class="card" style="flex:1;padding:14px;display:flex;flex-direction:column"><div class="lbl">Copy</div>
+            <div style="font-size:13.5px;line-height:1.55;flex:1">Tu proyecto merece cimientos fuertes. 🏗️<br><br>Conoce nuestras soluciones en concreto premezclado y asegura la calidad desde el primer día.<br><br>Cotiza hoy 👉 horizonte.mx<br><span style="color:#0062cc">#Construcción #Mérida #Calidad</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="btn o s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Comentar copy</span><span class="meta">1 comentario</span></div></div>
+          <div class="card" style="flex:1;padding:14px;display:flex;flex-direction:column"><div class="lbl">Arte · Carrusel (3 imágenes)</div>
+            <div style="flex:1;display:flex;align-items:center;justify-content:center"><div class="art" style="width:260px;height:260px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span>Imagen 1 de 3<br>1080 × 1080</span></div></div>
+            <div style="display:flex;justify-content:center;gap:5px;margin:6px 0"><i style="width:7px;height:7px;border-radius:50%;background:#007AFF"></i><i style="width:7px;height:7px;border-radius:50%;background:#d1d1d6"></i><i style="width:7px;height:7px;border-radius:50%;background:#d1d1d6"></i></div>
+            <div style="display:flex;justify-content:space-between;align-items:center"><span class="btn o s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Comentar arte</span><span class="meta">0 comentarios</span></div></div>
+        </div>
+        <div style="display:flex;gap:10px"><span class="btn o"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-.9.4-1.7 1.8-1.7h1.6V3.9c-.3 0-1.3-.2-2.5-.2-2.6 0-4.2 1.5-4.2 4.3v2.5H7.4v3.3h2.8V22z"/></svg> Simular vista en Facebook</span><span class="meta" style="align-self:center">Así se verá publicado, con tu logo y nombre.</span></div>
+      </div>
+      <div style="width:290px;flex:none;background:#fff;border-left:1px solid #e5e7eb;padding:13px;display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;gap:6px"><span class="tab on">Copy · 1</span><span class="tab">Arte</span><span class="tab">Historial</span></div>
+        <div class="lbl" style="margin:2px 0 0">Tu comentario sobre el copy</div>
+        <div class="ta" style="height:92px">Cambiar «soluciones» por «productos» y quitar el emoji de la grúa, no va con nuestra imagen.<span style="color:#007AFF">|</span></div>
+        <div class="meta" style="display:flex;justify-content:space-between"><span>✔ Guardado automáticamente</span><span>31 oct, 10:42</span></div>
+        <div class="lbl" style="margin-top:6px">Comentarios anteriores</div>
+        <div class="cm"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Ronda 1 · 31 oct 10:31</div>El teléfono de contacto debe ir en el texto, no solo el sitio web.</div>
+      </div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Miniaturas con globo naranja = hay comentarios; palomita verde = slide aprobado. Se puede navegar con las flechas del teclado.</span></div><div><b>2</b><span>Copy y arte tienen su propio botón y su propia pestaña de comentarios, sin mezclarse.</span></div><div><b>3</b><span>«Aprobar slide» es clave: el cliente también debe poder decir que algo está bien, no solo pedir cambios.</span></div><div><b>4</b><span>Nada se envía al equipo hasta pulsar «Enviar ajustes»: así llega una sola tarea y no avisos sueltos.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tc">CLIENTE</span><h2>«Simular vista en Facebook»</h2><p>Una ventana emergente que muestra la publicación como la verá la audiencia.</p></div>
+    <div class="pn">Vista 4</div>
+  </header>
+  <div class="stage"><div style="flex:1;position:relative;background:rgba(20,22,28,.62);display:flex;align-items:center;justify-content:center;gap:26px">
+    <div style="background:#fff;border-radius:16px;padding:12px 16px;width:560px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><b style="font-size:14px">Vista previa de la publicación</b><span style="margin-left:auto;color:#8e8e93;font-size:18px">×</span></div>
+      <div style="display:flex;gap:6px;margin-bottom:10px"><span class="tab on">Facebook</span><span class="tab">Instagram</span><span style="width:20px"></span><span class="tab on">Cuadrado 1:1</span><span class="tab">Vertical 4:5</span><span class="tab">Historia 9:16</span></div>
+      <div style="display:flex;justify-content:center;background:#f0f2f5;border-radius:12px;padding:14px">
+        <div class="fb">
+          <div style="display:flex;gap:9px;padding:11px 12px;align-items:center"><span class="avatar" style="width:38px;height:38px;background:#0f7a5a;font-size:15px">HR</span><div><b style="font-size:13.5px">Constructora Horizonte</b><div class="meta" style="font-size:11.5px">Publicidad · Ahora · 🌐</div></div><span style="margin-left:auto;color:#65676b;font-size:18px">⋯</span></div>
+          <div style="padding:0 12px 10px;font-size:13.5px;line-height:1.4">Tu proyecto merece cimientos fuertes.<br>Conoce nuestros productos en concreto premezclado y asegura la calidad desde el primer día. <span style="color:#65676b">… Ver más</span></div>
+          <div class="art" style="width:100%;height:205px;background:linear-gradient(135deg,#f06a1d,#e0307a);border-radius:0"><span>Arte del carrusel<br>(desliza para ver las 3 imágenes)</span></div>
+          <div style="background:#f0f2f5;padding:8px 12px;display:flex;justify-content:space-between;align-items:center"><div><div class="meta" style="font-size:10.5px">HORIZONTE.MX</div><b style="font-size:12.5px">Cotiza hoy tu proyecto</b></div><span style="background:#e4e6eb;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700">Más información</span></div>
+          <div style="display:flex;justify-content:space-around;padding:9px;font-size:12.5px;color:#65676b;font-weight:700;border-top:1px solid #e4e6eb"><span>👍 Me gusta</span><span>💬 Comentar</span><span>↗ Compartir</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:11px"><span class="meta">Simulación referencial: el aspecto final puede variar ligeramente según el dispositivo.</span><span class="btn s">Cerrar</span></div>
+    </div>
+    <div style="color:#fff;width:230px;font-size:12.5px;line-height:1.5">
+      <b>Qué incluye</b><br>• Logo y nombre del cliente<br>• Copy cortado con «Ver más», como en Facebook<br>• Arte en el formato elegido<br>• Carrusel que se desliza<br>• Video con reproducción
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Muestra exactamente lo que el cliente necesita juzgar: cómo se corta el texto y cómo luce el arte en el feed.</span></div><div><b>2</b><span>Selector de plataforma y formato (cuadrado, vertical, historia) para revisar cada versión sin salir.</span></div><div><b>3</b><span>El mismo componente se reutiliza en el panel del equipo al armar la revisión.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tc">CLIENTE</span><h2>Historial de comentarios por rondas</h2><p>Para que el cliente vea todo lo que se ha trabajado en sus ajustes, con fecha y hora.</p></div>
+    <div class="pn">Vista 5</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 16px;display:flex;align-items:center;gap:12px;font-size:12.5px"><span class="btn o s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg> Revisiones</span><b>Parrilla noviembre 2026</b><span class="meta">Slide 3 · Historial</span></div>
+    <div style="flex:1;display:flex;min-height:0">
+      <div class="film"><div class="th "><small>1</small><span class="st" style="background:#34C759"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div><div class="th "><small>2</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>2</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div></div><div class="th on"><small>3</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>1</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div><div class="th "><small>4</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div></div><div class="th "><small>5</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div></div><div class="th "><small>6</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#8e44ad,#e84393);"><span></span></div></div><div class="th "><small>7</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div></div>
+      <div style="flex:1;padding:16px 22px;overflow:hidden;display:flex;gap:22px">
+        <div style="flex:1.1">
+          <div style="display:flex;gap:6px;margin-bottom:12px"><span class="tab">Copy</span><span class="tab">Arte</span><span class="tab on">Historial</span></div>
+          <div class="lbl">Ronda 2 · hoy</div>
+          <div class="cm" style="margin-bottom:8px"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#007AFF;font-size:7px">MA</span><b>Equipo 311 · Jesús</b> · 2 nov 16:20 <span class="chip" style="color:#0062cc;background:#e5f1ff">Listo para revisar</span></div>Copy actualizado a la <b>versión 2</b>. Se cambió «soluciones» por «productos» y se quitó el emoji.</div>
+          <div class="cm" style="margin-bottom:8px"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Copy · 31 oct 10:42 <span class="chip" style="color:#1e8e3e;background:#e3f6e8">Resuelto</span></div>Cambiar «soluciones» por «productos» y quitar el emoji de la grúa.</div>
+          <div class="lbl" style="margin-top:14px">Ronda 1 · 31 oct</div>
+          <div class="cm"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Copy · 31 oct 10:31 <span class="chip" style="color:#1e8e3e;background:#e3f6e8">Resuelto</span></div>El teléfono de contacto debe ir en el texto, no solo el sitio web.</div>
+          <div class="cm" style="margin-top:8px"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Arte · 31 oct 10:36 <span class="chip" style="color:#c93400;background:#fff1e0">En ajuste · Mich</span></div>El logo debe verse más grande, casi no se lee en celular.</div>
+        </div>
+        <div style="flex:1">
+          <div class="lbl">Comparar versiones del copy</div>
+          <div class="card" style="padding:14px;font-size:13px;line-height:1.55">Tu proyecto merece cimientos fuertes. <del>🏗️</del><br><br>Conoce nuestras <del>soluciones</del><ins>productos</ins> en concreto premezclado y asegura la calidad desde el primer día.<br><br><ins>Llámanos: 999 123 4567</ins></div>
+          <div style="display:flex;gap:8px;margin-top:10px"><span class="tab on">v2 (actual)</span><span class="tab">v1</span></div>
+          <div class="card" style="margin-top:12px;padding:12px;font-size:12px;color:#3a3a3c;background:#f0f9f2;border-color:#bfe5c8">Cuando todo esté bien, pulsa <b>Aprobar slide</b>. Queda registrado quién aprobó y cuándo.</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Una línea de tiempo con fecha y hora: ronda 1, ronda 2… el cliente ve qué pidió y qué se hizo.</span></div><div><b>2</b><span>Cada comentario tiene su propio estado: en ajuste (con la persona asignada) o resuelto.</span></div><div><b>3</b><span>Comparación de versiones con lo quitado y lo agregado resaltado, para revisar rápido sin releer todo.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tc">CLIENTE</span><h2>Versión celular y tableta</h2><p>Muchos clientes revisan desde el teléfono: el visor se reacomoda sin perder funciones.</p></div>
+    <div class="pn">Vista 6</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;align-items:center;justify-content:center;gap:42px;background:#eceef2">
+    <div class="phone"><div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 10px;display:flex;align-items:center;gap:7px;font-size:11.5px"><b style="flex:1">Revisiones</b></div><div style="padding:10px;display:flex;flex-direction:column;gap:9px;background:#f5f6f8;flex:1">
+      <div class="card" style="padding:9px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:7px"><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div><b>Parrilla noviembre</b><div class="meta">12 slides · 0 aprobados</div><div style="margin:6px 0"><span class="chip" style="color:#8e8e93;background:#f2f2f7">Pendiente de revisión</span></div><div class="btn s" style="width:100%;justify-content:center">Iniciar revisión</div></div>
+      <div class="card" style="padding:9px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:7px"><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div><div class="art" style="width:100%;height:42px;background:linear-gradient(135deg,#8e44ad,#e84393);"><span></span></div></div><b>Campaña Buen Fin</b><div class="meta">8 slides · 5 aprobados</div><div style="margin:6px 0"><span class="chip" style="color:#0062cc;background:#e5f1ff">Ajustado · por revisar</span></div><div class="btn s" style="width:100%;justify-content:center">Revisar ajustes</div></div></div></div>
+    <div class="phone"><div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 10px;display:flex;align-items:center;gap:7px;font-size:11.5px"><b style="flex:1">Slide 3 de 12</b></div><div style="flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;background:#f5f6f8;overflow:hidden">
+      <div class="art" style="width:100%;height:196px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span>Arte 1:1</span></div>
+      <div class="card" style="padding:9px;font-size:11px;line-height:1.45"><div class="lbl">Copy</div>Tu proyecto merece cimientos fuertes. Conoce nuestros productos…</div>
+      <div style="display:flex;gap:6px"><span class="btn o s" style="flex:1;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Copy</span><span class="btn o s" style="flex:1;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Arte</span></div>
+      <span class="btn o s" style="justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-.9.4-1.7 1.8-1.7h1.6V3.9c-.3 0-1.3-.2-2.5-.2-2.6 0-4.2 1.5-4.2 4.3v2.5H7.4v3.3h2.8V22z"/></svg> Simular en Facebook</span></div>
+      <div style="background:#fff;border-top:1px solid #e5e7eb;padding:7px;display:flex;gap:5px;overflow:hidden"><div style="position:relative;border:2px solid transparent;border-radius:7px"><div class="art" style="width:38px;height:38px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div><div style="position:relative;border:2px solid transparent;border-radius:7px"><div class="art" style="width:38px;height:38px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div></div><div style="position:relative;border:2px solid #007AFF;border-radius:7px"><div class="art" style="width:38px;height:38px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div><div style="position:relative;border:2px solid transparent;border-radius:7px"><div class="art" style="width:38px;height:38px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div></div><div style="position:relative;border:2px solid transparent;border-radius:7px"><div class="art" style="width:38px;height:38px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div></div></div></div>
+    <div class="phone"><div style="flex:1;background:rgba(0,0,0,.35);display:flex;align-items:flex-end"><div style="background:#fff;border-radius:18px 18px 0 0;padding:13px;width:100%;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between"><b>Comentar el copy</b><span class="meta">Cerrar</span></div>
+      <div class="ta" style="height:84px">Cambiar «soluciones» por «productos»…<span style="color:#007AFF">|</span></div>
+      <div class="meta">✔ Guardado automáticamente</div><div class="btn" style="justify-content:center">Listo</div></div></div></div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Las miniaturas pasan a una tira inferior y los comentarios se abren como hoja desde abajo.</span></div><div><b>2</b><span>Botones grandes y separados para tocar con el dedo; el teclado no tapa el cuadro de texto.</span></div><div><b>3</b><span>La simulación de Facebook se abre a pantalla completa en el celular.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag te">EQUIPO</span><h2>Panel «Revisiones» (ADMIN, EDITOR, PROJECT 311 y TEAM 311)</h2><p>Dónde el equipo prepara y da seguimiento a las revisiones de todos los clientes.</p></div>
+    <div class="pn">Vista 7</div>
+  </header>
+  <div class="stage"><aside class="side">
+    <div class="brand">311 CONSULTORES<small>Portal de Operaciones</small></div>
+    <div class="nav ">Tareas</div><div class="nav ">Reportes</div><div class="nav on">Revisiones<b class="bdg">3</b></div><div class="nav ">Clientes y proyectos</div><div class="nav ">Facturas</div><div class="nav ">Documentos</div>
+    <div class="user"><span class="avatar" style="width:30px;height:30px;background:#007AFF;font-size:12px">MA</span><span><b>Mariana Asistente</b><small>EDITOR</small></span></div>
+  </aside><div class="main">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div class="h1">Revisiones</div><span class="btn">+ Nueva revisión</span></div>
+    <div class="tabs"><span class="tab on">Todas</span><span class="tab">Borradores · 1</span><span class="tab">Esperando al cliente · 2</span><span class="tab">Ajustes por hacer · 3</span><span class="tab">Aprobadas</span></div>
+    <div class="card" style="padding:0;overflow:hidden"><table class="t"><thead><tr><th>Revisión</th><th>Cliente</th><th>Estado</th><th>Ronda</th><th>Avance</th><th>Responsables</th><th></th></tr></thead><tbody>
+      <tr><td><b>Parrilla noviembre 2026</b><div class="meta">12 slides</div></td><td>Constructora Horizonte</td><td><span class="chip" style="color:#8e8e93;background:#f2f2f7">Esperando al cliente</span></td><td>1</td><td style="width:110px"><div class="prog"><i style="width:0%"></i></div><div class="meta">0 de 12</div></td><td><span class="meta">Copy:</span> Jesús<br><span class="meta">Arte:</span> Mich</td><td><span class="btn o s">Abrir</span></td></tr>
+      <tr><td><b>Campaña Buen Fin</b><div class="meta">8 slides</div></td><td>Clínica Santa Aurora</td><td><span class="chip" style="color:#c93400;background:#fff1e0">Ajustes por hacer · 4</span></td><td>2</td><td><div class="prog"><i style="width:58%"></i></div><div class="meta">5 de 8</div></td><td><span class="meta">Copy:</span> Jesús<br><span class="meta">Arte:</span> Mich</td><td><span class="btn s">Ver tarea</span></td></tr>
+      <tr><td><b>Parrilla octubre 2026</b><div class="meta">12 slides</div></td><td>Constructora Horizonte</td><td><span class="chip" style="color:#0062cc;background:#e5f1ff">Enviada al cliente</span></td><td>2</td><td><div class="prog"><i style="width:83%"></i></div><div class="meta">10 de 12</div></td><td><span class="meta">Copy:</span> Jesús<br><span class="meta">Arte:</span> Mich</td><td><span class="btn o s">Abrir</span></td></tr>
+      <tr><td><b>Parrilla septiembre 2026</b><div class="meta">12 slides</div></td><td>Constructora Horizonte</td><td><span class="chip" style="color:#1e8e3e;background:#e3f6e8">Aprobada · 28 sep</span></td><td>3</td><td><div class="prog"><i style="width:100%"></i></div><div class="meta">12 de 12</div></td><td><span class="meta">Copy:</span> Jesús<br><span class="meta">Arte:</span> Mich</td><td><span class="btn o s">Ver</span></td></tr>
+      <tr><td><b>Parrilla diciembre 2026</b><div class="meta">3 slides · sin publicar</div></td><td>Clínica Santa Aurora</td><td><span class="chip" style="background:#f2f2f7;color:#555">Borrador</span></td><td>—</td><td><div class="meta">—</div></td><td><span class="meta">Copy:</span> Jesús<br><span class="meta">Arte:</span> Mich</td><td><span class="btn s">Continuar</span></td></tr>
+    </tbody></table></div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Un solo lugar para ver qué espera al cliente y qué ajustes debe hacer el equipo.</span></div><div><b>2</b><span>Cada revisión muestra quién lleva el copy y quién lleva el arte (se asignan al crearla).</span></div><div><b>3</b><span>Borrador, Esperando al cliente, Ajustes por hacer y Aprobada: el equipo sabe qué sigue sin abrir nada.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag te">EQUIPO</span><h2>Armar una revisión</h2><p>Un slide por publicación. Se ordena arrastrando (igual que las actividades de un reporte) y se publica al cliente cuando está listo.</p></div>
+    <div class="pn">Vista 8</div>
+  </header>
+  <div class="stage"><aside class="side">
+    <div class="brand">311 CONSULTORES<small>Portal de Operaciones</small></div>
+    <div class="nav ">Tareas</div><div class="nav ">Reportes</div><div class="nav on">Revisiones<b class="bdg">3</b></div><div class="nav ">Clientes y proyectos</div><div class="nav ">Facturas</div><div class="nav ">Documentos</div>
+    <div class="user"><span class="avatar" style="width:30px;height:30px;background:#007AFF;font-size:12px">MA</span><span><b>Mariana Asistente</b><small>EDITOR</small></span></div>
+  </aside><div class="main" style="display:flex;gap:16px">
+    <div style="width:420px;flex:none;display:flex;flex-direction:column;gap:9px">
+      <div class="h1">Nueva revisión</div>
+      <div class="card" style="padding:11px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><div class="lbl">Cliente</div><div class="ta">Constructora Horizonte</div></div><div><div class="lbl">Proyecto</div><div class="ta">Torre Norte</div></div>
+        <div style="grid-column:span 2"><div class="lbl">Título</div><div class="ta">Parrilla noviembre 2026</div></div>
+        <div><div class="lbl">Ajustes de COPY → </div><div class="ta">Jesús López</div></div><div><div class="lbl">Ajustes de ARTE → </div><div class="ta">Mich Rivas</div></div>
+        <div><div class="lbl">Respuesta del cliente antes de</div><div class="ta">8 nov 2026</div></div><div><div class="lbl">Tiempo del equipo para ajustes</div><div class="ta">2 días</div></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">Slides (12)</b><span class="btn o s">+ Agregar slide</span></div>
+      <div class="card" style="padding:9px;display:flex;gap:10px;align-items:center;"><span style="color:#aeaeb2"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><b style="width:18px;font-size:12px">1</b><div class="art" style="width:52px;height:52px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div><div style="flex:1;min-width:0"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Presentamos nuestra nueva línea de concreto…</div><div class="meta">Facebook · Imagen · 3 nov</div></div><span style="font-size:10.5px;color:#8e8e93">↑ ↓</span></div>
+      <div class="card" style="padding:9px;display:flex;gap:10px;align-items:center;"><span style="color:#aeaeb2"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><b style="width:18px;font-size:12px">2</b><div class="art" style="width:52px;height:52px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div><div style="flex:1;min-width:0"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">3 señales de que tu obra necesita supervisión…</div><div class="meta">Instagram · Carrusel 5 imágenes · 5 nov</div></div><span style="font-size:10.5px;color:#8e8e93">↑ ↓</span></div>
+      <div class="card" style="padding:9px;display:flex;gap:10px;align-items:center;border-color:#007AFF;box-shadow:0 0 0 2px #cfe4ff"><span style="color:#aeaeb2"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><b style="width:18px;font-size:12px">3</b><div class="art" style="width:52px;height:52px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div><div style="flex:1;min-width:0"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Tu proyecto merece cimientos fuertes…</div><div class="meta">Facebook · Carrusel 3 imágenes · 12 nov</div></div><span style="font-size:10.5px;color:#8e8e93">↑ ↓</span></div>
+      <div class="card" style="padding:9px;display:flex;gap:10px;align-items:center;"><span style="color:#aeaeb2"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><b style="width:18px;font-size:12px">4</b><div class="art" style="width:52px;height:52px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div><div style="flex:1;min-width:0"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Mira cómo vaciamos una losa en 6 horas…</div><div class="meta">Instagram · Video 0:28 · 14 nov</div></div><span style="font-size:10.5px;color:#8e8e93">↑ ↓</span></div>
+      <div style="margin-top:auto;display:flex;gap:8px;justify-content:flex-end"><span class="btn o">Guardar borrador</span><span class="btn">Publicar al cliente</span></div>
+    </div>
+    <div class="card" style="flex:1;padding:14px;display:flex;flex-direction:column;gap:9px;min-width:0">
+      <div style="display:flex;justify-content:space-between"><b style="font-size:13px">Slide 3</b><span class="meta">Autoguardado ✔</span></div>
+      <div class="lbl" style="margin:0">Copy</div><div class="ta" style="height:96px">Tu proyecto merece cimientos fuertes. 🏗️ Conoce nuestras soluciones en concreto premezclado y asegura la calidad desde el primer día. Cotiza hoy 👉 horizonte.mx</div>
+      <div class="lbl" style="margin:0">Arte</div>
+      <div style="display:flex;gap:6px"><span class="tab">Imagen</span><span class="tab">Video</span><span class="tab on">Carrusel</span></div>
+      <div style="display:flex;gap:8px"><div class="art" style="width:78px;height:78px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span>1</span></div><div class="art" style="width:78px;height:78px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span>2</span></div><div class="art" style="width:78px;height:78px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span>3</span></div><div style="width:78px;height:78px;border:2px dashed #c7c7cc;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8e8e93;font-size:11px;text-align:center">+ Subir<br>imagen</div></div>
+      <div style="display:flex;gap:8px;margin-top:2px"><div style="flex:1"><div class="lbl">Canal</div><div class="ta">Facebook</div></div><div style="flex:1"><div class="lbl">Publicación</div><div class="ta">12 nov 2026, 9:00</div></div></div>
+      <span class="btn o s" style="align-self:flex-start;margin-top:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-.9.4-1.7 1.8-1.7h1.6V3.9c-.3 0-1.3-.2-2.5-.2-2.6 0-4.2 1.5-4.2 4.3v2.5H7.4v3.3h2.8V22z"/></svg> Simular vista en Facebook</span>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Arrastrar con el asa ⋮⋮ (o con flechas) para ordenar los slides: es el mismo gesto que ya usan en los reportes.</span></div><div><b>2</b><span>Se elige una vez quién atiende los ajustes de copy y quién los de arte; el sistema reparte las subtareas solo.</span></div><div><b>3</b><span>El autoguardado evita perder trabajo, y nada llega al cliente hasta pulsar «Publicar al cliente».</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag te">EQUIPO</span><h2>La tarea de ajustes con subtareas (en el tablero de tareas actual)</h2><p>Cada vez que el cliente envía ajustes, se crea UNA tarea. Sus subtareas abren directamente el slide por corregir.</p></div>
+    <div class="pn">Vista 9</div>
+  </header>
+  <div class="stage"><aside class="side">
+    <div class="brand">311 CONSULTORES<small>Portal de Operaciones</small></div>
+    <div class="nav on">Tareas</div><div class="nav ">Reportes</div><div class="nav ">Revisiones<b class="bdg">3</b></div><div class="nav ">Clientes y proyectos</div><div class="nav ">Facturas</div><div class="nav ">Documentos</div>
+    <div class="user"><span class="avatar" style="width:30px;height:30px;background:#007AFF;font-size:12px">MA</span><span><b>Mariana Asistente</b><small>EDITOR</small></span></div>
+  </aside><div class="main" style="display:flex;gap:16px">
+    <div style="flex:1">
+      <div class="h1">Tareas</div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div style="flex:1;background:#eceef2;border-radius:12px;padding:8px"><div class="lbl">Pendiente</div><div class="card" style="padding:9px;border-color:#007AFF;font-size:11.5px"><b>Ajustes · Parrilla noviembre 2026 · Ronda 1</b><div class="meta" style="margin:3px 0">Constructora Horizonte · Entrega 3 nov</div><div class="prog"><i style="width:25%"></i></div><div class="meta" style="margin-top:3px">1 de 4 subtareas</div></div></div><div style="flex:1;background:#eceef2;border-radius:12px;padding:8px"><div class="lbl">En proceso</div></div><div style="flex:1;background:#eceef2;border-radius:12px;padding:8px"><div class="lbl">Lista</div></div><div style="flex:1;background:#eceef2;border-radius:12px;padding:8px"><div class="lbl">Terminada</div></div>
+      </div>
+    </div>
+    <div class="card" style="width:520px;flex:none;padding:0;overflow:hidden">
+      <div style="padding:13px 14px;border-bottom:1px solid #e5e7eb"><b style="font-size:14px">Ajustes · Parrilla noviembre 2026 · Ronda 1</b><div class="meta" style="margin-top:3px">Creada automáticamente cuando Ana Vega envió sus ajustes · Entrega: 3 nov, 6:00 p. m. · Área: Redes sociales</div>
+        <div style="display:flex;gap:6px;margin-top:8px"><span class="avatar" style="width:24px;height:24px;background:#007AFF;font-size:10px">JL</span><span class="avatar" style="width:24px;height:24px;background:#af52de;font-size:10px">MR</span><span class="meta" style="align-self:center">Jesús (copy) · Mich (arte)</span></div></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f0f1f4;font-size:12px"><span style="width:17px;height:17px;border-radius:5px;border:2px solid #c7c7cc;background:#fff;color:#fff;display:flex;align-items:center;justify-content:center"></span><div style="flex:1;"><b>Slide 2 · COPY</b> — «Cambiar soluciones por productos y quitar el emoji»</div><span class="avatar" style="width:22px;height:22px;background:#007AFF;font-size:9px">JL</span><span class="meta" style="width:42px">Jesús</span><span class="btn o s">Abrir slide ↗</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f0f1f4;font-size:12px"><span style="width:17px;height:17px;border-radius:5px;border:2px solid #c7c7cc;background:#fff;color:#fff;display:flex;align-items:center;justify-content:center"></span><div style="flex:1;"><b>Slide 2 · ARTE</b> — «El logo debe verse más grande»</div><span class="avatar" style="width:22px;height:22px;background:#af52de;font-size:9px">MR</span><span class="meta" style="width:42px">Mich</span><span class="btn o s">Abrir slide ↗</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f0f1f4;font-size:12px"><span style="width:17px;height:17px;border-radius:5px;border:2px solid #c7c7cc;background:#fff;color:#fff;display:flex;align-items:center;justify-content:center"></span><div style="flex:1;"><b>Slide 3 · COPY</b> — «Poner el teléfono en el texto»</div><span class="avatar" style="width:22px;height:22px;background:#007AFF;font-size:9px">JL</span><span class="meta" style="width:42px">Jesús</span><span class="btn o s">Abrir slide ↗</span></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f0f1f4;font-size:12px"><span style="width:17px;height:17px;border-radius:5px;border:2px solid #34C759;background:#34C759;color:#fff;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div style="flex:1;color:#8e8e93;text-decoration:line-through"><b>Slide 5 · ARTE</b> — «Cambiar la foto del segundo carrusel»</div><span class="avatar" style="width:22px;height:22px;background:#af52de;font-size:9px">MR</span><span class="meta" style="width:42px">Mich</span><span class="btn o s">Abrir slide ↗</span></div>
+      <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:#fafafa"><span class="meta">El botón se activa cuando todas las subtareas estén hechas</span><span class="btn" style="opacity:.45">Enviar ajustes al cliente</span></div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Es la tarea y las subtareas que ya conocen: nadie aprende una herramienta nueva para atender ajustes.</span></div><div><b>2</b><span>Cada subtarea dice slide, si es COPY o ARTE y el comentario textual del cliente, y la lleva su responsable.</span></div><div><b>3</b><span>Al marcar las subtareas, el equipo decide cuándo enviar al cliente: un solo aviso, no uno por cada cambio.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag te">EQUIPO</span><h2>Atender un ajuste (vista del slide para el equipo)</h2><p>Al abrir una subtarea se ve el comentario del cliente junto al slide editable.</p></div>
+    <div class="pn">Vista 10</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="background:#fff;border-bottom:1px solid #e5e7eb;padding:9px 16px;display:flex;align-items:center;gap:12px;font-size:12.5px"><span class="btn o s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg> Volver a la tarea</span><b>Parrilla noviembre 2026</b><span class="meta">Slide 2 · Ronda 1</span><span style="margin-left:auto" class="meta">Editando como Jesús (COPY)</span></div>
+    <div style="flex:1;display:flex;min-height:0">
+      <div class="film"><div class="th "><small>1</small><span class="st" style="background:#34C759"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div><div class="th on"><small>2</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>2</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span></span></div></div><div class="th "><small>3</small><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>1</span><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f06a1d,#e0307a);"><span></span></div></div><div class="th "><small>4</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#f5b82e,#f0742c);"><span></span></div></div><div class="th "><small>5</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#2c3e6b,#4f7bd6);"><span></span></div></div><div class="th "><small>6</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#8e44ad,#e84393);"><span></span></div></div><div class="th "><small>7</small><div class="art" style="width:100%;height:74px;background:linear-gradient(135deg,#3b6cf5,#7a3df0);"><span></span></div></div></div>
+      <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0">
+        <div style="display:flex;gap:14px;flex:1;min-height:0">
+          <div class="card" style="flex:1;padding:14px;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between"><div class="lbl" style="margin:0">Copy · versión 2 (borrador)</div><span class="chip" style="color:#c93400;background:#fff1e0">Pendiente de ajuste</span></div>
+            <div class="ta" style="flex:1;font-size:13px;line-height:1.55">3 señales de que tu obra necesita supervisión profesional:<br>1️⃣ Retrasos constantes<br>2️⃣ Gastos que no cuadran<br>3️⃣ Calidad irregular<br>Conoce nuestros <ins>productos</ins>… <span style="color:#007AFF">|</span></div>
+            <div class="meta">Al guardar se crea la versión 2; la versión 1 queda en el historial.</div></div>
+          <div class="card" style="flex:1;padding:14px;display:flex;flex-direction:column;gap:8px"><div class="lbl" style="margin:0">Arte</div><div style="flex:1;display:flex;align-items:center;justify-content:center"><div class="art" style="width:190px;height:190px;background:linear-gradient(135deg,#0f9d73,#12a8e6);"><span>Carrusel 5 imágenes</span></div></div>
+            <div class="meta">El arte lo atiende Mich en su propia subtarea.</div></div>
+        </div>
+        <div class="card" style="padding:12px;display:flex;gap:14px;align-items:center"><div style="flex:1"><div class="lbl" style="margin-bottom:3px">Nota para el cliente (opcional)</div><div class="ta">Listo: cambiamos «soluciones» por «productos» y quitamos el emoji.</div></div><span class="btn g"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Marcar ajuste como realizado</span></div>
+      </div>
+      <div style="width:290px;flex:none;background:#fff;border-left:1px solid #e5e7eb;padding:13px;display:flex;flex-direction:column;gap:9px">
+        <div class="lbl">Lo que pidió el cliente</div>
+        <div class="cm"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Copy · 31 oct 10:42</div><div class="q">Cambiar «soluciones» por «productos» y quitar el emoji de la grúa, no va con nuestra imagen.</div></div>
+        <div class="cm"><div class="by"><span class="avatar" style="width:18px;height:18px;background:#34C759;font-size:7px">AV</span><b>Ana Vega</b> · Arte · 31 oct 10:44</div><div class="q">El logo debe verse más grande, casi no se lee en celular.</div><span class="chip" style="background:#f2f2f7;color:#555">Asignado a Mich</span></div>
+        <div class="lbl" style="margin-top:6px">Mi parte</div>
+        <div class="meta">✔ Subtarea «Slide 2 · COPY» se marca como hecha al pulsar el botón verde.</div>
+      </div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>El comentario del cliente se ve junto a lo que hay que cambiar, con fecha y hora.</span></div><div><b>2</b><span>Cada persona solo edita su parte: copy o arte. Lo que cambia genera una nueva versión, sin borrar la anterior.</span></div><div><b>3</b><span>Una nota opcional para el cliente («listo: cambiamos X») aparece en su historial.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tg">AVISOS</span><h2>Avisos al cliente y al equipo</h2><p>Mensajes cortos, con un solo enlace que lleva directo a lo que hay que hacer.</p></div>
+    <div class="pn">Vista 11</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;gap:24px;padding:22px;align-items:flex-start;background:#eceef2">
+    <div class="card" style="width:520px;padding:0;overflow:hidden">
+      <div style="background:#f6f7f9;padding:11px 16px;font-size:11.5px;color:#6e6e73;border-bottom:1px solid #e5e7eb"><b style="color:#1d1d1f">De:</b> 311 Consultores &nbsp; <b style="color:#1d1d1f">Para:</b> Ana Vega<br><b style="color:#1d1d1f">Asunto:</b> Tus ajustes están listos para revisar · Parrilla noviembre 2026</div>
+      <div style="padding:20px 26px;font-size:13px;line-height:1.55">
+        <div style="font-weight:700;letter-spacing:.8px;font-size:12px;margin-bottom:14px">311 CONSULTORES</div>
+        Hola Ana,<br><br>Ya realizamos los <b>4 ajustes</b> que nos pediste en la <b>Parrilla noviembre 2026</b> (Ronda 1).<br><br>
+        <div class="card" style="padding:10px 12px;background:#f8f9fb;margin-bottom:14px;font-size:12px">• Slide 2 · Copy: «soluciones» → «productos»<br>• Slide 2 · Arte: logo más grande<br>• Slide 3 · Copy: teléfono agregado<br>• Slide 5 · Arte: nueva foto</div>
+        <span class="btn">Revisar mis ajustes</span><br><br><span class="meta">Tus comentarios y las versiones anteriores siguen disponibles en el historial de cada slide.</span></div></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;font-size:12.5px">
+      <div class="lbl">Quién recibe qué</div>
+      <div class="card" style="padding:12px"><b>Cliente</b> recibe aviso (correo + globo en «Revisiones») cuando:<br>• Se publica una revisión nueva<br>• El equipo le envía ajustes realizados<br>• Faltan 2 días para la fecha de respuesta (recordatorio)</div>
+      <div class="card" style="padding:12px"><b>Equipo asignado</b> recibe aviso (campanita, navegador y correo si lo activaron) cuando:<br>• El cliente envía ajustes: llega la tarea con subtareas<br>• El cliente aprueba un slide o la parrilla completa<br>• Vence el plazo de una tarea de ajustes</div>
+      <div class="card" style="padding:12px;background:#fffbea;border-color:#f5e3a0">Los correos salen por el mismo Gmail del portal, con los correos del cliente y del proyecto que ya están registrados.</div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Un solo correo por ronda, con lista de lo que se cambió. No se avisa subtarea por subtarea.</span></div><div><b>2</b><span>El botón lleva directo al visor, sin pasos extra (si no tiene sesión, entra por el login y regresa).</span></div><div><b>3</b><span>Recordatorio automático antes de la fecha límite para que las parrillas no se atoren.</span></div></footer>
+</section>
+<section class="page">
+  <header class="ph">
+    <div><span class="tag tg">RESUMEN</span><h2>Estados, permisos y reglas propuestas</h2><p>Lo que recomiendo dejar definido antes de programar.</p></div>
+    <div class="pn">Vista 12</div>
+  </header>
+  <div class="stage"><div style="flex:1;display:flex;gap:18px;padding:18px;background:#f5f6f8">
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;font-size:12.5px;line-height:1.5">
+      <div class="lbl">Estados de un slide</div>
+      <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:7px">
+        <div><span class="chip" style="color:#8e8e93;background:#f2f2f7">Pendiente de revisión</span> Aún sin comentarios ni aprobación.</div>
+        <div><span class="chip" style="color:#c93400;background:#fff1e0">Cambios solicitados</span> El cliente envió ajustes; hay subtareas abiertas.</div>
+        <div><span class="chip" style="color:#0062cc;background:#e5f1ff">Ajustado · por revisar</span> El equipo hizo los cambios y los envió; el cliente debe revisar.</div>
+        <div><span class="chip" style="color:#1e8e3e;background:#e3f6e8">Aprobado</span> El cliente aprobó. Queda bloqueado (se puede reabrir con motivo).</div></div>
+      <div class="lbl">Rondas</div>
+      <div class="card" style="padding:12px">Una ronda empieza cuando el cliente pulsa «Enviar ajustes» y termina cuando el equipo responde. Se numeran (Ronda 1, 2, 3…) y quedan en el historial.</div>
+      <div class="lbl">Cierre</div>
+      <div class="card" style="padding:12px">Con todos los slides aprobados, la revisión pasa a <b>Aprobada</b> y guarda el nombre de quien aprobó y la fecha. Se puede descargar un resumen en PDF.</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;font-size:12.5px;line-height:1.5">
+      <div class="lbl">Quién puede qué</div>
+      <div class="card" style="padding:0;overflow:hidden"><table class="t"><thead><tr><th>Rol</th><th>Acceso</th></tr></thead><tbody>
+        <tr><td><b>CLIENTE</b></td><td>Ve solo las revisiones publicadas de su empresa. Comenta, aprueba y envía ajustes.</td></tr>
+        <tr><td><b>ADMIN / EDITOR</b></td><td>Crea, publica, edita, reabre y ve todo.</td></tr>
+        <tr><td><b>PROJECT 311</b></td><td>Crea y da seguimiento; asigna responsables.</td></tr>
+        <tr><td><b>TEAM 311</b></td><td>Ve las revisiones de sus proyectos y atiende los ajustes que le tocan.</td></tr></tbody></table></div>
+      <div class="lbl">Archivos y límites (los de hoy)</div>
+      <div class="card" style="padding:12px">Imágenes JPG/PNG hasta 8 MB · Videos MP4/WEBM/MOV hasta 100 MB · Carruseles de hasta 10 imágenes · Textos de copy hasta 2,200 caracteres (límite de Instagram).</div>
+      <div class="lbl">Cómo se construye (en etapas)</div>
+      <div class="card" style="padding:12px">1) Armar y publicar revisiones + visor del cliente con comentarios.<br>2) Tarea con subtareas, versiones y aviso al cliente.<br>3) Simulación de Facebook/Instagram, aprobación final y recordatorios.</div>
+    </div>
+  </div></div>
+  <footer class="notes"><div><b>1</b><span>Cuatro estados simples, con el mismo código de colores en todas las pantallas.</span></div><div><b>2</b><span>Cada slide aprobado se bloquea para evitar cambios por accidente; solo el equipo puede reabrirlo.</span></div><div><b>3</b><span>Se construye por etapas para que puedan probar con un cliente real pronto.</span></div></footer>
+</section></body></html>

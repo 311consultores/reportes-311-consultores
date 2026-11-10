@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createReview } from "@/app/actions/reviews";
 import { ActionForm } from "@/components/action-form";
+import { ConsultantPicker, type TeamOption } from "@/components/consultant-picker";
 import { DateInput } from "@/components/date-input";
 import { EmailPills } from "@/components/email-pills";
 import { SearchSelect } from "@/components/search-select";
@@ -10,9 +11,9 @@ import { splitEmails, uniqueEmails } from "@/lib/emails";
 
 type ClientOpt = { id: string; companyName: string; mainEmails: string; projects: { id: string; projectName: string; projectEmails: string }[] };
 
-export function NewReviewForm({ clients, team }: { clients: ClientOpt[]; team: { id: string; name: string }[] }) {
-  const [clientId, setClientId] = useState("");
-  const [projectId, setProjectId] = useState("");
+export function NewReviewForm({ clients, team, initialClientId = "" }: { clients: ClientOpt[]; team: TeamOption[]; initialClientId?: string }) {
+  const [clientId, setClientId] = useState(initialClientId);
+  const [projectId, setProjectId] = useState(() => (initialClientId ? clients.find((c) => c.id === initialClientId)?.projects[0]?.id ?? "" : ""));
   const options = useMemo(() => clients.map((c) => ({ value: c.id, label: c.companyName })), [clients]);
   const client = clients.find((c) => c.id === clientId);
   const project = client?.projects.find((p) => p.id === projectId);
@@ -38,18 +39,12 @@ export function NewReviewForm({ clients, team }: { clients: ClientOpt[]; team: {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="label" htmlFor="copyUserId">Ajustes de COPY los atiende</label>
-          <select id="copyUserId" name="copyUserId" required className="input" defaultValue="">
-            <option value="">Elige a una persona…</option>
-            {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <label className="label">Ajustes de COPY los atiende</label>
+          <ConsultantPicker single options={team} name="copyUserId" hint="Una persona del TEAM 311." searchText="Escribe para buscar a una persona…" />
         </div>
         <div>
-          <label className="label" htmlFor="artUserId">Ajustes de ARTE los atiende</label>
-          <select id="artUserId" name="artUserId" required className="input" defaultValue="">
-            <option value="">Elige a una persona…</option>
-            {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <label className="label">Ajustes de ARTE los atiende</label>
+          <ConsultantPicker single options={team} name="artUserId" hint="Una persona del TEAM 311." searchText="Escribe para buscar a una persona…" />
         </div>
       </div>
       <div>

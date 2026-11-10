@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, FolderPlus, GitMerge, ImagePlus, Maximize2, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { FileText, FolderPlus, GitMerge, ImagePlus, Maximize2, MessageSquareQuote, Pencil, Trash2 } from "lucide-react";
 import { ProjectModal } from "@/components/project-modal";
 import { createProject, updateClientLogo } from "@/app/actions/admin";
 import { requestDeletion } from "@/app/actions/deletions";
@@ -31,7 +32,7 @@ export type CardClient = {
 
 type ModalKind = null | "detalle" | "proyecto" | "fiscal" | "logo" | "fusion";
 
-export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { client: CardClient; isAdmin: boolean; readOnly?: boolean; others: CardClient[] }) {
+export function ClientCard({ client: c, isAdmin, readOnly = false, others, canReview = false }: { client: CardClient; isAdmin: boolean; readOnly?: boolean; others: CardClient[]; canReview?: boolean }) {
   const router = useRouter();
   const { askReason } = useDialogs();
   const [modal, setModal] = useState<ModalKind>(null);
@@ -89,6 +90,11 @@ export function ClientCard({ client: c, isAdmin, readOnly = false, others }: { c
             <IconAction label={c.logoUrl ? "Cambiar logo" : "Agregar logo"} onClick={() => setModal("logo")}><ImagePlus size={17} /></IconAction>
             <IconAction label="Fusionar con otro cliente" onClick={() => setModal("fusion")}><GitMerge size={17} /></IconAction>
           </>
+        )}
+        {canReview && c.projects.length > 0 && (
+          <Link href={`/revisiones/nueva?cliente=${c.id}`} aria-label="Nueva revisión de este cliente" title="Nueva revisión de este cliente" className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition-all hover:bg-black/5 dark:text-zinc-300 dark:hover:bg-white/10">
+            <MessageSquareQuote size={17} />
+          </Link>
         )}
         {isAdmin && (
           <span className="ml-auto"><IconAction label="Eliminar cliente" danger onClick={remove}><Trash2 size={17} /></IconAction></span>

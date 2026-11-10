@@ -14,7 +14,7 @@ import { formatMx } from "@/lib/tasks-shared";
 import { notifyUsers, taskManagerIds } from "@/lib/notifications";
 import { splitEmails, uniqueEmails, isEmail } from "@/lib/emails";
 import { fmtDate, isValidIsoDate } from "@/lib/finance";
-import { fmtSec, MAX_ASSETS, MAX_COMMENT, MAX_COPY, REVIEW_CREATORS, REVIEW_STAFF, reviewScope, reviewWhatsappMessage } from "@/lib/reviews";
+import { CHANNELS, fmtSec, isSlideKind, MAX_ASSETS, MAX_COMMENT, MAX_COPY, REVIEW_CREATORS, REVIEW_STAFF, reviewScope, reviewWhatsappMessage, slideName } from "@/lib/reviews";
 
 type Res = { error?: string; ok?: boolean };
 const isUuid = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f-]{36}$/i.test(s);
@@ -100,7 +100,14 @@ export async function updateReviewMeta(id: string, input: Record<string, string>
   const meta = await checkMeta(input);
   if ("error" in meta) return { error: meta.error };
   const d = meta.data;
-  await prisma.review.update({ where: { id }, data: { title: d.title, copyUserId: d.copyUserId, artUserId: d.artUserId, notifyEmails: d.notifyEmails, respondBy: new Date(`${d.respondBy}T12:00:00`) } });
+  // Solo mientras es borrador se puede pasar la revisión a otro cliente / proyecto del catálogo
+  let moveTo: { clientId: string; projectId: string } | undefined;
+  if (review.status === "BORRADOR" && input.clientId && input.projectId && (input.clientId !== review.clientId || input.projectId !== review.projectId)) {
+    const project = await prisma.project.findFirst({ where: { id: input.projectId, clientId: input.clientId }, select: { id: true } });
+    if (!project) return { error: "El proyecto no pertenece al cliente elegido" };
+    moveTo = { clientId: input.clientId, projectId: project.id };
+  }
+  await prisma.review.update({ where: { id }, data: { ...moveTo, title: d.title, copyUserId: d.copyUserId, artUserId: d.artUserId, notifyEmails: d.notifyEmails, respondBy: new Date(`${d.respondBy}T12:00:00`) } });
   refresh(id);
   return { ok: true };
 }
@@ -110,16 +117,19 @@ export async function addSlide(reviewId: string) {
   if (review.status !== "BORRADOR") throw new Error("La revisión ya está publicada");
   const last = await prisma.reviewSlide.aggregate({ where: { reviewId }, _max: { position: true } });
   const slide = await prisma.reviewSlide.create({ data: { reviewId, position: (last._max.position ?? 0) + 1, copy: "" } });
-  return { id: slide.id, position: slide.position, channel: slide.channel, publishOn: null as string | null, copy: "", assets: [] as { id: string; type: string; name: string }[] };
+  return { id: slide.id, position: slide.position, title: null as string | null, kind: null as string | null, channel: slide.channel, publishOn: null as string | null, copy: "", assets: [] as { id: string; type: string; name: string }[] };
 }
 
 /** Autoguardado del copy, canal y fecha de publicación de un slide. */
-export async function saveSlide(slideId: string, input: { copy: string; channel: string; publishOn: string | null }): Promise<Res> {
+export async function saveSlide(slideId: string, input: { title: string; kind: string; copy: string; channels: string[]; publishOn: string | null }): Promise<Res> {
   const { slide } = await draftSlide(slideId);
   if (input.copy.length > MAX_COPY) return { error: `El copy no puede pasar de ${MAX_COPY} caracteres` };
-  if (input.channel !== "FACEBOOK" && input.channel !== "INSTAGRAM") return { error: "Canal no válido" };
+  const channels = CHANNELS.map((c) => c.value as string).filter((c) => input.channels.includes(c));
+  if (channels.length === 0) return { error: "Marca al menos un canal (Facebook o Instagram)" };
+  if (input.kind && !isSlideKind(input.kind)) return { error: "Tipo de slide no válido" };
+  const title = input.title.trim().slice(0, 191) || null;
   if (input.publishOn && !isValidIsoDate(input.publishOn)) return { error: "Fecha de publicación no válida" };
-  await prisma.reviewSlide.update({ where: { id: slide.id }, data: { copy: input.copy, channel: input.channel, publishOn: input.publishOn ? new Date(`${input.publishOn}T12:00:00`) : null } });
+  await prisma.reviewSlide.update({ where: { id: slide.id }, data: { copy: input.copy, title, kind: input.kind || null, channel: channels.join(","), publishOn: input.publishOn ? new Date(`${input.publishOn}T12:00:00`) : null } });
   return { ok: true };
 }
 
@@ -184,6 +194,8 @@ export async function publishReview(reviewId: string): Promise<Res & { dryRun?: 
   if (full.slides.length === 0) return { error: "Agrega al menos un slide antes de publicar" };
   const incomplete = full.slides.filter((s) => !s.copy.trim() || s.assets.length === 0).map((s) => s.position);
   if (incomplete.length) return { error: `Estos slides necesitan copy y arte antes de publicar: ${incomplete.join(", ")}` };
+  const noKind = full.slides.filter((s) => !s.kind).map((s) => s.position);
+  if (noKind.length) return { error: `Elige el tipo (BANNER, VIDEO, CARRUSEL o AD) en estos slides antes de publicar: ${noKind.join(", ")}` };
   if (!full.respondBy) return { error: "Indica la fecha límite de respuesta del cliente" };
 
   await prisma.review.update({ where: { id: reviewId }, data: { status: "PUBLICADA", publishedAt: new Date(), round: 1 } });
@@ -311,7 +323,7 @@ export async function approveSlide(slideId: string): Promise<Res & { allApproved
 export async function sendAdjustments(reviewId: string): Promise<Res & { count?: number }> {
   const { user, review } = await clientReview(reviewId);
   if (review.status !== "PUBLICADA") return { error: "Esta revisión ya no admite cambios" };
-  const slides = await prisma.reviewSlide.findMany({ where: { reviewId }, orderBy: { position: "asc" }, select: { id: true, position: true, status: true } });
+  const slides = await prisma.reviewSlide.findMany({ where: { reviewId }, orderBy: { position: "asc" }, select: { id: true, position: true, status: true, title: true } });
   const drafts = await prisma.reviewComment.findMany({ where: { reviewId, sentAt: null } });
   if (drafts.length === 0) return { error: "No tienes comentarios para enviar. Si todo está bien, aprueba los slides." };
   const withDraft = new Set(drafts.map((d) => d.slideId));
@@ -346,10 +358,11 @@ const snippet = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).t
 async function createAdjustmentTask(
   review: ReviewRow,
   comments: { id: string; slideId: string; target: "COPY" | "ART"; body: string; imageNo: number | null; videoSec: number | null; createdAt: Date }[],
-  slides: { id: string; position: number }[],
+  slides: { id: string; position: number; title?: string | null }[],
 ): Promise<string[]> {
   const area = await prisma.area.upsert({ where: { name: "REDES Y ADS" }, create: { name: "REDES Y ADS", color: "#AF52DE" }, update: {} });
   const pos = new Map(slides.map((s) => [s.id, s.position]));
+  const titles = new Map(slides.map((s) => [s.id, s.title]));
   const sorted = [...comments].sort((a, b) => (pos.get(a.slideId)! - pos.get(b.slideId)!) || (a.target === b.target ? a.createdAt.getTime() - b.createdAt.getTime() : a.target === "COPY" ? -1 : 1));
   const ownerOf = (t: "COPY" | "ART") => (t === "COPY" ? review.copyUserId : review.artUserId);
   const owners = [...new Set(sorted.map((c) => ownerOf(c.target)).filter((x): x is string => !!x))];
@@ -366,7 +379,7 @@ async function createAdjustmentTask(
       assignees: { create: assignees.map((userId) => ({ userId })) },
       subtasks: {
         create: sorted.map((c, i) => ({
-          title: `Slide ${pos.get(c.slideId)} · ${c.target === "COPY" ? "COPY" : "ARTE"}${c.imageNo ? ` (imagen ${c.imageNo})` : ""}${c.videoSec != null ? ` (video ${fmtSec(c.videoSec)})` : ""} — ${snippet(c.body.replace(/\s+/g, " "), 120)}`.slice(0, 191),
+          title: `${slideName(pos.get(c.slideId)!, titles.get(c.slideId))} · ${c.target === "COPY" ? "COPY" : "ARTE"}${c.imageNo ? ` (imagen ${c.imageNo})` : ""}${c.videoSec != null ? ` (video ${fmtSec(c.videoSec)})` : ""} — ${snippet(c.body.replace(/\s+/g, " "), 120)}`.slice(0, 191),
           assigneeId: ownerOf(c.target), position: i, reviewSlideId: c.slideId, reviewCommentId: c.id,
         })),
       },
@@ -393,7 +406,7 @@ async function createAdjustmentTask(
 
 /** Ajustes de la ronda en curso: cuántos faltan por hacer y qué tipo son. */
 async function roundStatus(review: { id: string; round: number }) {
-  const list = await prisma.reviewComment.findMany({ where: { reviewId: review.id, round: review.round, sentAt: { not: null } }, include: { slide: { select: { position: true } } }, orderBy: { createdAt: "asc" } });
+  const list = await prisma.reviewComment.findMany({ where: { reviewId: review.id, round: review.round, sentAt: { not: null } }, include: { slide: { select: { position: true, title: true } } }, orderBy: { createdAt: "asc" } });
   return { list, pending: list.filter((c) => !c.resolvedAt).length, copy: list.some((c) => c.target === "COPY"), art: list.some((c) => c.target === "ART") };
 }
 
@@ -481,7 +494,7 @@ export async function sendToClient(reviewId: string): Promise<Res & { dryRun?: b
     const logo = await readLogo311();
     const mail = reviewAdjustedEmail({
       clientName: full.client.companyName, title: review.title, round: review.round,
-      items: st.list.map((c) => `Slide ${c.slide.position} · ${c.target === "COPY" ? "Copy" : "Arte"}: ${snippet(c.body.replace(/\s+/g, " "), 100)}`),
+      items: st.list.map((c) => `${slideName(c.slide.position, c.slide.title)} · ${c.target === "COPY" ? "Copy" : "Arte"}: ${snippet(c.body.replace(/\s+/g, " "), 100)}`),
       link: `${await getBaseUrl()}/revisiones/${review.id}`, withLogo: !!logo,
     });
     const r = await sendMail({ to: splitEmails(review.notifyEmails), ...mail, inline: logo ? [{ cid: "logo311", content: logo.data, contentType: logo.contentType, filename: `logo.${logo.format}` }] : undefined });

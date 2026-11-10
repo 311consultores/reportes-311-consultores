@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, ChevronDown, FileSignature, Presentation, FileText, Gamepad2, Gauge, KanbanSquare, Megaphone, Menu, Smartphone, StickyNote, Receipt, ScrollText, Settings, Users, UserPlus, Wallet, X,
+  Building2, ChevronDown, FileSignature, HandCoins, Presentation, FileText, Gamepad2, Gauge, KanbanSquare, Megaphone, Menu, Smartphone, StickyNote, Receipt, ScrollText, Settings, Users, UserPlus, Wallet, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
-const ICONS = { baul: StickyNote, app: Smartphone, tareas: KanbanSquare, reportes: FileText, clientes: Building2, registros: UserPlus, facturas: Receipt, finanzas: Wallet, desempeno: Gauge, retas: Gamepad2, meta: Megaphone, documentos: FileSignature, revisiones: Presentation, general: Settings, log: ScrollText, usuarios: Users };
+const ICONS = { baul: StickyNote, app: Smartphone, tareas: KanbanSquare, reportes: FileText, clientes: Building2, registros: UserPlus, facturas: Receipt, finanzas: Wallet, desempeno: Gauge, retas: Gamepad2, meta: Megaphone, documentos: FileSignature, revisiones: Presentation, reembolsos: HandCoins, general: Settings, log: ScrollText, usuarios: Users };
 export type IconName = keyof typeof ICONS;
 
 export type NavItem = { href: string; label: string; icon: IconName; badge?: number };
@@ -82,10 +82,11 @@ export function AppShell({
   if (seenPath !== path) {
     setSeenPath(path);
     setDrawer(false);
-    if (activeGroup) setOpenMap((m) => (m[activeGroup] ? m : { ...m, [activeGroup]: true }));
+    if (activeGroup) setOpenMap(Object.fromEntries(all.map((g) => [g.id, g.id === activeGroup])));
   }
 
-  const toggle = (id: string) => setOpenMap((m) => ({ ...m, [id]: !m[id] }));
+  // Un solo grupo abierto a la vez: al abrir uno, los demás se contraen
+  const toggle = (id: string) => setOpenMap((m) => Object.fromEntries(all.map((g) => [g.id, g.id === id ? !m[id] : false])));
 
   return (
     <div className="flex min-h-screen">

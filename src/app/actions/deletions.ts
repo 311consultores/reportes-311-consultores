@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { deleteObject } from "@/lib/storage";
 import { auditDetails } from "@/lib/consultants";
+import { activateDependents } from "@/lib/task-chain";
 
 type TargetType = "TASK" | "REPORT" | "CLIENT" | "PROJECT" | "INVOICE" | "WORKTASK";
 
@@ -70,8 +71,10 @@ async function performDeletion(type: TargetType, targetId: string, userId: strin
     return true;
   }
   if (type === "WORKTASK") {
-    const t = await prisma.task.findUnique({ where: { id: targetId }, select: { id: true } });
+    const t = await prisma.task.findUnique({ where: { id: targetId }, select: { id: true, title: true } });
     if (!t) return false;
+    // Las tareas encadenadas que la esperaban se activan de inmediato (su plazo cuenta desde ahora) y se avisa
+    await activateDependents(t.id, { actorId: null, reason: "ELIMINADA", prevTitle: t.title });
     await prisma.task.delete({ where: { id: t.id } }); // asignaciones, recursos e historial en cascada
     return true;
   }

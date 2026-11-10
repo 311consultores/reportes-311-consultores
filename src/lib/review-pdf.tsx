@@ -3,7 +3,7 @@ import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@
 import { prisma } from "@/lib/prisma";
 import { getObject } from "@/lib/storage";
 import { readLogo, readLogo311, type LogoImage } from "@/lib/branding";
-import { channelLabel, fmtSec, artKind, ART_KIND_LABEL } from "@/lib/reviews";
+import { channelLabel, fmtSec, artKind, ART_KIND_LABEL, slideName } from "@/lib/reviews";
 
 const ACCENT = "#007AFF";
 const MAX_THUMBS = 4; // imágenes por slide que se incluyen en el PDF
@@ -105,7 +105,7 @@ export async function buildReviewPdf(reviewId: string): Promise<{ buffer: Buffer
             <View style={s.head}>
               <Text style={s.badge}>{sl.position}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.headTitle}>Slide {sl.position} · {channelLabel(sl.channel)}{sl.publishOn ? ` · Publicación ${fmtDay(sl.publishOn)}` : ""}</Text>
+                <Text style={s.headTitle}>{slideName(sl.position, sl.title)}{sl.kind ? ` · ${sl.kind}` : ""} · {channelLabel(sl.channel)}{sl.publishOn ? ` · Publicación ${fmtDay(sl.publishOn)}` : ""}</Text>
                 <Text style={s.headSub}>{ART_KIND_LABEL[sl.kind]} · copy v{sl.copyVersion} · arte v{sl.artVersion}{sl.approvedByName ? ` · aprobado por ${sl.approvedByName}` : ""}</Text>
               </View>
             </View>

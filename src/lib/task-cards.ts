@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { TaskCard } from "@/app/(app)/tareas/task-types";
+import { isWaiting } from "@/lib/task-visibility";
 
 /** Todo lo que se necesita de la base de datos para armar una tarjeta de tarea. */
 export const taskInclude = {
@@ -11,6 +12,8 @@ export const taskInclude = {
   resources: { orderBy: { position: "asc" } },
   events: { orderBy: { createdAt: "desc" }, include: { user: { select: { name: true } } } },
   subtasks: { orderBy: { position: "asc" }, include: { assignee: { select: { name: true } }, doneBy: { select: { name: true } } } },
+  prevTask: { select: { id: true, title: true } },
+  nextTasks: { select: { id: true, title: true, prevTaskId: true, activatedAt: true }, orderBy: { createdAt: "asc" } },
 } satisfies Prisma.TaskInclude;
 
 export type TaskRow = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
@@ -48,5 +51,10 @@ export function toCard(t: TaskRow): TaskCard {
     surpriseOpened: !!t.surpriseOpenedAt,
     acceptNote: accepted?.note ?? null,
     acceptedBy: accepted?.user.name ?? null,
+    waiting: isWaiting(t),
+    prevTask: t.prevTask,
+    waitDays: t.waitDays,
+    waitHours: t.waitHours,
+    nextTasks: t.nextTasks.map((n) => ({ id: n.id, title: n.title, waiting: isWaiting(n) })),
   };
 }

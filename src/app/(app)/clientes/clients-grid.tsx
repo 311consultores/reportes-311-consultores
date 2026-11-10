@@ -8,7 +8,7 @@ import { ClientCard, type CardClient } from "./client-card";
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Cards de clientes con buscador (por nombre, prefijo, correos o proyecto). 1 columna en celular, 2 en tableta y 3 en pantalla grande. */
-export function ClientsGrid({ clients, isAdmin, readOnly = false, initialQuery = "" }: { clients: CardClient[]; isAdmin: boolean; readOnly?: boolean; initialQuery?: string }) {
+export function ClientsGrid({ clients, isAdmin, readOnly = false, initialQuery = "", canReview = false }: { clients: CardClient[]; isAdmin: boolean; readOnly?: boolean; initialQuery?: string; canReview?: boolean }) {
   const [q, setQ] = useState(initialQuery);
   const [creating, setCreating] = useState(false);
   const shown = useMemo(() => {
@@ -33,7 +33,7 @@ export function ClientsGrid({ clients, isAdmin, readOnly = false, initialQuery =
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {shown.map((c) => <ClientCard key={c.id} client={c} isAdmin={isAdmin} readOnly={readOnly} others={clients.filter((o) => o.id !== c.id)} />)}
+        {shown.map((c) => <ClientCard key={c.id} client={c} isAdmin={isAdmin} readOnly={readOnly} canReview={canReview} others={clients.filter((o) => o.id !== c.id)} />)}
       </div>
       {shown.length === 0 && <p className="card meta">{clients.length === 0 ? "Aún no hay clientes." : "No hay clientes que coincidan con la búsqueda."}</p>}
     </div>

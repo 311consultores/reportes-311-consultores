@@ -28,7 +28,21 @@ export const CHANNELS = [
   { value: "FACEBOOK", label: "Facebook" },
   { value: "INSTAGRAM", label: "Instagram" },
 ] as const;
-export const channelLabel = (v: string) => CHANNELS.find((c) => c.value === v)?.label ?? v;
+/** Los canales de un slide se guardan separados por coma: «FACEBOOK,INSTAGRAM». */
+export const channelsOf = (v: string): string[] => v.split(",").map((x) => x.trim()).filter((x) => CHANNELS.some((c) => c.value === x));
+export const channelLabel = (v: string) => channelsOf(v).map((c) => CHANNELS.find((x) => x.value === c)!.label).join(" + ") || v;
+
+/** Tipo de publicación de un slide (etiqueta informativa; no se valida contra el arte). Colores: BANNER verde, VIDEO morado, CARRUSEL naranja y AD azul. */
+export const SLIDE_KINDS = [
+  { value: "BANNER", style: "bg-[#34C759]/15 text-[#248A3D] dark:text-[#30D158]" },
+  { value: "VIDEO", style: "bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]" },
+  { value: "CARRUSEL", style: "bg-[#FF9500]/15 text-[#C93400] dark:text-[#FF9F0A]" },
+  { value: "AD", style: "bg-[#007AFF]/15 text-[#0062CC] dark:text-[#4DA3FF]" },
+] as const;
+export const isSlideKind = (v: unknown): v is (typeof SLIDE_KINDS)[number]["value"] => SLIDE_KINDS.some((k) => k.value === v);
+
+/** Texto para nombrar un slide: «Slide 3» o «Slide 3 · Título». */
+export const slideName = (position: number, title: string | null | undefined) => (title?.trim() ? `Slide ${position} · ${title.trim()}` : `Slide ${position}`);
 
 export const MAX_COPY = 2200; // límite de caracteres de Instagram
 export const MAX_ASSETS = 10; // imágenes de un carrusel

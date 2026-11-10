@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { centsToDecimal, parseMoney } from "@/lib/finance";
 import { normalizePhone } from "@/lib/whatsapp";
 import { parseBirthday, removePhoto, storePhoto } from "@/lib/avatar";
 
@@ -100,6 +101,16 @@ export async function createUser(_p: State, fd: FormData): Promise<State> {
   return { ok: true };
 }
 
+/** Sueldo semanal de nómina: solo el ADMINISTRADOR lo cambia (vacío = no cobra nómina). Si el campo no viene en el formulario, no se toca. */
+function parseWeeklyPay(role: string, fd: FormData): { ok: true; data: { weeklyPay?: string | null } } | { ok: false; error: string } {
+  if (role !== "ADMIN" || !fd.has("weeklyPay")) return { ok: true, data: {} };
+  const raw = String(fd.get("weeklyPay") ?? "").trim();
+  if (!raw) return { ok: true, data: { weeklyPay: null } };
+  const cents = parseMoney(raw);
+  if (cents === null) return { ok: false, error: "El sueldo semanal debe ser un monto mayor a cero (por ejemplo 2300.00) o quedar vacío" };
+  return { ok: true, data: { weeklyPay: centsToDecimal(cents) } };
+}
+
 /** Edición de un usuario TEAM 311 o PROJECT 311: nombre, foto, cumpleaños, proyectos asignados y (opcional) nueva contraseña. */
 export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   const me = await requireUser(["ADMIN", "EDITOR"]);
@@ -125,6 +136,8 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   const ph = parsePhone(fd);
   if (!ph.ok) return { error: ph.error };
 
+  const pay = parseWeeklyPay(me.role, fd);
+  if (!pay.ok) return { error: pay.error };
   // Solo el Administrador cambia el correo
   const email = me.role === "ADMIN" ? d.email : undefined;
   if (email) {
@@ -149,7 +162,7 @@ export async function updateTeamUser(_p: State, fd: FormData): Promise<State> {
   await prisma.$transaction([
     prisma.user.update({
       where: { id: d.id },
-      data: { name: d.name, role: finalRole, ...(email ? { email } : {}), birthday: b.value, phone: ph.value, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
+      data: { name: d.name, role: finalRole, ...(email ? { email } : {}), birthday: b.value, phone: ph.value, ...pay.data, ...(photoUrl ? { photoUrl } : {}), ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}) },
     }),
     // Los proyectos asignados (para reportes) solo aplican al TEAM 311
     ...(finalRole === "TEAM_311"
@@ -192,6 +205,8 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
   const dup = await prisma.user.findUnique({ where: { email: d.email }, select: { id: true } });
   if (dup && dup.id !== d.id) return { error: "Ya existe un usuario con ese correo" };
 
+  const pay = parseWeeklyPay(me.role, fd);
+  if (!pay.ok) return { error: pay.error };
   // Foto y cumpleaños (el Cliente no los tiene)
   let birthday: string | null | undefined;
   let photoUrl: string | undefined;
@@ -213,6 +228,7 @@ export async function updateUser(_p: State, fd: FormData): Promise<State> {
       data: {
         name: d.name, email: d.email, role: d.role,
         ...(birthday !== undefined ? { birthday } : {}),
+        ...(d.role !== "CLIENTE" ? pay.data : {}),
         ...(photoUrl ? { photoUrl } : {}),
         ...(d.password ? { passwordHash: await bcrypt.hash(d.password, 12) } : {}),
       },

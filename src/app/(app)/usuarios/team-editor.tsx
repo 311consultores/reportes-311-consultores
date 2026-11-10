@@ -9,7 +9,7 @@ import { PhotoField } from "@/components/photo-field";
 import { AssignmentsField, type AssignClient } from "./assignments-field";
 import { BirthdayField } from "./birthday-field";
 
-export type TeamUser = { id: string; name: string; photoUrl: string | null; birthday: string | null; phone?: string | null; projectIds: string[]; role?: string; areaIds?: string[] };
+export type TeamUser = { id: string; name: string; photoUrl: string | null; birthday: string | null; phone?: string | null; weeklyPay?: string | null; projectIds: string[]; role?: string; areaIds?: string[] };
 export type AreaChoice = { id: string; name: string; color: string; active: boolean };
 
 /** Edición de un usuario TEAM 311 o PROJECT 311: nombre, foto, cumpleaños, proyectos asignados y nueva contraseña (opcional). */
@@ -42,6 +42,7 @@ export function TeamEditor({ user, assign, email, roleLabel = "TEAM 311", areas 
             <div><label className="label">Foto de perfil</label><PhotoField name="photo" userId={user.id} photoKey={user.photoUrl} current={user.name} /></div>
             <div><label className="label">Fecha de cumpleaños</label><BirthdayField value={user.birthday} /></div>
             <div><label className="label">Teléfono / WhatsApp (opcional)</label><input name="phone" type="tel" inputMode="tel" maxLength={20} defaultValue={user.phone ?? ""} placeholder="10 dígitos" className="input" /></div>
+            {email !== undefined && <div><label className="label">Sueldo semanal (nómina)</label><input name="weeklyPay" inputMode="decimal" defaultValue={user.weeklyPay ?? ""} placeholder="Vacío = no cobra nómina" className="input" /></div>}
           </div>
           {isTeam && areas.length > 0 && (
             <div>
